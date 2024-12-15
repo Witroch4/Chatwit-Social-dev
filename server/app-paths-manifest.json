@@ -1,0 +1,7 @@
+{
+  "/api/instagram/status/route": "app/api/instagram/status/route.js",
+  "/(site)/page": "app/(site)/page.js",
+  "/api/auth/[...nextauth]/route": "app/api/auth/[...nextauth]/route.js",
+  "/auth/instagram/callback/route": "app/auth/instagram/callback/route.js",
+  "/favicon.ico/route": "app/favicon.ico/route.js"
+}

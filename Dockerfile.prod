@@ -1,0 +1,34 @@
+# Dockerfile.prod
+#docker-compose -f docker-compose-prod.yml up --build -d
+# Etapa de build
+FROM node:22-alpine as builder
+
+WORKDIR /app
+
+# Instala dependências
+COPY package*.json ./
+RUN npm install --production=false
+
+# Copia o código-fonte
+COPY . .
+
+# Build da aplicação (ajuste conforme seus scripts de build)
+RUN npm run build
+
+# Etapa final: apenas artefatos necessários
+FROM node:22-alpine
+
+WORKDIR /app
+
+# Copia apenas o que é necessário para rodar em produção
+COPY --from=builder /app/package*.json ./
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/.next ./.next
+COPY --from=builder /app/public ./public
+# Se você usar /dist ou outros artefatos, ajuste conforme necessário.
+
+ENV NODE_ENV=production
+
+EXPOSE 3000
+
+CMD ["npm", "run", "start"]

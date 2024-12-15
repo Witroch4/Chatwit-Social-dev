@@ -1,0 +1,28 @@
+version: "3.9"
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    env_file:
+      - .env
+    container_name: chatwit_dev
+    volumes:
+      - ./witdev.com.br+5.pem:/etc/ssl/certs/witdev.com.br+5.pem  # Caminho relativo para o certificado
+      - ./witdev.com.br+5-key.pem:/etc/ssl/private/witdev.com.br+5-key.pem  # Caminho relativo para a chave
+      - /src/node_modules
+    ports:
+      - "3000:3000"
+      - "443:443" # Adicione a porta 443 para HTTPS
+    environment:
+      NODE_ENV: development
+    command: npm run dev
+    develop:
+      watch:
+        - action: sync
+          path: .
+          target: /src
+          ignore:
+            - node_modules/
+        - action: rebuild
+          path: package.json
