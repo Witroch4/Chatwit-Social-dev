@@ -19,6 +19,9 @@ import Link from "next/link";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent } from "@/components/ui/dropdown-menu";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
+import { DotLottieReact } from "@lottiefiles/dotlottie-react";
+import { useTheme } from "next-themes"; // Hook para detectar o tema ativo
+
 
 export function AppSidebar() {
   const { data: session } = useSession();
@@ -26,19 +29,15 @@ export function AppSidebar() {
 
   const [instagramConnected, setInstagramConnected] = useState(false);
 
-  useEffect(() => {
-    // Chama a rota para verificar status do Instagram
-    fetch('/api/instagram/status')
-      .then(res => res.json())
-      .then(data => {
-        setInstagramConnected(data.connected);
-      })
-      .catch(() => setInstagramConnected(false));
-  }, []);
 
 // URL de autorização com enable_fb_login=0 e force_authentication=1
 const instagramAuthUrl = `https://www.instagram.com/oauth/authorize?enable_fb_login=0&force_authentication=1&client_id=${process.env.NEXT_PUBLIC_INSTAGRAM_CLIENT_ID}&redirect_uri=${encodeURIComponent(process.env.NEXT_PUBLIC_INSTAGRAM_REDIRECT_URI)}&response_type=code&scope=instagram_business_basic,instagram_business_manage_messages,instagram_business_manage_comments,instagram_business_content_publish`;
-
+const isInstagramConnected = !!session?.user?.instagramAccessToken;
+const { theme } = useTheme();
+const instagramAnimationSrc =
+theme === "dark"
+  ? "/animations/logodarckInstagram.lottie"
+  : "/animations/logolightInstagram.lottie";
 
   return (
     <Sidebar collapsible="icon" side="left" variant="sidebar">
@@ -47,30 +46,73 @@ const instagramAuthUrl = `https://www.instagram.com/oauth/authorize?enable_fb_lo
         <Collapsible defaultOpen={false} className="group/collapsible">
           <SidebarGroup>
             <CollapsibleTrigger className="flex items-center gap-2">
-              Social Login
-              <ChevronDown className="ml-auto transition-transform group-data-[state=open]/collapsible:rotate-180" />
-            </CollapsibleTrigger>
+                Social Login
+                {isInstagramConnected && (
+                  <DotLottieReact
+                    src={instagramAnimationSrc}
+                    autoplay
+                    loop={false} // Remove o loop da animação
+                    style={{
+                      width: "16px",
+                      height: "16px",
+                      marginLeft: "0.5rem",
+                    }}
+                    aria-label="Instagram conectado" // Acessibilidade
+                  />
+                )}
+        <ChevronDown className="ml-auto transition-transform group-data-[state=open]/collapsible:rotate-180" />
+      </CollapsibleTrigger>
             <CollapsibleContent>
               <SidebarGroupContent>
                 <div className="p-4">
-                  <a className="text-l font-bold mb-2">
-                    Para continuar, faça login com sua rede social e autorize o acesso.
-                  </a>
-                  <SidebarMenu>
-                    <SidebarMenuItem>
-                      <SidebarMenuButton asChild>
-                        <a href={instagramAuthUrl} className="flex items-center gap-2">
-                          <Instagram className={`mr-2 ${instagramConnected ? "text-pink-500" : "text-current"}`} />
-                          <span>Login com Instagram</span>
-                        </a>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  </SidebarMenu>
+                  {/* Exibe a mensagem de instrução e o link de login apenas se o Instagram não estiver conectado */}
+                  {!isInstagramConnected && (
+                    <>
+                      <p className="text-lg font-bold mb-2">
+                        Para continuar, faça login com sua rede social e autorize o acesso.
+                      </p>
+                      <SidebarMenu>
+                        <SidebarMenuItem>
+                          <SidebarMenuButton asChild>
+                            <a
+                              href={instagramAuthUrl}
+                              className="flex items-center gap-2"
+                            >
+                              <Instagram
+                                className={`mr-2 ${
+                                  isInstagramConnected
+                                    ? "text-pink-500"
+                                    : "text-current"
+                                }`}
+                              />
+                              <span>Login com Instagram</span>
+                            </a>
+                          </SidebarMenuButton>
+                        </SidebarMenuItem>
+                      </SidebarMenu>
+                    </>
+                  )}
+
+                  {/* Exibe a animação maior e a mensagem de confirmação apenas se o Instagram estiver conectado */}
+                  {isInstagramConnected && (
+                    <div className="mt-4 flex flex-col items-center">
+                      <DotLottieReact
+                        src={instagramAnimationSrc}
+                        autoplay
+                        style={{ width: "60px", height: "60px" }}
+                      />
+                      <p className="text-center mt-2">
+                        Instagram conectado e pronto para chamadas API.
+                      </p>
+                    </div>
+                  )}
                 </div>
               </SidebarGroupContent>
             </CollapsibleContent>
           </SidebarGroup>
         </Collapsible>
+
+
 
         {/* Contatos */}
         <SidebarGroup>
