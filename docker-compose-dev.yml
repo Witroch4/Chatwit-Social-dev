@@ -1,3 +1,4 @@
+#docker compose -f docker-compose-dev.yml up --build --watch
 version: "3.9"
 services:
   app:

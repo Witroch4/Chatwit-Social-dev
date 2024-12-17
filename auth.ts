@@ -28,6 +28,7 @@ export const {
       }
 
       if (user.email) {
+        console.log("Requisição Prisma: Buscando usuário por email durante sign-in");
         const registeredUser = await findUserbyEmail(user?.email);
         if (!registeredUser?.emailVerified) return false;
       }
@@ -36,59 +37,51 @@ export const {
     },
 
     async jwt({ token, user, trigger, session }) {
-      console.log("Início do callback JWT:");
-      console.log("Trigger:", trigger);
-      console.log("Token antes de atualizações:", token);
+      console.log("Início do callback JWT:", { trigger });
 
-      // Atualizações no caso de trigger "update"
-      if (trigger && trigger === "update" && session) {
-        console.log("Atualizando token com base na sessão:");
-        console.log("Sessão recebida:", session);
+      // Atualização do token quando há um gatilho específico (ex.: atualização de perfil)
+      if (trigger === "update" && session) {
+        console.log("Atualizando token com base na sessão");
+
         token.isTwoFactorEnabled = session.user.isTwoFactorEnabled;
-        console.log("Token atualizado (update):", token);
+        token.instagramAccessToken = session.user.instagramAccessToken;
+        token.instagramExpiresAt = session.user.instagramExpiresAt;
+
         return token;
       }
 
-      // Adicionar informações do usuário ao token
+      // Caso seja o primeiro login (user está definido)
       if (user) {
         console.log("Usuário detectado durante sign-in:", user);
 
-        if (user.id) {
-          const isTwoFactorEnabled = await isTwoFactorAutenticationEnabled(user.id);
-          console.log("Two Factor Authentication habilitado:", isTwoFactorEnabled);
-          token.isTwoFactorEnabled = isTwoFactorEnabled;
-        }
+        // Requisição para verificar se a autenticação de dois fatores está habilitada
+        console.log("Requisição Prisma: Buscando status de autenticação de dois fatores");
+        const isTwoFactorEnabled = await isTwoFactorAutenticationEnabled(user.id);
+        token.isTwoFactorEnabled = isTwoFactorEnabled;
 
-        if (token.sub) {
-          console.log("Buscando conta do Instagram para userId:", token.sub);
-          try {
-            const instagramAccount = await prisma.account.findFirst({
-              where: {
-                userId: token.sub as string,
-                provider: "instagram",
-              },
-            });
+        // Requisição para buscar a conta do Instagram
+        console.log("Requisição Prisma: Buscando conta do Instagram");
+        const instagramAccount = await prisma.account.findFirst({
+          where: {
+            userId: user.id, // user.id ou token.sub (ambos referem-se ao mesmo usuário)
+            provider: "instagram",
+          },
+        });
 
-            if (instagramAccount) {
-              console.log("Conta do Instagram encontrada:", instagramAccount);
-              token.instagramAccessToken = instagramAccount.access_token ?? undefined;
-              token.instagramExpiresAt = instagramAccount.expires_at ?? undefined;
-            } else {
-              console.log("Nenhuma conta do Instagram encontrada.");
-              token.instagramAccessToken = undefined;
-              token.instagramExpiresAt = undefined;
-            }
-          } catch (error) {
-            console.error("Erro ao buscar token do Instagram:", error);
-            token.instagramAccessToken = undefined;
-            token.instagramExpiresAt = undefined;
-          }
+        if (instagramAccount) {
+          console.log("Conta do Instagram encontrada:", instagramAccount);
+          token.instagramAccessToken = instagramAccount.access_token ?? undefined;
+          token.instagramExpiresAt = instagramAccount.expires_at ?? undefined;
+        } else {
+          console.log("Nenhuma conta do Instagram encontrada.");
+          token.instagramAccessToken = undefined;
+          token.instagramExpiresAt = undefined;
         }
 
         token.role = UserRole.DEFAULT;
-        console.log("Token atualizado após processamento do usuário:", token);
       }
 
+      // Caso não seja sign-in nem update, não faz nenhuma consulta ao banco
       console.log("Token final antes de retornar:", token);
       return token;
     },

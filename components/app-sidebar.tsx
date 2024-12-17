@@ -1,9 +1,19 @@
 "use client";
 
 import { useSession } from "next-auth/react";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import LoginBadge from "@/components/auth/login-badge";
-import { ChevronDown, CircleUser, User2, Instagram, Users, Zap, Calendar, MessageCircle, HelpCircle } from "lucide-react";
+import {
+  ChevronDown,
+  CircleUser,
+  User2,
+  Instagram,
+  Users,
+  Zap,
+  Calendar,
+  MessageCircle,
+  HelpCircle,
+} from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -17,77 +27,90 @@ import {
 } from "@/components/ui/sidebar";
 import Link from "next/link";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent } from "@/components/ui/dropdown-menu";
-import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+} from "@/components/ui/dropdown-menu";
+import {
+  Collapsible,
+  CollapsibleTrigger,
+  CollapsibleContent,
+} from "@/components/ui/collapsible";
 import { DotLottieReact } from "@lottiefiles/dotlottie-react";
-import { useTheme } from "next-themes"; // Hook para detectar o tema ativo
-import { SidebarTrigger } from "@/components/ui/sidebar"; // Certifique-se de importar corretamente
-import Image from 'next/image'; // Importa o componente Image
+import { useTheme } from "next-themes";
+import Image from "next/image";
 
 export function AppSidebar() {
   const { data: session } = useSession();
-  const { state } = useSidebar(); // Certifique-se de usar o hook useSidebar aqui
-  const {toggleSidebar} = useSidebar();
-  const [instagramConnected, setInstagramConnected] = useState(false);
+  const { state } = useSidebar(); // Hook para saber se a sidebar está "collapsed" ou "open"
+  const { toggleSidebar } = useSidebar();
 
+  // URL de autorização com enable_fb_login=0 e force_authentication=1
+  const instagramAuthUrl = `https://www.instagram.com/oauth/authorize?enable_fb_login=0&force_authentication=1&client_id=${process.env.NEXT_PUBLIC_INSTAGRAM_CLIENT_ID}&redirect_uri=${encodeURIComponent(
+    process.env.NEXT_PUBLIC_INSTAGRAM_REDIRECT_URI!
+  )}&response_type=code&scope=instagram_business_basic,instagram_business_manage_messages,instagram_business_manage_comments,instagram_business_content_publish`;
 
-// URL de autorização com enable_fb_login=0 e force_authentication=1
-const instagramAuthUrl = `https://www.instagram.com/oauth/authorize?enable_fb_login=0&force_authentication=1&client_id=${process.env.NEXT_PUBLIC_INSTAGRAM_CLIENT_ID}&redirect_uri=${encodeURIComponent(process.env.NEXT_PUBLIC_INSTAGRAM_REDIRECT_URI)}&response_type=code&scope=instagram_business_basic,instagram_business_manage_messages,instagram_business_manage_comments,instagram_business_content_publish`;
-const isInstagramConnected = !!session?.user?.instagramAccessToken;
-const { theme } = useTheme();
-const instagramAnimationSrc =
-theme === "dark"
-  ? "/animations/logodarckInstagram.lottie"
-  : "/animations/logolightInstagram.lottie";
+  const isInstagramConnected = !!session?.user?.instagramAccessToken;
+  const { theme } = useTheme();
+  const instagramAnimationSrc =
+    theme === "dark"
+      ? "/animations/logodarckInstagram.lottie"
+      : "/animations/logolightInstagram.lottie";
 
   return (
     <Sidebar collapsible="icon" side="left" variant="sidebar">
-  <SidebarContent>
-    {/* Grupo: Social Login */}
-    <Collapsible defaultOpen={false} className="group/collapsible">
-      <SidebarGroup>
-        {/* Contêiner para alinhar o CollapsibleTrigger e o SidebarTrigger */}
-                  <div className="flex items-center justify-between p-2 relative">
-            <CollapsibleTrigger className="flex items-center gap-2 cursor-pointer">
-              Social Login
-              {isInstagramConnected && (
-                <DotLottieReact
-                  src={instagramAnimationSrc}
-                  autoplay
-                  loop={false}
-                  style={{
-                    width: "16px",
-                    height: "16px",
-                    marginLeft: "0.5rem",
-                  }}
-                  aria-label="Instagram conectado"
+      <SidebarContent>
+        {/* Grupo: Social Login */}
+        <Collapsible defaultOpen={false} className="group/collapsible">
+          <SidebarGroup>
+            {/* Cabeçalho do grupo (logo + texto "Social Login" + animação do Instagram) */}
+            <div className="flex items-center justify-between p-2 relative">
+              <CollapsibleTrigger className="flex items-center gap-2 cursor-pointer">
+                {/* Ícone (W.svg) fica sempre visível */}
+                <Image
+                  src="/W.svg"
+                  alt="Logo Social Login"
+                  width={20}
+                  height={20}
                 />
-              )}
-              <ChevronDown className="ml-auto transition-transform group-data-[state=open]/collapsible:rotate-180" />
-            </CollapsibleTrigger>
 
-            {/* Botão separado para togglar o Sidebar */}
+                {/* SOMENTE mostra o texto "Social Login" se a sidebar NÃO estiver colapsada */}
+                {state !== "collapsed" && ( // <-- alteração
+                  <span>Social Login</span>
+                )}
 
+                {isInstagramConnected && (
+                  <DotLottieReact
+                    src={instagramAnimationSrc}
+                    autoplay
+                    loop={false}
+                    style={{
+                      width: "16px",
+                      height: "16px",
+                      marginLeft: "0.5rem",
+                    }}
+                    aria-label="Instagram conectado"
+                  />
+                )}
+                <ChevronDown className="ml-auto transition-transform group-data-[state=open]/collapsible:rotate-180" />
+              </CollapsibleTrigger>
+            </div>
 
-          </div>
-
-
-        <CollapsibleContent>
-          <SidebarGroupContent>
-            <div className="p-4">
-              {/* Conteúdo da seção colapsável */}
-              {!isInstagramConnected && (
-                <>
-                  <p className="text-lg font-bold mb-2">
-                    Para continuar, faça login com sua rede social e autorize o acesso.
-                  </p>
+            {/* Conteúdo colapsável (abre quando clica) */}
+            <CollapsibleContent>
+              <SidebarGroupContent>
+                <div className="p-4">
+                  {/* Se não está conectado, mostra botão para login Instagram */}
+                  {!isInstagramConnected && (
+                    <>
+                      <p className="text-lg font-bold mb-2">
+                        Para continuar, faça login com sua rede social e autorize o acesso.
+                      </p>
                       <SidebarMenu>
                         <SidebarMenuItem>
                           <SidebarMenuButton asChild>
-                            <a
-                              href={instagramAuthUrl}
-                              className="flex items-center gap-2"
-                            >
+                            <a href={instagramAuthUrl} className="flex items-center gap-2">
                               <Instagram
                                 className={`mr-2 ${
                                   isInstagramConnected
@@ -103,7 +126,7 @@ theme === "dark"
                     </>
                   )}
 
-                  {/* Exibe a animação maior e a mensagem de confirmação apenas se o Instagram estiver conectado */}
+                  {/* Se já está conectado ao Instagram, mostra animação & mensagem */}
                   {isInstagramConnected && (
                     <div className="mt-4 flex flex-col items-center">
                       <DotLottieReact
@@ -122,18 +145,16 @@ theme === "dark"
           </SidebarGroup>
         </Collapsible>
 
-
-
         {/* Contatos */}
         <SidebarGroup>
           <SidebarGroupContent>
             <SidebarMenu>
               <SidebarMenuItem>
                 <SidebarMenuButton asChild>
-                  <a href="/contatos">
+                  <Link href="/contatos">
                     <Users className="mr-2" />
                     <span>Contatos</span>
-                  </a>
+                  </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             </SidebarMenu>
@@ -146,10 +167,10 @@ theme === "dark"
             <SidebarMenu>
               <SidebarMenuItem>
                 <SidebarMenuButton asChild>
-                  <a href="/dashboard/agendamento">
+                  <Link href="/dashboard/agendamento">
                     <Zap className="mr-2" />
                     <span>Agendamento de Postagens</span>
-                  </a>
+                  </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             </SidebarMenu>
@@ -162,10 +183,10 @@ theme === "dark"
             <SidebarMenu>
               <SidebarMenuItem>
                 <SidebarMenuButton asChild>
-                  <a href="/calendario">
+                  <Link href="/calendario">
                     <Calendar className="mr-2" />
                     <span>Calendários</span>
-                  </a>
+                  </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             </SidebarMenu>
@@ -178,10 +199,10 @@ theme === "dark"
             <SidebarMenu>
               <SidebarMenuItem>
                 <SidebarMenuButton asChild>
-                  <a href="/automacao">
+                  <Link href="/automacao">
                     <Zap className="mr-2" />
                     <span>Automação</span>
-                  </a>
+                  </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             </SidebarMenu>
@@ -194,10 +215,10 @@ theme === "dark"
             <SidebarMenu>
               <SidebarMenuItem>
                 <SidebarMenuButton asChild>
-                  <a href="/user">
+                  <Link href="/user">
                     <MessageCircle className="mr-2" />
                     <span>Chat ao Vivos</span>
-                  </a>
+                  </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             </SidebarMenu>
@@ -210,10 +231,10 @@ theme === "dark"
             <SidebarMenu>
               <SidebarMenuItem>
                 <SidebarMenuButton asChild>
-                  <a href="/docs">
+                  <Link href="/docs">
                     <HelpCircle className="mr-2" />
                     <span>Ajuda (Docs)</span>
-                  </a>
+                  </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             </SidebarMenu>
@@ -240,8 +261,11 @@ theme === "dark"
                 ) : (
                   <User2 className="h-6 w-6" />
                 )}
+                {/* Ocultar o nome do usuário se a sidebar estiver colapsada */}
                 {state !== "collapsed" && (
-                  <span className="ml-2">{session?.user?.name ?? "Minha Conta"}</span>
+                  <span className="ml-2">
+                    {session?.user?.name ?? "Minha Conta"}
+                  </span>
                 )}
               </button>
             </DropdownMenuTrigger>

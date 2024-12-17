@@ -1,4 +1,4 @@
-//components/auth/login-badge.tsx
+// components/auth/login-badge.tsx
 
 "use client";
 
@@ -9,7 +9,7 @@ import Link from "next/link";
 import { CircleUser, LogOut } from "lucide-react";
 import { LineMdCogLoop } from "../icons";
 import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
-import Lottie from "lottie-react";
+import dynamic from "next/dynamic"; // Importação dinâmica
 import coinsLightAnimation from "@/public/animations/coins-light.json";
 import coinsDarkAnimation from "@/public/animations/coins-dark.json";
 import LoginButton from "./login-button";
@@ -20,12 +20,12 @@ type Props = {
   user?: User;
 };
 
+// Importa o Lottie dinamicamente com SSR desativado
+const Lottie = dynamic(() => import("lottie-react"), { ssr: false });
+
 const LoginBadge = ({ user }: Props) => {
   const { theme } = useTheme();
   const coinsAnimation = theme === "dark" ? coinsDarkAnimation : coinsLightAnimation;
-
-  // Verificar se está no client para renderizar o Lottie
-  const isClient = typeof window !== 'undefined';
 
   if (!user) {
     return (
@@ -56,7 +56,8 @@ const LoginBadge = ({ user }: Props) => {
         </Link>
         <Link href="/cobranca" className="hover:underline flex items-center gap-2">
           <div className="w-6 h-6">
-            {isClient && <Lottie animationData={coinsAnimation} loop={true} />}
+            {/* O Lottie já é importado dinamicamente, não precisa mais verificar isClient */}
+            <Lottie animationData={coinsAnimation} loop={true} />
           </div>
           Cobrança
         </Link>
