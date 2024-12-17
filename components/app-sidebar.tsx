@@ -21,12 +21,13 @@ import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent } from "@/compon
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import { DotLottieReact } from "@lottiefiles/dotlottie-react";
 import { useTheme } from "next-themes"; // Hook para detectar o tema ativo
+import { SidebarTrigger } from "@/components/ui/sidebar"; // Certifique-se de importar corretamente
 
 
 export function AppSidebar() {
   const { data: session } = useSession();
   const { state } = useSidebar(); // Certifique-se de usar o hook useSidebar aqui
-
+  const {toggleSidebar} = useSidebar();
   const [instagramConnected, setInstagramConnected] = useState(false);
 
 
@@ -41,36 +42,45 @@ theme === "dark"
 
   return (
     <Sidebar collapsible="icon" side="left" variant="sidebar">
-      <SidebarContent>
-        {/* Grupo: Social Login */}
-        <Collapsible defaultOpen={false} className="group/collapsible">
-          <SidebarGroup>
-            <CollapsibleTrigger className="flex items-center gap-2">
-                Social Login
-                {isInstagramConnected && (
-                  <DotLottieReact
-                    src={instagramAnimationSrc}
-                    autoplay
-                    loop={false} // Remove o loop da animação
-                    style={{
-                      width: "16px",
-                      height: "16px",
-                      marginLeft: "0.5rem",
-                    }}
-                    aria-label="Instagram conectado" // Acessibilidade
-                  />
-                )}
-        <ChevronDown className="ml-auto transition-transform group-data-[state=open]/collapsible:rotate-180" />
-      </CollapsibleTrigger>
-            <CollapsibleContent>
-              <SidebarGroupContent>
-                <div className="p-4">
-                  {/* Exibe a mensagem de instrução e o link de login apenas se o Instagram não estiver conectado */}
-                  {!isInstagramConnected && (
-                    <>
-                      <p className="text-lg font-bold mb-2">
-                        Para continuar, faça login com sua rede social e autorize o acesso.
-                      </p>
+  <SidebarContent>
+    {/* Grupo: Social Login */}
+    <Collapsible defaultOpen={false} className="group/collapsible">
+      <SidebarGroup>
+        {/* Contêiner para alinhar o CollapsibleTrigger e o SidebarTrigger */}
+                  <div className="flex items-center justify-between p-2 relative">
+            <CollapsibleTrigger className="flex items-center gap-2 cursor-pointer">
+              Social Login
+              {isInstagramConnected && (
+                <DotLottieReact
+                  src={instagramAnimationSrc}
+                  autoplay
+                  loop={false}
+                  style={{
+                    width: "16px",
+                    height: "16px",
+                    marginLeft: "0.5rem",
+                  }}
+                  aria-label="Instagram conectado"
+                />
+              )}
+              <ChevronDown className="ml-auto transition-transform group-data-[state=open]/collapsible:rotate-180" />
+            </CollapsibleTrigger>
+
+            {/* Botão separado para togglar o Sidebar */}
+
+            
+          </div>
+
+
+        <CollapsibleContent>
+          <SidebarGroupContent>
+            <div className="p-4">
+              {/* Conteúdo da seção colapsável */}
+              {!isInstagramConnected && (
+                <>
+                  <p className="text-lg font-bold mb-2">
+                    Para continuar, faça login com sua rede social e autorize o acesso.
+                  </p>
                       <SidebarMenu>
                         <SidebarMenuItem>
                           <SidebarMenuButton asChild>
@@ -154,7 +164,7 @@ theme === "dark"
                 <SidebarMenuButton asChild>
                   <a href="/calendario">
                     <Calendar className="mr-2" />
-                    <span>Calendário</span>
+                    <span>Calendários</span>
                   </a>
                 </SidebarMenuButton>
               </SidebarMenuItem>

@@ -1,6 +1,11 @@
+/* globals.css */
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Adicione estilos globais adicionais aqui, se necessário */
+
 
 html,
 body,

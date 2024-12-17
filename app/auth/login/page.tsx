@@ -1,11 +1,12 @@
+// app/auth/login/page.tsx
+
+"use client";
+
+import React from "react";
 import LoginForm from "@/components/auth/login-form";
 
-const Login = async () => {
-	return (
-		<div className="flex flex-col w-full min-h-full items-center justify-center">
-			<LoginForm />
-		</div>
-	);
+const Login = () => {
+  return <LoginForm />;
 };
 
 export default Login;

@@ -1,7 +1,7 @@
 "use client";
-
-import { ThemeToggle } from "../theme-toggle";
-import { SidebarTrigger } from "../ui/sidebar";
+// components/navbar.tsx
+import { ThemeToggle } from "./theme-toggle";
+import { SidebarTrigger } from "./ui/sidebar";
 import { useState } from "react";
 import { useSession, signIn } from "next-auth/react";
 import { usePathname } from "next/navigation"; // Importa o hook para verificar a rota
@@ -27,19 +27,7 @@ const Navbar = () => {
         </div>
       )}
 
-      {/* Botão para mudar o tema */}
-      <div className="fixed top-4 right-4 z-50 flex items-center space-x-4">
-        {/* Oculta o botão de inscrever-se na rota /auth/login */}
-        {!session?.user && pathname !== "/auth/login" && (
-          <button
-            onClick={() => signIn()}
-            className="bg-primary text-white px-4 py-2 rounded hover:bg-primary-foreground transition-all"
-          >
-            Inscrever-se
-          </button>
-        )}
-        <ThemeToggle />
-      </div>
+
     </>
   );
 };

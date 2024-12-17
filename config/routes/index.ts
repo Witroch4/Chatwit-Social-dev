@@ -1,4 +1,6 @@
+//config\routes\index.ts
 import type { ConfigRoutes } from "@/types/routes";
+
 
 export const configRoutes: ConfigRoutes = {
 	publicRoutes: [
@@ -16,6 +18,7 @@ export const configRoutes: ConfigRoutes = {
 	protectedRoutes: [
 		"/auth/settings",
 		"/example/multi-step-form/campaign",
+		"/dashboard",
 		// "/example/web-site-builder/campaign-hot-page",
 	],
 };

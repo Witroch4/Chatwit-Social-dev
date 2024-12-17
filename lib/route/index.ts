@@ -14,7 +14,7 @@ import type { NextRequest } from "next/server";
  */
 export const createRouteMatchers = (routes: ConfigRoutes, req: NextRequest) => {
 	const { publicRoutes, protectedRoutes, authRoutes, apiRoutes } = routes;
-	const pathName = req.url.pathname;
+	const pathName = req.nextUrl.pathname;
 
 	// Preprocess route collections into sets
 	const publicRouteSet = new Set(publicRoutes.flat());

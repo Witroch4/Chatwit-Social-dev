@@ -1,9 +1,13 @@
 // middleware.ts
 
-import { auth } from "@/auth"; // Importa a função auth do arquivo de configuração centralizado
+import NextAuth from "next-auth";
+//import { auth } from "@/auth"; // Importa a função auth do arquivo de configuração centralizado
 import { NextResponse } from "next/server";
 import { configRoutes } from "./config/routes";
 import { createRouteMatchers } from "./lib/route";
+import authConfig from "./auth.config";
+
+const { auth } = NextAuth(authConfig);
 
 export default auth(async (req) => {
   const { isPublicRoute, isProtectedRoute, isApiRoute, isAuthRoute } = createRouteMatchers(configRoutes, req);
@@ -11,7 +15,7 @@ export default auth(async (req) => {
 
   // Obtém a sessão do usuário
   const session = await auth(req);
-  const isLoggedIn = !!session;
+  const isLoggedIn = !!req.auth;
 
   console.log(`Public: ${isPublicRoute}`);
   console.log(`Protected: ${isProtectedRoute}`);
@@ -35,7 +39,14 @@ export default auth(async (req) => {
 });
 
 export const config = {
+  /*
+	 * Match all request paths except for the ones starting with:
+	 * - api (API routes)
+	 * - _next/static (static files)
+	 * - _next/image (image optimization files)
+	 * - favicon.ico (favicon file)
+	 */
   matcher: [
-    "/((?!api|_next/static|_next/image|favicon.ico|docs|auth/login).*)", // Removido auth/instagram/callback
+    "/((?!api|_next/static|_next/image|favicon.ico|docs|auth/login).*)",
   ],
 };
