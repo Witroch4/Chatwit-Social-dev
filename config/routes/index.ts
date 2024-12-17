@@ -19,6 +19,7 @@ export const configRoutes: ConfigRoutes = {
 		"/auth/settings",
 		"/example/multi-step-form/campaign",
 		"/dashboard",
+		"/dashboard/*",
 		// "/example/web-site-builder/campaign-hot-page",
 	],
 };

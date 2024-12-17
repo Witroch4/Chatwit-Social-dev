@@ -22,7 +22,7 @@ import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/component
 import { DotLottieReact } from "@lottiefiles/dotlottie-react";
 import { useTheme } from "next-themes"; // Hook para detectar o tema ativo
 import { SidebarTrigger } from "@/components/ui/sidebar"; // Certifique-se de importar corretamente
-
+import Image from 'next/image'; // Importa o componente Image
 
 export function AppSidebar() {
   const { data: session } = useSession();
@@ -68,7 +68,7 @@ theme === "dark"
 
             {/* Botão separado para togglar o Sidebar */}
 
-            
+
           </div>
 
 
@@ -146,7 +146,7 @@ theme === "dark"
             <SidebarMenu>
               <SidebarMenuItem>
                 <SidebarMenuButton asChild>
-                  <a href="/agendamento">
+                  <a href="/dashboard/agendamento">
                     <Zap className="mr-2" />
                     <span>Agendamento de Postagens</span>
                   </a>
