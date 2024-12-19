@@ -1,7 +1,7 @@
 "use client";
 
 import { useSession } from "next-auth/react";
-import { useState } from "react";
+import { Skeleton } from "@/components/ui/skeleton";
 import LoginBadge from "@/components/auth/login-badge";
 import {
   ChevronDown,
@@ -42,9 +42,11 @@ import { useTheme } from "next-themes";
 import Image from "next/image";
 
 export function AppSidebar() {
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
   const { state } = useSidebar(); // Hook para saber se a sidebar está "collapsed" ou "open"
   const { toggleSidebar } = useSidebar();
+
+  const isLoading = status === "loading";
 
   // URL de autorização com enable_fb_login=0 e force_authentication=1
   const instagramAuthUrl = `https://www.instagram.com/oauth/authorize?enable_fb_login=0&force_authentication=1&client_id=${process.env.NEXT_PUBLIC_INSTAGRAM_CLIENT_ID}&redirect_uri=${encodeURIComponent(
@@ -58,6 +60,35 @@ export function AppSidebar() {
       ? "/animations/logodarckInstagram.lottie"
       : "/animations/logolightInstagram.lottie";
 
+  if (isLoading) {
+    return (
+      <Sidebar collapsible="icon" side="left" variant="sidebar">
+        <SidebarContent>
+          {/* Placeholder de carregamento */}
+          <div className="p-4 space-y-6">
+            <Skeleton className="h-[125px] w-full rounded-xl" />
+            <div className="space-y-4">
+              <Skeleton className="h-4 w-3/4" />
+              <Skeleton className="h-4 w-2/3" />
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-1/2" />
+            </div>
+            <div className="space-y-6">
+              <Skeleton className="h-12 w-full rounded-lg" />
+              <Skeleton className="h-12 w-full rounded-lg" />
+              <Skeleton className="h-12 w-full rounded-lg" />
+            </div>
+          </div>
+        </SidebarContent>
+        <SidebarFooter>
+          <div className="p-4">
+            <Skeleton className="h-10 w-full rounded-lg" />
+          </div>
+        </SidebarFooter>
+      </Sidebar>
+    );
+  }
+
   return (
     <Sidebar collapsible="icon" side="left" variant="sidebar">
       <SidebarContent>
@@ -65,22 +96,30 @@ export function AppSidebar() {
         <Collapsible defaultOpen={false} className="group/collapsible">
           <SidebarGroup>
             {/* Cabeçalho do grupo (logo + texto "Social Login" + animação do Instagram) */}
-            <div className="flex items-center justify-between p-2 relative">
-              <CollapsibleTrigger className="flex items-center gap-2 cursor-pointer">
-                {/* Ícone (W.svg) fica sempre visível */}
+            <div
+              className={`flex items-center justify-center p-2 relative ${
+                state === "collapsed" ? "flex-col space-y-1" : "flex-row"
+              }`}
+            >
+              <CollapsibleTrigger className="flex items-center justify-center cursor-pointer">
+                {/* Ícone (W.svg) ajustado com base no estado */}
                 <Image
                   src="/W.svg"
                   alt="Logo Social Login"
-                  width={20}
-                  height={20}
+                  width={state === "collapsed" ? 30 : 20}
+                  height={state === "collapsed" ? 30 : 20}
+                  className={`transition-all duration-300 ${
+                    state === "collapsed" ? "mx-auto" : "mr-2"
+                  }`}
                 />
 
-                {/* SOMENTE mostra o texto "Social Login" se a sidebar NÃO estiver colapsada */}
-                {state !== "collapsed" && ( // <-- alteração
-                  <span>Social Login</span>
+                {/* MOSTRA o texto "Social Login" apenas se a sidebar NÃO estiver colapsada */}
+                {state !== "collapsed" && (
+                  <span className="ml-2">Social Login</span>
                 )}
 
-                {isInstagramConnected && (
+                {/* MOSTRA a animação do Instagram apenas se conectado e NÃO estiver colapsada */}
+                {isInstagramConnected && state !== "collapsed" && (
                   <DotLottieReact
                     src={instagramAnimationSrc}
                     autoplay
@@ -93,7 +132,13 @@ export function AppSidebar() {
                     aria-label="Instagram conectado"
                   />
                 )}
-                <ChevronDown className="ml-auto transition-transform group-data-[state=open]/collapsible:rotate-180" />
+
+                {/* Ícone de Chevron para indicar colapso/expansão */}
+                <ChevronDown
+                  className={`ml-auto transition-transform duration-300 ${
+                    state === "collapsed" ? "hidden" : "inline-block"
+                  } group-data-[state=open]/collapsible:rotate-180`}
+                />
               </CollapsibleTrigger>
             </div>
 
@@ -105,12 +150,16 @@ export function AppSidebar() {
                   {!isInstagramConnected && (
                     <>
                       <p className="text-lg font-bold mb-2">
-                        Para continuar, faça login com sua rede social e autorize o acesso.
+                        Para continuar, faça login com sua rede social e autorize
+                        o acesso.
                       </p>
                       <SidebarMenu>
                         <SidebarMenuItem>
                           <SidebarMenuButton asChild>
-                            <a href={instagramAuthUrl} className="flex items-center gap-2">
+                            <a
+                              href={instagramAuthUrl}
+                              className="flex items-center gap-2"
+                            >
                               <Instagram
                                 className={`mr-2 ${
                                   isInstagramConnected
@@ -151,9 +200,14 @@ export function AppSidebar() {
             <SidebarMenu>
               <SidebarMenuItem>
                 <SidebarMenuButton asChild>
-                  <Link href="/contatos">
+                  <Link
+                    href="/contatos"
+                    className={`flex items-center ${
+                      state === "collapsed" ? "justify-start pl-4" : "justify-start pl-2"
+                    }`}
+                  >
                     <Users className="mr-2" />
-                    <span>Contatos</span>
+                    {state !== "collapsed" && <span>Contatos</span>}
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
@@ -167,9 +221,16 @@ export function AppSidebar() {
             <SidebarMenu>
               <SidebarMenuItem>
                 <SidebarMenuButton asChild>
-                  <Link href="/dashboard/agendamento">
+                  <Link
+                    href="/dashboard/agendamento"
+                    className={`flex items-center ${
+                      state === "collapsed" ? "justify-start pl-4" : "justify-start pl-2"
+                    }`}
+                  >
                     <Zap className="mr-2" />
-                    <span>Agendamento de Postagens</span>
+                    {state !== "collapsed" && (
+                      <span>Agendamento de Postagens</span>
+                    )}
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
@@ -183,9 +244,14 @@ export function AppSidebar() {
             <SidebarMenu>
               <SidebarMenuItem>
                 <SidebarMenuButton asChild>
-                  <Link href="/calendario">
+                  <Link
+                    href="/calendario"
+                    className={`flex items-center ${
+                      state === "collapsed" ? "justify-start pl-4" : "justify-start pl-2"
+                    }`}
+                  >
                     <Calendar className="mr-2" />
-                    <span>Calendários</span>
+                    {state !== "collapsed" && <span>Calendários</span>}
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
@@ -199,9 +265,14 @@ export function AppSidebar() {
             <SidebarMenu>
               <SidebarMenuItem>
                 <SidebarMenuButton asChild>
-                  <Link href="/automacao">
+                  <Link
+                    href="/dashboard/automacao"
+                    className={`flex items-center ${
+                      state === "collapsed" ? "justify-start pl-4" : "justify-start pl-2"
+                    }`}
+                  >
                     <Zap className="mr-2" />
-                    <span>Automação</span>
+                    {state !== "collapsed" && <span>Automação</span>}
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
@@ -215,9 +286,14 @@ export function AppSidebar() {
             <SidebarMenu>
               <SidebarMenuItem>
                 <SidebarMenuButton asChild>
-                  <Link href="/user">
+                  <Link
+                    href="/user"
+                    className={`flex items-center ${
+                      state === "collapsed" ? "justify-start pl-4" : "justify-start pl-2"
+                    }`}
+                  >
                     <MessageCircle className="mr-2" />
-                    <span>Chat ao Vivos</span>
+                    {state !== "collapsed" && <span>Chat ao Vivos</span>}
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
@@ -231,9 +307,14 @@ export function AppSidebar() {
             <SidebarMenu>
               <SidebarMenuItem>
                 <SidebarMenuButton asChild>
-                  <Link href="/docs">
+                  <Link
+                    href="/docs"
+                    className={`flex items-center ${
+                      state === "collapsed" ? "justify-start pl-4" : "justify-start pl-2"
+                    }`}
+                  >
                     <HelpCircle className="mr-2" />
-                    <span>Ajuda (Docs)</span>
+                    {state !== "collapsed" && <span>Ajuda (Docs)</span>}
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
@@ -248,7 +329,9 @@ export function AppSidebar() {
             <DropdownMenuTrigger asChild>
               <button
                 className={`flex items-center w-full px-2 py-1 hover:bg-accent rounded ${
-                  session?.user && state === "collapsed" ? "justify-center" : ""
+                  session?.user && state === "collapsed"
+                    ? "justify-center"
+                    : "justify-start pl-2"
                 }`}
               >
                 {session?.user?.image ? (
