@@ -6,6 +6,7 @@ import { ThemeProvider } from "@/components/providers/theme-provider";
 import { cn } from "@/lib/utils";
 import { SessionProvider } from "next-auth/react";
 import NavbarGeral from "@/components/navbarGeral";
+import { Toaster } from "@/components/ui/toaster"; // Ajuste o caminho conforme necessário
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -31,6 +32,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
             {/* Container principal */}
             <main className="min-h-screen p-4 md:p-8">{children}</main>
+            <Toaster />
           </ThemeProvider>
         </SessionProvider>
       </body>
