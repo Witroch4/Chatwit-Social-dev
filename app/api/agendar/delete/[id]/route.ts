@@ -2,10 +2,11 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import axios from "axios";
+import { cancelAgendamento } from "@/lib/scheduler";
 
-export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(request: NextRequest, context: { params: { id: string } }) {
   try {
-    const rowId = params.id;
+    const { id: rowId } = context.params;
 
     // Obter o userID dos headers para verificar a autorização
     const userID = request.headers.get("user-id");
@@ -28,9 +29,7 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
 
     console.log(`Tentando deletar agendamento com ID: ${rowId} para o usuário: ${userID}`);
 
-    // Opcional: Verificar se o agendamento pertence ao usuário antes de deletar
-    // Isso requer uma requisição GET para obter o agendamento e verificar o userID
-
+    // Obter o agendamento do Baserow para verificar a propriedade
     const getAgendamentoResponse = await axios.get(
       `https://planilhatecnologicabd.witdev.com.br/api/database/rows/table/${BASEROW_TABLE_ID}/${rowId}/?user_field_names=true`,
       {
@@ -42,10 +41,16 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
 
     const agendamento = getAgendamentoResponse.data;
 
+    console.log("Agendamento fetched:", agendamento);
+
+    // Verificar se o agendamento pertence ao usuário
     if (agendamento.userID !== userID) {
       console.error("Usuário não autorizado a deletar este agendamento.");
       return NextResponse.json({ error: "Não autorizado a deletar este agendamento." }, { status: 403 });
     }
+
+    // Cancelar o timer no scheduler
+    cancelAgendamento(rowId);
 
     // Fazer a requisição DELETE ao Baserow
     const response = await axios.delete(

@@ -2,7 +2,7 @@
 
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button";
 import DateSelector from "./DateSelector";
 import TimeSelector from "./TimeSelector";
 import LegendaInput from "./LegendaInput";
-import MediaUploader from "./MediaUploader";
+import FileUpload from "@/components/custom/FileUpload"; // Certifique-se de importar corretamente
 import PostTypeSelector from "./PostTypeSelector";
 import axios from "axios";
 import { useToast } from "@/hooks/use-toast";
@@ -28,7 +28,34 @@ interface Agendamento {
   Data: string;
   Descrição: string;
   Facebook: boolean;
-  midia: Array<{ name: string }>;
+  midia: Array<{
+    name: string;
+    size: number;
+    mime_type: string;
+    is_image: boolean;
+    image_width: number;
+    image_height: number;
+    uploaded_at: string;
+    url: string;
+    thumbnails: {
+      tiny: {
+        url: string;
+        width: number | null;
+        height: number;
+      };
+      small: {
+        url: string;
+        width: number;
+        height: number;
+      };
+      card_cover?: {
+        url: string;
+        width: number;
+        height: number;
+      };
+    };
+    visible_name: string; // Adicionei visible_name
+  }>;
   X: boolean;
   Linkedin: boolean;
   Instagram: boolean;
@@ -78,7 +105,19 @@ const EditAgendamentoDialog: React.FC<EditAgendamentoDialogProps> = ({
   ]);
   const [legenda, setLegenda] = useState<string>(agendamento.Descrição);
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>(
-    agendamento.midia.map((m) => ({ name: m.name }))
+    agendamento.midia.map((m) => ({
+      id: m.name, // Utiliza m.name como ID único
+      name: m.name, // Mantém o nome único para ID
+      original_name: m.visible_name, // Usa visible_name para exibição
+      progress: 100, // Mídias existentes já estão uploadadas
+      url: m.url,
+      thumbnails: m.thumbnails,
+      mime_type: m.mime_type,
+      is_image: m.is_image,
+      image_width: m.image_width,
+      image_height: m.image_height,
+      uploaded_at: m.uploaded_at,
+    }))
   );
   const [uploading, setUploading] = useState<boolean>(false);
 
@@ -143,7 +182,12 @@ const EditAgendamentoDialog: React.FC<EditAgendamentoDialogProps> = ({
       const updatedRow = {
         Data: isoDate,
         Descrição: legenda,
-        midia: midiaNames.map((name) => ({ name })),
+        midia: uploadedFiles
+          .filter((file) => file.url) // Apenas mídias existentes ou que foram uploadadas
+          .map((file) => ({
+            name: file.name, // Usar 'name' para ID único
+            // Adicione outros campos necessários se houver
+          })),
         X: tipos.Aleatorio,
         Instagram: true,
         Stories: tipos.Stories,
@@ -212,7 +256,7 @@ const EditAgendamentoDialog: React.FC<EditAgendamentoDialogProps> = ({
           <LegendaInput legenda={legenda} setLegenda={setLegenda} />
 
           {/* Upload de Mídia */}
-          <MediaUploader
+          <FileUpload
             uploadedFiles={uploadedFiles}
             setUploadedFiles={setUploadedFiles}
           />

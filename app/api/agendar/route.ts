@@ -2,6 +2,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import axios from "axios";
+import { scheduleAgendamento } from "@/lib/scheduler";
 
 export async function POST(request: NextRequest) {
   try {
@@ -20,6 +21,7 @@ export async function POST(request: NextRequest) {
       Diario,
       Randomizar,
       IGtoken,
+      // Certifique-se de incluir todos os campos necessários
     } = body;
 
     if (!userID) {
@@ -42,22 +44,17 @@ export async function POST(request: NextRequest) {
       userID,
       Data,
       Descrição,
-      Facebook,
+      Facebook: false,
       midia: midia || [],
-      X,
-      Linkedin,
+      // Adicione outros campos conforme necessário
       Instagram,
-      Concluido_FB,
-      Concluido_IG,
-      Concluido_LK,
-      Concluido_X,
       Stories,
       Reels,
       PostNormal,
       Diario,
-      contador,
       Randomizar,
       IGtoken,
+      status: "pendente", // Assegure-se de que existe este campo no Baserow
     };
 
     console.log("Payload para Baserow:", newRow);
@@ -74,6 +71,14 @@ export async function POST(request: NextRequest) {
     );
 
     console.log("Resposta do Baserow:", response.data);
+
+    // Agendar o webhook
+    scheduleAgendamento({
+      id: response.data.id,
+      Data: response.data.Data,
+      userID: response.data.userID,
+      // Adicione outros campos se necessário
+    });
 
     return NextResponse.json(response.data, { status: 200 });
   } catch (error: any) {
@@ -109,8 +114,12 @@ export async function GET(request: NextRequest) {
     }
 
     // Fazer a requisição ao Baserow para buscar os agendamentos do usuário
+    const filter = JSON.stringify({
+      userID: { _eq: userID },
+    });
+
     const response = await axios.get(
-      `https://planilhatecnologicabd.witdev.com.br/api/database/rows/table/${BASEROW_TABLE_ID}/?user_field_names=true&filter={"userID":{"_eq":"${userID}"}}`,
+      `https://planilhatecnologicabd.witdev.com.br/api/database/rows/table/${BASEROW_TABLE_ID}/?user_field_names=true&filter=${encodeURIComponent(filter)}`,
       {
         headers: {
           Authorization: `Token ${BASEROW_TOKEN}`,

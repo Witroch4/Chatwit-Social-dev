@@ -6,12 +6,13 @@
       "esnext"
     ],
     "allowJs": true,
+    "allowImportingTsExtensions": true,
     "skipLibCheck": true,
     "strict": true,
-    "noEmit": true,
+    "noEmit": false, // Alterado de true para false para permitir emissão
     "esModuleInterop": true,
-    "module": "esnext",
-    "moduleResolution": "bundler",
+    "module": "commonjs", // Alterado de "esnext" para "commonjs"
+    "moduleResolution": "node", // Alterado de "bundler" para "node"
     "resolveJsonModule": true,
     "isolatedModules": true,
     "jsx": "preserve",
@@ -26,7 +27,8 @@
         "./*"
       ]
     },
-    "target": "ES2017"
+    "target": "ES2017",
+    "outDir": "dist" // Adicionado para definir o diretório de saída
   },
   "include": [
     "next-env.d.ts",
@@ -35,7 +37,8 @@
     ".next/types/**/*.ts",
     "pages/_meta.js",
     "theme.config.jsx",
-    "types/**/*.d.ts" // Inclui tipos personalizados
+    "types/**/*.d.ts",
+    "bootstrap.ts" // Incluído para garantir que o bootstrap.ts seja compilado
   ],
   "exclude": [
     "node_modules"

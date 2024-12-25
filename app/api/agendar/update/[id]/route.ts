@@ -2,6 +2,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import axios from "axios";
+import { scheduleAgendamento } from "@/lib/scheduler";
 
 export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
   try {
@@ -58,6 +59,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
       Randomizar,
       IGtoken,
       userID,
+      // Mantenha ou atualize outros campos conforme necessário
     };
 
     console.log("Payload para Baserow (Atualização):", updatedRow);
@@ -74,6 +76,14 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     );
 
     console.log("Resposta do Baserow (Atualização):", response.data);
+
+    // Reagendar o webhook com os dados atualizados
+    scheduleAgendamento({
+      id: response.data.id,
+      Data: response.data.Data,
+      userID: response.data.userID,
+      // Adicione outros campos se necessário
+    });
 
     return NextResponse.json(response.data, { status: 200 });
   } catch (error: any) {

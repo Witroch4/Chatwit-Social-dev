@@ -25,6 +25,8 @@ import { useToast } from "@/hooks/use-toast";
 import useAgendamentos from "@/hooks/useAgendamentos";
 import { useRouter } from "next/navigation";
 
+import { DotLottieReact } from "@lottiefiles/dotlottie-react";
+
 const AgendamentoDePostagens: React.FC = () => {
   const { data: session, status } = useSession();
   const router = useRouter();
@@ -174,9 +176,6 @@ const AgendamentoDePostagens: React.FC = () => {
     }
   };
 
-  // Função para editar agendamento (usando o diálogo de edição)
-  // Removida a função handleEditar, pois a lógica está no diálogo
-
   // Redirecionamento ou alerta se não estiver autenticado
   useEffect(() => {
     if (status === "loading") return; // Não faça nada enquanto estiver carregando
@@ -217,7 +216,17 @@ const AgendamentoDePostagens: React.FC = () => {
       {/* Listagem de Agendamentos */}
       <section>
         <h2 className="text-xl font-semibold mb-4">Seus Agendamentos</h2>
-        {loading && <p>Carregando agendamentos...</p>}
+        {loading && (
+          <div className="flex justify-center items-center">
+            <DotLottieReact
+              src="/animations/loading.lottie" // Referência via URL
+              autoplay
+              loop={true}
+              style={{ width: 150, height: 150 }}
+              aria-label="Carregando agendamentos"
+            />
+          </div>
+        )}
         {error && <p className="text-red-500">{error}</p>}
         {!loading && agendamentos.length === 0 && (
           <p>Nenhum agendamento encontrado.</p>
@@ -232,7 +241,12 @@ const AgendamentoDePostagens: React.FC = () => {
       </section>
 
       {/* Exemplo de outro conteúdo na página, se necessário */}
-
+      <div>
+        <Link className="flex gap-1 items-center" href="https://github.com/ManishBisht777/file-vault">
+          Github
+          <MoveRight size={15} />
+        </Link>
+      </div>
     </main>
   );
 };
