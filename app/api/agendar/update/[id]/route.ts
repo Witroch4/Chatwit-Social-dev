@@ -2,13 +2,15 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import axios from "axios";
-import { scheduleAgendamento } from "@/lib/scheduler";
+import { scheduleAgendamentoBull } from "@/lib/scheduler-bull"; // <-- Usamos Bull
 
-export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
   try {
     const rowId = params.id;
 
-    // Extrair os dados do corpo da requisição
     const {
       Data,
       Descrição,
@@ -20,22 +22,25 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
       Diario,
       Randomizar,
       IGtoken,
-      userID, // Garantir que userID seja incluído para segurança
+      userID,
     } = await request.json();
 
-    // Validação básica
     if (!userID) {
       console.error("userID não fornecido.");
-      return NextResponse.json({ error: "userID é obrigatório." }, { status: 400 });
+      return NextResponse.json(
+        { error: "userID é obrigatório." },
+        { status: 400 }
+      );
     }
 
-    // Garantir que o rowId seja fornecido
     if (!rowId) {
       console.error("row_id não fornecido.");
-      return NextResponse.json({ error: "row_id é obrigatório." }, { status: 400 });
+      return NextResponse.json(
+        { error: "row_id é obrigatório." },
+        { status: 400 }
+      );
     }
 
-    // Variáveis de ambiente
     const BASEROW_TOKEN = process.env.BASEROW_TOKEN;
     const BASEROW_TABLE_ID = process.env.BASEROW_TABLE_ID;
 
@@ -59,7 +64,6 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
       Randomizar,
       IGtoken,
       userID,
-      // Mantenha ou atualize outros campos conforme necessário
     };
 
     console.log("Payload para Baserow (Atualização):", updatedRow);
@@ -77,18 +81,20 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
 
     console.log("Resposta do Baserow (Atualização):", response.data);
 
-    // Reagendar o webhook com os dados atualizados
-    scheduleAgendamento({
+    // Re-agenda com Bull
+    await scheduleAgendamentoBull({
       id: response.data.id,
       Data: response.data.Data,
       userID: response.data.userID,
-      // Adicione outros campos se necessário
     });
 
     return NextResponse.json(response.data, { status: 200 });
   } catch (error: any) {
     if (error.response?.data) {
-      console.error("Erro ao atualizar agendamento:", JSON.stringify(error.response.data, null, 2));
+      console.error(
+        "Erro ao atualizar agendamento:",
+        JSON.stringify(error.response.data, null, 2)
+      );
     } else {
       console.error("Erro ao atualizar agendamento:", error.message);
     }

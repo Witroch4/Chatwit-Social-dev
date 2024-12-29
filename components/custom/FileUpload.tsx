@@ -55,6 +55,7 @@ export interface UploadedFile {
   uploaded_at?: string;
   name?: string; // Nome técnico único
   original_name?: string; // Nome amigável para exibição
+  visible_name?: string; // Nome amigável para exibição
 }
 
 enum FileTypes {
@@ -220,7 +221,8 @@ export default function FileUpload({ uploadedFiles, setUploadedFiles }: FileUplo
                 image_height: response.data.image_height,
                 uploaded_at: response.data.uploaded_at,
                 name: response.data.name, // Nome técnico único
-                original_name: response.data.visible_name, // Nome amigável para exibição
+                original_name: response.data.original_name,
+                visible_name: response.data.visible_name, // Nome amigável para exibição
               }
             : file
         )
@@ -344,7 +346,7 @@ export default function FileUpload({ uploadedFiles, setUploadedFiles }: FileUplo
                             {file.thumbnails?.small?.url ? (
                               <img
                                 src={file.thumbnails.small.url}
-                                alt={file.original_name || "Mídia"}
+                                alt={file.original_name ||file.visible_name|| "Mídia"}
                                 className="w-12 h-12 object-cover rounded-md cursor-pointer"
                               />
                             ) : (
@@ -354,14 +356,14 @@ export default function FileUpload({ uploadedFiles, setUploadedFiles }: FileUplo
                             )}
                           </TooltipTrigger>
                           <TooltipContent>
-                            <p>{file.original_name || "Mídia"}</p>
+                            <p>{file.original_name ||file.visible_name|| "Mídia"}</p>
                           </TooltipContent>
                         </Tooltip>
                       </div>
                       <button
                         onClick={() => handleRemoveUploadedFile(file.id)}
                         className="bg-red-500 text-white transition-all items-center justify-center cursor-pointer px-2 hidden group-hover:flex"
-                        aria-label={`Remover ${file.original_name || "Mídia"}`}
+                        aria-label={`Remover ${file.original_name ||file.visible_name|| "Mídia"}`}
                       >
                         <X size={20} />
                       </button>

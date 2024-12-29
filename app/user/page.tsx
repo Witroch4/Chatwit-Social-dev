@@ -59,7 +59,7 @@ const UserPage = () => {
       <h1>Informações do Usuário</h1>
       <p><strong>Nome:</strong> {session.user.name || "Sem nome"}</p>
       <p><strong>Token do Instagram:</strong> {session.user.instagramAccessToken || "Token do Instagram não disponível."}</p>
-      <p><strong>Expiração do Token:</strong> {session.user.instagramExpiresAt ? new Date(session.user.instagramExpiresAt * 1000).toLocaleString() : "N/A"}</p>
+      <p><strong>Role:</strong> {session.user.role} </p>
 
       {loading ? (
         <p>Carregando dados do Instagram...</p>

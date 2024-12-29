@@ -60,6 +60,7 @@ export function AppSidebar() {
       ? "/animations/logodarckInstagram.lottie"
       : "/animations/logolightInstagram.lottie";
 
+  // Carregamento Inicial
   if (isLoading) {
     return (
       <Sidebar collapsible="icon" side="left" variant="sidebar">
@@ -92,17 +93,15 @@ export function AppSidebar() {
   return (
     <Sidebar collapsible="icon" side="left" variant="sidebar">
       <SidebarContent>
-        {/* Grupo: Social Login */}
+        {/* Grupo Social Login */}
         <Collapsible defaultOpen={false} className="group/collapsible">
           <SidebarGroup>
-            {/* Cabeçalho do grupo (logo + texto "Social Login" + animação do Instagram) */}
             <div
               className={`flex items-center justify-center p-2 relative ${
                 state === "collapsed" ? "flex-col space-y-1" : "flex-row"
               }`}
             >
               <CollapsibleTrigger className="flex items-center justify-center cursor-pointer">
-                {/* Ícone (W.svg) ajustado com base no estado */}
                 <Image
                   src="/W.svg"
                   alt="Logo Social Login"
@@ -112,12 +111,10 @@ export function AppSidebar() {
                     state === "collapsed" ? "mx-auto" : "mr-2"
                   }`}
                 />
-
                 {/* MOSTRA o texto "Social Login" apenas se a sidebar NÃO estiver colapsada */}
                 {state !== "collapsed" && (
                   <span className="ml-2">Social Login</span>
                 )}
-
                 {/* MOSTRA a animação do Instagram apenas se conectado e NÃO estiver colapsada */}
                 {isInstagramConnected && state !== "collapsed" && (
                   <DotLottieReact
@@ -132,7 +129,6 @@ export function AppSidebar() {
                     aria-label="Instagram conectado"
                   />
                 )}
-
                 {/* Ícone de Chevron para indicar colapso/expansão */}
                 <ChevronDown
                   className={`ml-auto transition-transform duration-300 ${
@@ -142,16 +138,15 @@ export function AppSidebar() {
               </CollapsibleTrigger>
             </div>
 
-            {/* Conteúdo colapsável (abre quando clica) */}
             <CollapsibleContent>
               <SidebarGroupContent>
                 <div className="p-4">
-                  {/* Se não está conectado, mostra botão para login Instagram */}
+                  {/* Se não está conectado, mostra botão de login do Instagram */}
                   {!isInstagramConnected && (
                     <>
                       <p className="text-lg font-bold mb-2">
-                        Para continuar, faça login com sua rede social e autorize
-                        o acesso.
+                        Para continuar, faça login com sua rede social e
+                        autorize o acesso.
                       </p>
                       <SidebarMenu>
                         <SidebarMenuItem>
@@ -175,7 +170,7 @@ export function AppSidebar() {
                     </>
                   )}
 
-                  {/* Se já está conectado ao Instagram, mostra animação & mensagem */}
+                  {/* Se já está conectado ao Instagram, mostra a animação */}
                   {isInstagramConnected && (
                     <div className="mt-4 flex flex-col items-center">
                       <DotLottieReact
@@ -193,6 +188,114 @@ export function AppSidebar() {
             </CollapsibleContent>
           </SidebarGroup>
         </Collapsible>
+
+        {/* Grupo: Admin (visível somente para usuários ADMIN) */}
+        {session?.user?.role === "ADMIN" && (
+          <Collapsible defaultOpen={false} className="group/collapsible">
+            <SidebarGroup>
+              <div
+                className={`flex items-center justify-center p-2 relative ${
+                  state === "collapsed" ? "flex-col space-y-1" : "flex-row"
+                }`}
+              >
+                <CollapsibleTrigger className="flex items-center justify-center cursor-pointer">
+                  {/* Ícone para o grupo Admin */}
+                  <HelpCircle
+                    className={`transition-all duration-300 ${
+                      state === "collapsed" ? "mx-auto" : "mr-2"
+                    }`}
+                  />
+                  {/* Texto "Admin" apenas se a sidebar NÃO estiver colapsada */}
+                  {state !== "collapsed" && (
+                    <span className="ml-2 font-bold">Admin</span>
+                  )}
+                  {/* Chevron para colapso/expansão */}
+                  <ChevronDown
+                    className={`ml-auto transition-transform duration-300 ${
+                      state === "collapsed" ? "hidden" : "inline-block"
+                    } group-data-[state=open]/collapsible:rotate-180`}
+                  />
+                </CollapsibleTrigger>
+              </div>
+
+              <CollapsibleContent>
+                <SidebarGroupContent>
+                  <SidebarMenu>
+                    {/* /admin/queue */}
+                    <SidebarMenuItem>
+                      <SidebarMenuButton asChild>
+                        <Link
+                          href="/admin/queue"
+                          className={`flex items-center ${
+                            state === "collapsed"
+                              ? "justify-start pl-4"
+                              : "justify-start pl-2"
+                          }`}
+                        >
+                          <Calendar className="mr-2" />
+                          {state !== "collapsed" && <span>Admin Queue</span>}
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+
+                    {/* /admin/user */}
+                    <SidebarMenuItem>
+                      <SidebarMenuButton asChild>
+                        <Link
+                          href="/admin/user"
+                          className={`flex items-center ${
+                            state === "collapsed"
+                              ? "justify-start pl-4"
+                              : "justify-start pl-2"
+                          }`}
+                        >
+                          <Users className="mr-2" />
+                          {state !== "collapsed" && <span>Admin User</span>}
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+
+                    {/* /api/auth/get-token */}
+                    <SidebarMenuItem>
+                      <SidebarMenuButton asChild>
+                        <Link
+                          href="/api/auth/get-token"
+                          className={`flex items-center ${
+                            state === "collapsed"
+                              ? "justify-start pl-4"
+                              : "justify-start pl-2"
+                          }`}
+                        >
+                          <MessageCircle className="mr-2" />
+                          {state !== "collapsed" && (
+                            <span>API Auth Get Token</span>
+                          )}
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+
+                    {/* /auth/users */}
+                    <SidebarMenuItem>
+                      <SidebarMenuButton asChild>
+                        <Link
+                          href="/auth/users"
+                          className={`flex items-center ${
+                            state === "collapsed"
+                              ? "justify-start pl-4"
+                              : "justify-start pl-2"
+                          }`}
+                        >
+                          <User2 className="mr-2" />
+                          {state !== "collapsed" && <span>Auth Users</span>}
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  </SidebarMenu>
+                </SidebarGroupContent>
+              </CollapsibleContent>
+            </SidebarGroup>
+          </Collapsible>
+        )}
 
         {/* Contatos */}
         <SidebarGroup>
@@ -228,9 +331,7 @@ export function AppSidebar() {
                     }`}
                   >
                     <Zap className="mr-2" />
-                    {state !== "collapsed" && (
-                      <span>Agendamento de Postagens</span>
-                    )}
+                    {state !== "collapsed" && <span>Agendamento de Postagens</span>}
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
@@ -245,7 +346,7 @@ export function AppSidebar() {
               <SidebarMenuItem>
                 <SidebarMenuButton asChild>
                   <Link
-                    href="/calendario"
+                    href="/admin/queue"
                     className={`flex items-center ${
                       state === "collapsed" ? "justify-start pl-4" : "justify-start pl-2"
                     }`}

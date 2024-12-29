@@ -5,7 +5,8 @@
 	"scripts": {
 		"compile:bootstrap": "tsc bootstrap.ts --outDir dist",
 		"server": "node server.js",
-		"dev": "npm run compile:bootstrap && node dist/bootstrap.js",
+		"dev": "node server.js",
+		"worker": "ts-node -r tsconfig-paths/register worker/agendamento.worker.ts",
 		"build": "next build",
 		"start": "next start",
 		"db:clear": "prisma migrate reset -f",
@@ -21,9 +22,12 @@
 	},
 	"dependencies": {
 		"@auth/prisma-adapter": "^2.0.0",
+		"@emotion/react": "^11.14.0",
+		"@emotion/styled": "^11.14.0",
 		"@hookform/resolvers": "^3.3.4",
 		"@humanwhocodes/object-schema": "^2.0.3",
 		"@lottiefiles/dotlottie-react": "^0.11.1",
+		"@mui/material": "^6.3.0",
 		"@prisma/client": "^6.0.1",
 		"@radix-ui/react-avatar": "^1.0.4",
 		"@radix-ui/react-checkbox": "^1.0.4",
@@ -45,6 +49,8 @@
 		"@radix-ui/react-tooltip": "^1.1.6",
 		"axios": "^1.7.9",
 		"bcryptjs": "^2.4.3",
+		"bull": "^4.16.5",
+		"bull-board": "^2.1.3",
 		"class-variance-authority": "^0.7.1",
 		"clsx": "^2.1.1",
 		"cmdk": "^1.0.0",
@@ -64,6 +70,7 @@
 		"next-themes": "^0.4.4",
 		"nextra": "^3.2.4",
 		"nextra-theme-docs": "^3.2.4",
+		"node-cron": "^3.0.3",
 		"react": "^18",
 		"react-colorful": "^5.6.1",
 		"react-day-picker": "^8.10.1",
@@ -91,6 +98,7 @@
 		"@biomejs/biome": "^1.7.3",
 		"@types/bcryptjs": "^2.4.6",
 		"@types/node": "^22.10.2",
+		"@types/node-cron": "^3.0.11",
 		"@types/react": "^18",
 		"@types/react-dom": "^18",
 		"@types/uuid": "^9.0.8",
@@ -99,6 +107,7 @@
 		"postcss": "^8",
 		"prisma": "^6.0.1",
 		"tailwindcss": "^3.4.1",
+		"ts-node": "^10.9.2",
 		"typescript": "^5"
 	}
 }

@@ -2,7 +2,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import axios from "axios";
-import { scheduleAgendamento } from "@/lib/scheduler";
+import { scheduleAgendamentoBull } from "@/lib/scheduler-bull"; // <<< Usaremos
 
 export async function POST(request: NextRequest) {
   try {
@@ -21,12 +21,14 @@ export async function POST(request: NextRequest) {
       Diario,
       Randomizar,
       IGtoken,
-      // Certifique-se de incluir todos os campos necessários
     } = body;
 
     if (!userID) {
       console.error("userID não fornecido.");
-      return NextResponse.json({ error: "userID é obrigatório." }, { status: 400 });
+      return NextResponse.json(
+        { error: "userID é obrigatório." },
+        { status: 400 }
+      );
     }
 
     const BASEROW_TOKEN = process.env.BASEROW_TOKEN;
@@ -46,7 +48,6 @@ export async function POST(request: NextRequest) {
       Descrição,
       Facebook: false,
       midia: midia || [],
-      // Adicione outros campos conforme necessário
       Instagram,
       Stories,
       Reels,
@@ -54,7 +55,7 @@ export async function POST(request: NextRequest) {
       Diario,
       Randomizar,
       IGtoken,
-      status: "pendente", // Assegure-se de que existe este campo no Baserow
+      status: "pendente",
     };
 
     console.log("Payload para Baserow:", newRow);
@@ -72,18 +73,20 @@ export async function POST(request: NextRequest) {
 
     console.log("Resposta do Baserow:", response.data);
 
-    // Agendar o webhook
-    scheduleAgendamento({
+    // Depois de inserir no Baserow, agenda com Bull
+    await scheduleAgendamentoBull({
       id: response.data.id,
       Data: response.data.Data,
       userID: response.data.userID,
-      // Adicione outros campos se necessário
     });
 
     return NextResponse.json(response.data, { status: 200 });
   } catch (error: any) {
     if (error.response?.data) {
-      console.error("Erro ao criar agendamento:", JSON.stringify(error.response.data, null, 2));
+      console.error(
+        "Erro ao criar agendamento:",
+        JSON.stringify(error.response.data, null, 2)
+      );
     } else {
       console.error("Erro ao criar agendamento:", error.message);
     }
@@ -96,10 +99,12 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
-    // Obter o userID a partir dos headers
     const userID = request.headers.get("user-id");
     if (!userID) {
-      return NextResponse.json({ error: "userID é obrigatório." }, { status: 400 });
+      return NextResponse.json(
+        { error: "userID é obrigatório." },
+        { status: 400 }
+      );
     }
 
     const BASEROW_TOKEN = process.env.BASEROW_TOKEN;
@@ -113,13 +118,14 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Fazer a requisição ao Baserow para buscar os agendamentos do usuário
     const filter = JSON.stringify({
       userID: { _eq: userID },
     });
 
     const response = await axios.get(
-      `https://planilhatecnologicabd.witdev.com.br/api/database/rows/table/${BASEROW_TABLE_ID}/?user_field_names=true&filter=${encodeURIComponent(filter)}`,
+      `https://planilhatecnologicabd.witdev.com.br/api/database/rows/table/${BASEROW_TABLE_ID}/?user_field_names=true&filter=${encodeURIComponent(
+        filter
+      )}`,
       {
         headers: {
           Authorization: `Token ${BASEROW_TOKEN}`,

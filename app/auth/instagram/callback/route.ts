@@ -1,7 +1,7 @@
 // app/auth/instagram/callback/route.ts
 
 import { NextResponse } from 'next/server';
-import { auth } from "@/auth"; // Importa a função auth do arquivo auth.ts
+import { auth, update } from "@/auth"; // Importa as funções auth e update do arquivo auth.ts
 import { prisma } from "@/lib/db"; // Ajuste conforme sua configuração do prisma
 
 export async function GET(request: Request) {
@@ -133,7 +133,26 @@ export async function GET(request: Request) {
       console.log(`Token do Instagram armazenado para usuário ID: ${userId}`);
     }
 
-    // Redireciona o usuário de volta ao dashboard
+    // 5. Atualizar o token JWT com os dados do Instagram
+    // Para disparar o callback 'jwt' com trigger 'update', precisamos passar os novos dados
+    // Uma maneira comum é atualizar a sessão do usuário
+
+    // Primeiro, atualizar os dados na sessão
+    // No NextAuth, o objeto de sessão é derivado do JWT, então precisamos garantir que o JWT reflita as mudanças
+    // Para isso, chamamos a função `update` exportada por NextAuth para reprocessar o JWT
+
+    // Aqui, você pode definir quais campos deseja atualizar no token
+    await update({
+      trigger: 'update', // Define o gatilho como 'update' para que o callback JWT saiba que deve atualizar o token
+      user: {
+        instagramAccessToken: finalToken,
+        instagramExpiresAt: expiresAt,
+      }
+    });
+
+    console.log('JWT atualizado com os dados do Instagram.');
+
+    // 6. Redireciona o usuário de volta ao dashboard
     return NextResponse.redirect(new URL('/dashboard', request.url));
 
   } catch (error) {

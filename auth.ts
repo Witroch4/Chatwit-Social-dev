@@ -15,6 +15,10 @@ export const {
   unstable_update: update,
 } = NextAuth({
   adapter: PrismaAdapter(prisma),
+
+  // 1. Defina explicitamente o secret
+  secret: process.env.AUTH_SECRET,
+
   session: {
     strategy: "jwt",
   },
@@ -78,7 +82,8 @@ export const {
           token.instagramExpiresAt = undefined;
         }
 
-        token.role = UserRole.DEFAULT;
+        token.role = user.role as UserRole;
+        console.log("Usuário COM A ROLE:", token.role);
       }
 
       // Caso não seja sign-in nem update, não faz nenhuma consulta ao banco
