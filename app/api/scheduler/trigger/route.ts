@@ -1,6 +1,6 @@
 // app/api/scheduler/trigger/route.ts
 import { NextResponse } from 'next/server';
-import { loadAllAgendamentosPendentes, getLogs } from '../../../../lib/scheduler';
+import { loadAllAgendamentosPendentes, getLogs } from '../../../../lib/scheduler.ts.old';
 
 export async function POST() {
   try {

@@ -9,8 +9,7 @@ import {
   DrawerTitle,
   DrawerDescription,
 } from "@/components/ui/drawer";
-import DateSelector from "./DateSelector";
-import TimeSelector from "./TimeSelector";
+import { DateTimePicker } from "./date-time-picker";
 import LegendaInput from "./LegendaInput";
 import MediaUploader from "./MediaUploader";
 import PostTypeSelector from "./PostTypeSelector";
@@ -18,10 +17,8 @@ import AgendarFooter from "./AgendarFooter";
 import { UploadedFile } from "@/components/custom/FileUpload";
 
 interface AgendamentoFormProps {
-  date: Date | undefined;
-  setDate: (date: Date | undefined) => void;
-  hora: string;
-  setHora: (hora: string) => void;
+  dateTime: Date;
+  setDateTime: (dateTime: Date) => void;
   tipoPostagem: string[];
   setTipoPostagem: (tipo: string[]) => void;
   legenda: string;
@@ -34,10 +31,8 @@ interface AgendamentoFormProps {
 }
 
 const AgendamentoForm: React.FC<AgendamentoFormProps> = ({
-  date,
-  setDate,
-  hora,
-  setHora,
+  dateTime,
+  setDateTime,
   tipoPostagem,
   setTipoPostagem,
   legenda,
@@ -50,7 +45,6 @@ const AgendamentoForm: React.FC<AgendamentoFormProps> = ({
 }) => {
   return (
     <div className="flex flex-col h-full">
-      {/* Removido o botão "Cancelar" do topo */}
       <DrawerHeader>
         <DrawerTitle>Agendar nova postagem</DrawerTitle>
         <DrawerDescription>
@@ -60,18 +54,20 @@ const AgendamentoForm: React.FC<AgendamentoFormProps> = ({
 
       <div className="flex flex-1 p-4 space-x-4">
         {/* Coluna 1: Data e Hora */}
-        <div className="w-full sm:w-1/6 flex flex-col space-y-4">
-          <DateSelector selectedDate={date} onDateChange={setDate} />
-          <TimeSelector selectedTime={hora} onTimeChange={setHora} />
+        <div className="w-full sm:w-1/3 flex flex-col space-y-4">
+          <DateTimePicker
+            date={dateTime}
+            setDate={setDateTime}
+          />
         </div>
 
         {/* Coluna 2: Legenda */}
-        <div className="w-full sm:w-1/4 flex flex-col space-y-4 mt-4 sm:mt-0">
+        <div className="w-full sm:w-1/3 flex flex-col space-y-4 mt-4 sm:mt-0">
           <LegendaInput legenda={legenda} setLegenda={setLegenda} />
         </div>
 
         {/* Coluna 3: Upload de Mídia */}
-        <div className="w-full sm:w-1/4 flex flex-col space-y-4 mt-4 sm:mt-0">
+        <div className="w-full sm:w-1/3 flex flex-col space-y-4 mt-4 sm:mt-0">
           <MediaUploader
             uploadedFiles={uploadedFiles}
             setUploadedFiles={setUploadedFiles}
@@ -79,7 +75,7 @@ const AgendamentoForm: React.FC<AgendamentoFormProps> = ({
         </div>
 
         {/* Coluna 4: Checkboxes */}
-        <div className="w-full sm:w-1/4 flex flex-col space-y-4 mt-4 sm:mt-0">
+        <div className="w-full sm:w-1/3 flex flex-col space-y-4 mt-4 sm:mt-0">
           <PostTypeSelector
             tipoPostagem={tipoPostagem}
             setTipoPostagem={setTipoPostagem}

@@ -1,18 +1,19 @@
 // lib/route.ts
+
 import type { ConfigRoutes } from "@/types/routes";
 import type { NextRequest } from "next/server";
 
 /**
- * Checks if the current path matches any of the routes in the provided set.
- * Supports exact matches and wildcard patterns (e.g., "/dashboard/*").
- * @param {Set<string>} routeSet - Set of routes to match against.
- * @param {string} pathName - The current request pathname.
- * @returns {boolean} - True if there's a match, false otherwise.
+ * Verifica se o caminho atual corresponde a alguma das rotas fornecidas.
+ * Suporta correspondências exatas e padrões curinga (e.g., "/dashboard/*").
+ * @param {Set<string>} routeSet - Conjunto de rotas para comparar.
+ * @param {string} pathName - O pathname atual da requisição.
+ * @returns {boolean} - Verdadeiro se houver correspondência, falso caso contrário.
  */
 const matchesRoute = (routeSet: Set<string>, pathName: string): boolean => {
   for (const route of routeSet) {
     if (route.endsWith("/*")) {
-      const baseRoute = route.slice(0, -2); // Remove the '/*'
+      const baseRoute = route.slice(0, -2); // Remove o '/*'
       if (pathName.startsWith(baseRoute + "/")) {
         return true;
       }
@@ -24,30 +25,32 @@ const matchesRoute = (routeSet: Set<string>, pathName: string): boolean => {
 };
 
 /**
- * Creates route matchers based on the provided routes configuration and request object.
- * @param {ConfigRoutes} routes - The routes configuration object.
- * @param {NextRequest} req - The Next.js request object.
+ * Cria correspondentes de rotas com base na configuração fornecida e no objeto de requisição.
+ * @param {ConfigRoutes} routes - Objeto de configuração das rotas.
+ * @param {NextRequest} req - Objeto de requisição do Next.js.
  * @returns {{
  *  isPublicRoute: boolean,
  *  isProtectedRoute: boolean,
  *  isAuthRoute: boolean,
- *  isApiRoute: boolean
- * }} An object indicating the type of the current route.
+ *  isApiRoute: boolean,
+ *  isAdminRoute: boolean
+ * }} Objeto indicando o tipo da rota atual.
  */
 export const createRouteMatchers = (routes: ConfigRoutes, req: NextRequest) => {
-  const { publicRoutes, protectedRoutes, authRoutes, apiRoutes } = routes;
+  const { publicRoutes, protectedRoutes, authRoutes, apiRoutes, adminRoutes } = routes;
   const pathName = req.nextUrl.pathname;
 
-  // Preprocess route collections into sets
   const publicRouteSet = new Set(publicRoutes);
   const protectedRouteSet = new Set(protectedRoutes);
   const authRouteSet = new Set(authRoutes);
   const apiRouteSet = new Set(apiRoutes);
+  const adminRouteSet = new Set(adminRoutes);
 
   return {
     isPublicRoute: matchesRoute(publicRouteSet, pathName),
     isProtectedRoute: matchesRoute(protectedRouteSet, pathName),
     isAuthRoute: matchesRoute(authRouteSet, pathName),
     isApiRoute: matchesRoute(apiRouteSet, pathName),
+    isAdminRoute: matchesRoute(adminRouteSet, pathName), // Adicionado
   };
 };

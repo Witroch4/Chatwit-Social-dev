@@ -1,55 +1,73 @@
 // worker/agendamento.worker.ts
 
-import axios from "axios";
-import { agendamentoQueue } from "@/lib/queue"; // Alias @ definido no tsconfig.json
-import dotenv from "dotenv";
-import { processarAgendamentosPendentes } from "@/lib/scheduler-bull";
-import cron from "node-cron";
-import { Job } from "bull"; // Importar tipo Job
+import { Worker, JobScheduler, Job } from 'bullmq';
+import axios from 'axios';
+import dotenv from 'dotenv';
+import cron from 'node-cron';
+import { connection } from '@/lib/redis';
+import { processarAgendamentosPendentes } from '@/lib/scheduler-bullmq';
+import { IAgendamentoJobData } from '@/lib/queue/agendamento.queue'; // Importação correta
 
 dotenv.config();
 
-const WEBHOOK_URL = process.env.WEBHOOK_URL || "https://autofluxofilaapi.witdev.com.br/webhook/5f439037-6e1a-4d53-80ae-1cc0c4633c51";
+const WEBHOOK_URL = process.env.WEBHOOK_URL || 'https://autofluxofilaapi.witdev.com.br/...';
+const AGENDAMENTO_QUEUE_NAME = 'agendamento';
 
-// Eventos para depuração
-agendamentoQueue.on("error", (error) => {
-  console.error("[Bull] Erro na conexão com o Redis:", error);
+/**
+ * Inicializar o JobScheduler (necessário para jobs atrasados e re-tentativas)
+ */
+const jobScheduler = new JobScheduler(AGENDAMENTO_QUEUE_NAME, {
+  connection,
 });
 
-agendamentoQueue.on("ready", () => {
-  console.log("[Bull] Conexão com o Redis estabelecida com sucesso.");
+/**
+ * Criar o Worker que processa a fila 'agendamento'
+ */
+const worker = new Worker<IAgendamentoJobData>(
+  AGENDAMENTO_QUEUE_NAME,
+  async (job: Job<IAgendamentoJobData>) => {
+    try {
+      const { baserowId, Data, userID } = job.data;
+      console.log(`[BullMQ] Processando job baserowId=${baserowId} às ${new Date().toISOString()}`);
+
+      // Exemplo de envio de webhook
+      await axios.post(WEBHOOK_URL, {
+        baserowId: baserowId,
+        dataAgendada: Data,
+        userID: userID,
+      });
+
+      console.log(`[BullMQ] Webhook disparado com sucesso para baserowId=${baserowId}.`);
+    } catch (error: any) {
+      console.error(`[BullMQ] Erro ao processar job baserowId=${job.data.baserowId}: ${error.message}`);
+      // Lançar o erro faz o BullMQ marcar o job como failed
+      throw error;
+    }
+  },
+  { connection }
+);
+
+// Eventos de debug do Worker
+worker.on('active', (job) => {
+  console.log(`[BullMQ Worker] Job ativo: baserowId=${job.data.baserowId}`);
 });
 
-// Processa os jobs da fila 'agendamento'
-agendamentoQueue.process(async (job: Job<{ id: string | number; Data: string; userID: string }>) => {
-  try {
-    const { id, Data, userID } = job.data;
-
-    console.log(`[Bull] Iniciando processamento do job ID=${id} em ${new Date().toISOString()}`);
-
-    await axios.post(WEBHOOK_URL, {
-      baserowId: id,
-      dataAgendada: Data,
-      userID,
-    });
-
-    console.log(`[Bull] Webhook disparado com sucesso para ID=${id}.`);
-  } catch (error: any) {
-    console.error(`[Bull] Erro ao processar job ID=${job.data?.id}:`, error?.message || error);
-    throw error;
-    /**
-     * Lançar o erro faz o Bull registrar falha e,
-     * se houver 'attempts' configurado, ele tentará reprocessar.
-     */
-  }
+worker.on('completed', (job) => {
+  console.log(`[BullMQ Worker] Job concluído: baserowId=${job.data.baserowId}`);
 });
 
-console.log("[Bull Worker] Iniciado e aguardando jobs na fila 'agendamento'...");
+worker.on('failed', (job, err) => {
+  console.error(`[BullMQ Worker] Job falhou: baserowId=${job?.data.baserowId}, Erro: ${err.message}`);
+});
 
-// Agendar a tarefa para processar agendamentos pendentes uma vez por dia às 00:00
-cron.schedule("0 0 * * *", async () => {
-  console.log("[Bull Worker] Executando tarefa diária de processamento de agendamentos pendentes...");
+worker.on('error', (err) => {
+  console.error('[BullMQ Worker] Erro no worker:', err);
+});
+
+console.log('[BullMQ Worker] Iniciado e aguardando jobs na fila "agendamento"...');
+
+// Cron para processar agendamentos pendentes (1x ao dia)
+cron.schedule('0 0 * * *', async () => {
+  console.log('[BullMQ Worker] Executando tarefa diária de processamento de agendamentos pendentes...');
   await processarAgendamentosPendentes();
 });
-
-console.log("[Bull Worker] Tarefa agendada para processar agendamentos pendentes diariamente às 00:00.");

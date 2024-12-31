@@ -3,7 +3,7 @@ import * as dotenv from "dotenv";
 dotenv.config(); // Carrega as variáveis de ambiente do arquivo .env
 
 import { spawn } from "child_process";
-import { loadAllAgendamentosPendentes } from "./lib/scheduler";
+import { loadAllAgendamentosPendentes } from "./lib/scheduler.ts.old";
 
 async function main() {
   // Verificar se as variáveis essenciais estão definidas

@@ -1,4 +1,4 @@
-// app/dashboard/agendamento/page.tsx
+// components/agendamento/AgendamentoDePostagens.tsx
 
 "use client";
 
@@ -33,9 +33,8 @@ const AgendamentoDePostagens: React.FC = () => {
   const userID = session?.user?.id;
   const IGtoken = session?.user?.instagramAccessToken;
 
-  // Estados principais do formulário
-  const [date, setDate] = useState<Date | undefined>(undefined);
-  const [hora, setHora] = useState<string>("");
+  // Estado combinado para data e hora
+  const [dateTime, setDateTime] = useState<Date>(new Date());
   const [tipoPostagem, setTipoPostagem] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
   const [legenda, setLegenda] = useState<string>("");
@@ -50,7 +49,7 @@ const AgendamentoDePostagens: React.FC = () => {
 
   // Função para lidar com o agendamento
   const handleAgendar = async () => {
-    if (!date || !hora) {
+    if (!dateTime) {
       toast({
         title: "Agendamento Incompleto",
         description: "Por favor, selecione data e hora para agendar.",
@@ -100,10 +99,7 @@ const AgendamentoDePostagens: React.FC = () => {
         Aleatorio: tipoPostagem.includes("Aleatório"),
       };
 
-      const [hours, minutes] = hora.split(":").map(Number);
-      const combinedDate = new Date(date);
-      combinedDate.setHours(hours, minutes, 0, 0);
-      const isoDate = combinedDate.toISOString();
+      const isoDate = dateTime.toISOString();
 
       const newRow = {
         Data: isoDate,
@@ -131,9 +127,9 @@ const AgendamentoDePostagens: React.FC = () => {
       if (response.status === 200 || response.status === 201) {
         toast({
           title: "Agendamento Criado com Sucesso!",
-          description: `Data: ${format(combinedDate, "PPP", {
+          description: `Data: ${format(dateTime, "PPP", {
             locale: ptBR,
-          })} às ${hora}`,
+          })} às ${format(dateTime, "HH:mm:ss")}`,
           action: (
             <Button
               variant="link"
@@ -148,8 +144,7 @@ const AgendamentoDePostagens: React.FC = () => {
         });
 
         // Limpar o formulário após o sucesso
-        setDate(undefined);
-        setHora("");
+        setDateTime(new Date()); // Reset para a data e hora atual
         setTipoPostagem([]);
         setLegenda("");
         setUploadedFiles([]);
@@ -196,10 +191,8 @@ const AgendamentoDePostagens: React.FC = () => {
         {/* Alteração: Trocar 'overflow-hidden' para 'overflow-visible' */}
         <DrawerContent className="fixed bottom-0 left-0 right-0 h-3/4 bg-white rounded-t-xl shadow-lg overflow-visible">
           <AgendamentoForm
-            date={date}
-            setDate={setDate}
-            hora={hora}
-            setHora={setHora}
+            dateTime={dateTime}
+            setDateTime={setDateTime}
             tipoPostagem={tipoPostagem}
             setTipoPostagem={setTipoPostagem}
             legenda={legenda}
@@ -241,12 +234,7 @@ const AgendamentoDePostagens: React.FC = () => {
       </section>
 
       {/* Exemplo de outro conteúdo na página, se necessário */}
-      <div>
-        <Link className="flex gap-1 items-center" href="https://github.com/ManishBisht777/file-vault">
-          Github
-          <MoveRight size={15} />
-        </Link>
-      </div>
+
     </main>
   );
 };

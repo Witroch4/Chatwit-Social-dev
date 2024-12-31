@@ -38,7 +38,7 @@
     "theme.config.jsx",
     "types/**/*.d.ts",
     "bootstrap.ts"
-  ],
+, "lib/scheduler.ts.old"  ],
   "exclude": [
     "node_modules"
   ]

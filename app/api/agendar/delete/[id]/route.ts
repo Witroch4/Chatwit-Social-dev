@@ -1,39 +1,33 @@
 // app/api/agendar/delete/[id]/route.ts
+import { NextRequest, NextResponse } from 'next/server';
+import axios from 'axios';
+import dotenv from 'dotenv';
+import { cancelAgendamentoBullMQ } from '@/lib/scheduler-bullmq';
 
-import { NextRequest, NextResponse } from "next/server";
-import axios from "axios";
-import { cancelAgendamentoBull } from "@/lib/scheduler-bull"; // Importa a função de cancelamento
+dotenv.config();
 
 export async function DELETE(
   request: NextRequest,
-  context: { params: { id: string } }
+  { params }: { params: { id: string } }
 ) {
   try {
-    const { id: rowId } = context.params;
+    const rowId = params.id;
+    const userID = request.headers.get('user-id');
 
-    const userID = request.headers.get("user-id");
     if (!userID) {
-      console.error("userID não fornecido nos headers.");
-      return NextResponse.json(
-        { error: "userID é obrigatório nos headers." },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'userID é obrigatório nos headers.' }, { status: 400 });
     }
 
     const BASEROW_TOKEN = process.env.BASEROW_TOKEN;
     const BASEROW_TABLE_ID = process.env.BASEROW_TABLE_ID;
 
     if (!BASEROW_TOKEN || !BASEROW_TABLE_ID) {
-      console.error("BASEROW_TOKEN ou BASEROW_TABLE_ID não definidos.");
-      return NextResponse.json(
-        { error: "Configuração do servidor incorreta." },
-        { status: 500 }
-      );
+      return NextResponse.json({ error: 'Configuração do servidor incorreta.' }, { status: 500 });
     }
 
-    console.log(`Tentando deletar agendamento com ID: ${rowId} para o usuário: ${userID}`);
+    console.log(`[DELETE] Deletando agendamento com ID: ${rowId} para o usuário: ${userID}`);
 
-    // Obter o agendamento do Baserow para verificar a propriedade
+    // Verificar se o agendamento realmente pertence ao userID
     const getAgendamentoResponse = await axios.get(
       `https://planilhatecnologicabd.witdev.com.br/api/database/rows/table/${BASEROW_TABLE_ID}/${rowId}/?user_field_names=true`,
       {
@@ -44,23 +38,15 @@ export async function DELETE(
     );
 
     const agendamento = getAgendamentoResponse.data;
-
-    console.log("Agendamento fetched:", agendamento);
-
-    // Verificar se o agendamento pertence ao usuário
     if (agendamento.userID !== userID) {
-      console.error("Usuário não autorizado a deletar este agendamento.");
-      return NextResponse.json(
-        { error: "Não autorizado a deletar este agendamento." },
-        { status: 403 }
-      );
+      return NextResponse.json({ error: 'Não autorizado a deletar este agendamento.' }, { status: 403 });
     }
 
-    // Cancelar na fila Bull
-    await cancelAgendamentoBull(rowId);
+    // 1) Cancela na fila do BullMQ
+    await cancelAgendamentoBullMQ(rowId);
 
-    // Deletar do Baserow
-    const response = await axios.delete(
+    // 2) Remove do Baserow
+    await axios.delete(
       `https://planilhatecnologicabd.witdev.com.br/api/database/rows/table/${BASEROW_TABLE_ID}/${rowId}/?user_field_names=true`,
       {
         headers: {
@@ -69,24 +55,9 @@ export async function DELETE(
       }
     );
 
-    console.log("Resposta do Baserow (Exclusão):", response.data);
-
-    return NextResponse.json(
-      { message: "Agendamento deletado com sucesso." },
-      { status: 200 }
-    );
+    return NextResponse.json({ message: 'Agendamento deletado com sucesso.' }, { status: 200 });
   } catch (error: any) {
-    if (error.response?.data) {
-      console.error(
-        "Erro ao deletar agendamento:",
-        JSON.stringify(error.response.data, null, 2)
-      );
-    } else {
-      console.error("Erro ao deletar agendamento:", error.message);
-    }
-    return NextResponse.json(
-      { error: "Erro ao deletar agendamento." },
-      { status: 500 }
-    );
+    console.error('[DELETE] Erro ao deletar agendamento:', error.message);
+    return NextResponse.json({ error: 'Erro ao deletar agendamento.' }, { status: 500 });
   }
 }

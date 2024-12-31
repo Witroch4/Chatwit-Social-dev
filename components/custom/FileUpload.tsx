@@ -252,7 +252,7 @@ export default function FileUpload({ uploadedFiles, setUploadedFiles }: FileUplo
         <div>
           <label
             {...getRootProps()}
-            className="relative flex flex-col items-center justify-center w-full py-6 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100 "
+            className="relative flex flex-col items-center justify-center w-full py-6 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 dark:bg-[#262626] hover:bg-gray-100 dark:hover:bg-gray-700 "
           >
             <div className="text-center">
               <div className="border p-2 rounded-md max-w-min mx-auto">
@@ -338,7 +338,7 @@ export default function FileUpload({ uploadedFiles, setUploadedFiles }: FileUplo
                   .map((file) => (
                     <div
                       key={file.id}
-                      className="flex justify-between gap-2 rounded-lg overflow-hidden border border-slate-100 group hover:pr-0 pr-2 hover:border-slate-300 transition-all"
+                      className="flex justify-between gap-2 rounded-lg overflow-hidden border border-slate-100 bg-white dark:bg-[#262626] text-black dark:text-[#49474A] group hover:pr-0 pr-2 hover:border-slate-300 transition-all"
                     >
                       <div className="flex items-center flex-1 p-2">
                         <Tooltip>

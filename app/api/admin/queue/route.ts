@@ -1,86 +1,84 @@
 // app/api/admin/queue/route.ts
 
-import { NextResponse } from "next/server"
-import { createBullBoard } from "bull-board"
-import { BullAdapter } from "bull-board/BullAdapter"
-import { agendamentoQueue } from "@/lib/queue"
-import { getToken } from "@auth/core/jwt" // ou "next-auth/jwt", dependendo de onde você importa
-import { parse } from "cookie"
+import { NextResponse } from 'next/server';
+import { parse } from 'cookie';
+import { getToken } from '@auth/core/jwt';
+import { createBullBoard } from '@bull-board/api';            // <--- Módulo @bull-board/api
+import { BullMQAdapter } from '@bull-board'; // <--- Adaptador para BullMQ
+import { agendamentoQueue } from '@/lib/queue/agendamento.queue';
 
-const { router } = createBullBoard([
-  new BullAdapter(agendamentoQueue),
-  // Adicione outras filas Bull se houver
-])
+const { router } = createBullBoard({
+  queues: [
+    new BullMQAdapter(agendamentoQueue),
+    // Caso tenha mais filas: new BullMQAdapter(outraFila) ...
+  ],
+  // O bull-board precisa de um "serverAdapter" (Express, Fastify etc.)
+  // Para Next.js "puro", não há adaptador oficial pronto, mas podemos usar
+  // o 'router' interno do bull-board e adaptá-lo manualmente.
+});
 
+/**
+ * Este GET tenta usar o `router` do bull-board e devolver um HTML.
+ * Porém, bull-board não tem suporte nativo para Next "Request" e "Response".
+ *
+ * Você pode criar um mini-servidor Express (ou Fastify) rodando em paralelo
+ * e expor a UI do bull-board. Ou tentar um 'hack' para converter Request->Express.
+ */
 export async function GET(request: Request) {
-  console.log("Recebendo requisição GET para /admin/queue")
+  // Autenticação bem parecida com o que você já fez:
 
-  // 1) Extrair o valor dos cookies do objeto Request
-  const cookieHeader = request.headers.get("cookie") ?? ""
-  const cookiesObj = parse(cookieHeader)
+  console.log("Recebendo requisição GET para /admin/queue");
 
-  // Se você usa "authjs.session-token" em dev sem HTTPS,
-  // ou "__Secure-authjs.session-token" se HTTPS (secure).
-  // Se ainda usar NextAuth 4 clássico, pode ser "next-auth.session-token".
-  // Ajuste conforme necessário:
+  // 1) Extrair o valor do cookie
+  const cookieHeader = request.headers.get("cookie") ?? "";
+  const cookiesObj = parse(cookieHeader);
+
+  // Se vc usa "authjs.session-token" ou "__Secure-authjs.session-token"...
   let cookieName = cookiesObj["authjs.session-token"]
     ? "authjs.session-token"
-    : "__Secure-authjs.session-token"
+    : "__Secure-authjs.session-token";
 
-  // Exemplo se você ainda tiver next-auth.session-token:
-  // let cookieName = cookiesObj["next-auth.session-token"]
-  //   ? "next-auth.session-token"
-  //   : "__Secure-next-auth.session-token"
-
-  // 2) Tenta ler o valor do token no cookie
-  let tokenValue = cookiesObj[cookieName]
-
-  // 3) Também checa se há um header Authorization: Bearer ...
-  const authorization = request.headers.get("authorization")
+  // Tentar pegar do header Authorization se não achou no cookie
+  let tokenValue = cookiesObj[cookieName];
+  const authorization = request.headers.get("authorization");
   if (!tokenValue && authorization?.startsWith("Bearer ")) {
-    tokenValue = decodeURIComponent(authorization.split(" ")[1])
+    tokenValue = decodeURIComponent(authorization.split(" ")[1]);
   }
 
-  // Se não encontrou nenhum token => 403 ou 401
   if (!tokenValue) {
-    console.warn("Acesso negado: Não existe token no cookie ou no header.")
-    return NextResponse.json({ error: "Acesso negado." }, { status: 403 })
+    return NextResponse.json({ error: "Acesso negado." }, { status: 403 });
   }
 
-  // 4) Ler o secret do .env
-  const secret = process.env.AUTH_SECRET
+  const secret = process.env.AUTH_SECRET;
   if (!secret) {
-    console.error("AUTH_SECRET não está definido.")
-    return NextResponse.json({ error: "Configuração de autenticação inválida." }, { status: 500 })
+    return NextResponse.json({ error: "Configuração de autenticação inválida." }, { status: 500 });
   }
 
-  // 5) Decodificar o token, usando a mesma função do Auth.js
-  // Se estiver usando a lib oficial, é "import { getToken } from '@auth/core/jwt'"
-  // Se estiver usando NextAuth < 5, seria "import { getToken } from 'next-auth/jwt'"
-  // Aqui assumimos @auth/core/jwt, igual ao seu GET /api/auth/get-token
+  // Decodificar o token
   const token = await getToken({
     req: {
       headers: {
         cookie: cookieHeader,
         authorization: authorization ?? "",
       },
-    },
+    } as any,
     secret,
     cookieName,
     raw: false,
-  })
+  });
 
-  console.log("Token extraído do cookie/header:", token)
-
-  // 6) Verificar se o token realmente foi decodificado e se role === "ADMIN"
   if (!token || token.role !== "ADMIN") {
-    console.warn("###### Acesso negado: Usuário não é administrador ou não está autenticado.")
-    return NextResponse.json({ error: "Acesso negado." }, { status: 403 })
+    return NextResponse.json({ error: "Acesso negado." }, { status: 403 });
   }
 
-  // 7) Se chegou aqui, o usuário é ADMIN
-  console.log("Usuário é admin. Retornando Bull Board.")
-  // O 'router()' do Bull Board espera um objeto Request válido, então
-  // simulamos com new Request("http://fake.url") ou retornamos router(request).
-  return router(new Request("http://fake.url"))
+  // ==== Se chegou aqui, o user é ADMIN.
+  // O bull-board espera lidar com Request/Response estilo Express ou Koa.
+  // Sem um adaptador oficial para Next, você não vai conseguir retornar
+  // a UI HTML facilmente. Precisaria "montar" o HTML manualmente ou usar
+  // outro meio (por ex., rodar o bull-board numa porta separada).
+
+  // Exemplo: Se você só quer JSON das filas, use a API programática do bull-board:
+  // (Isso retorna um JSON com informações da fila.)
+  const stats = await router.getStats();
+  return NextResponse.json(stats, { status: 200 });
 }

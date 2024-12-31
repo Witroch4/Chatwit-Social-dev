@@ -1,26 +1,23 @@
 // middleware.ts
-
-import NextAuth from "next-auth";
-//import { auth } from "@/auth"; // Importa a função auth do arquivo de configuração centralizado
+import { auth } from "@/auth"; // Importe o auth já configurado
 import { NextResponse } from "next/server";
 import { configRoutes } from "./config/routes";
 import { createRouteMatchers } from "./lib/route";
-import authConfig from "./auth.config";
-
-const { auth } = NextAuth(authConfig);
 
 export default auth(async (req) => {
-  const { isPublicRoute, isProtectedRoute, isApiRoute, isAuthRoute } = createRouteMatchers(configRoutes, req);
+  const { isPublicRoute, isProtectedRoute, isApiRoute, isAuthRoute, isAdminRoute } = createRouteMatchers(configRoutes, req);
   const { nextUrl } = req;
 
-  // Obtém a sessão do usuário
-  const session = await auth(req);
+  // Obtenha a role do usuário do token
+  const debug = req.auth?.user.role;
   const isLoggedIn = !!req.auth;
+  console.log(`witrocha: ${debug}`);
 
   console.log(`Public: ${isPublicRoute}`);
   console.log(`Protected: ${isProtectedRoute}`);
   console.log(`Api: ${isApiRoute}`);
   console.log(`Auth: ${isAuthRoute}`);
+  console.log(`Admin: ${isAdminRoute}`);
 
   // Redireciona para a página de login se tentar acessar uma rota protegida sem estar autenticado
   if (isProtectedRoute && !isLoggedIn) {
@@ -32,6 +29,11 @@ export default auth(async (req) => {
     return NextResponse.redirect(new URL("/dashboard", req.url));
   }
 
+  // Exemplo: Verificar se a rota é admin e se o usuário é admin
+  if (isAdminRoute && (!isLoggedIn || debug !== "ADMIN")) {
+    return NextResponse.redirect(new URL("/denied", req.url));
+  }
+
   console.log(`Middleware: ${req.nextUrl.pathname}`);
 
   // Retorna a resposta padrão se nenhuma condição de redirecionamento for atendida
@@ -39,14 +41,7 @@ export default auth(async (req) => {
 });
 
 export const config = {
-  /*
-	 * Match all request paths except for the ones starting with:
-	 * - api (API routes)
-	 * - _next/static (static files)
-	 * - _next/image (image optimization files)
-	 * - favicon.ico (favicon file)
-	 */
   matcher: [
-    "/((?!api|_next/static|_next/image|favicon.ico|docs|auth/login).*)",
+    "/((?!api|_next/static|_next/image|favicon.ico|docs|auth/login|denied).*)"
   ],
 };
