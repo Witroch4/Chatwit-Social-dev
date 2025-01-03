@@ -221,7 +221,7 @@ export function AppSidebar() {
               <CollapsibleContent>
                 <SidebarGroupContent>
                   <SidebarMenu>
-                    {/* /admin/queue */}
+                    {/* /admin/queues */}
                     <SidebarMenuItem>
                       <SidebarMenuButton asChild>
                         <Link

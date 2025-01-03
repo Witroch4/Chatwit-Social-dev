@@ -1,5 +1,5 @@
 import Navbar from "@/components/site/navbar";
-import { HandCoins, Twitch, Youtube } from "lucide-react";
+import { HandCoins, Twitch, Video, Youtube } from "lucide-react";
 
 
 
@@ -155,7 +155,7 @@ export default function Home() {
 										className="mr-5 mb-5 lg:mb-0 hover:text-gray-800 dark:hover:text-gray-400"
 									>
 										<div className="flex items-center space-x-2 text-4xl">
-											<Twitch className="w-8 h-8 rounded-md dark:text-white/70" />
+											<Video className="w-8 h-8 rounded-md dark:text-white/70" />
 											<span>Twitch</span>
 										</div>
 									</a>

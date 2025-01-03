@@ -1,51 +1,39 @@
+
+
 services:
   app:
+    container_name: chatwit_dev
     build:
       context: .
       dockerfile: Dockerfile.dev
-    env_file:
-      - .env
-    container_name: chatwit_dev
-    volumes:
-      - .:/src
-      - /src/node_modules
-    ports:
-      - "3000:3000"
     environment:
       NODE_ENV: development
-      REDIS_HOST: ${REDIS_HOST}
-      REDIS_PORT: ${REDIS_PORT}
-      REDIS_PASSWORD: ${REDIS_PASSWORD}
-      REDIS_USE_TLS: ${REDIS_USE_TLS}
-      BASEROW_TOKEN: ${BASEROW_TOKEN}
-      BASEROW_TABLE_ID: ${BASEROW_TABLE_ID}
-      WEBHOOK_URL: ${WEBHOOK_URL}
+    ports:
+      - "3000:3000"
+    volumes:
+      - .:/src
+      - node_modules:/src/node_modules  # Volume nomeado para node_modules
+      - ./localhost-key.pem:/src/localhost-key.pem
+      - ./localhost.pem:/src/localhost.pem
     command: npm run dev
     networks:
       - app-network
+    develop:
+      watch:
+        - action: sync
+          path: .
+          target: /src
+          ignore:
+            - node_modules/
+            - ".git/"
+            - "Dockerfile*"
+            - "docker-compose*.yml"
+        - action: rebuild
+          path: package.json
 
-  worker:
-    build:
-      context: .
-      dockerfile: Dockerfile.dev
-    env_file:
-      - .env
-    container_name: bull_worker_dev
-    volumes:
-      - .:/src
-      - /src/node_modules
-    environment:
-      NODE_ENV: development
-      REDIS_HOST: ${REDIS_HOST}
-      REDIS_PORT: ${REDIS_PORT}
-      REDIS_PASSWORD: ${REDIS_PASSWORD}
-      REDIS_USE_TLS: ${REDIS_USE_TLS}
-      BASEROW_TOKEN: ${BASEROW_TOKEN}
-      BASEROW_TABLE_ID: ${BASEROW_TABLE_ID}
-      WEBHOOK_URL: ${WEBHOOK_URL}
-    command: npm run worker
-    networks:
-      - app-network
+volumes:
+  node_modules:
+    driver: local  # Usa driver local para persistência
 
 networks:
   app-network:

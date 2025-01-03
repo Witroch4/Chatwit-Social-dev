@@ -1,3 +1,5 @@
+// app/dashboard/automação/page.tsx
+
 "use client";
 
 import { useSession } from "next-auth/react";
@@ -13,6 +15,8 @@ import PalavraExpressaoSelection from "./components/PalavraExpressaoSelection";
 import PreviewPhoneMockup from "./components/PreviewPhoneMockup";
 import ToggleActions from "./components/ToggleActions";
 
+import CommentsDrawer from "./components/CommentsDrawer"; // Certifique-se de que o caminho está correto
+
 interface InstagramUserData {
   id: string;
   username: string;
@@ -25,6 +29,10 @@ export interface InstagramMediaItem {
   id: string;
   caption?: string;
   media_url?: string;
+  media_type?: string;
+  thumbnail_url?: string;
+  media_product_type?: string;
+
   like_count?: number;
   comments_count?: number;
 }
@@ -43,7 +51,8 @@ export default function UserPage() {
   const [selectedOptionPalavra, setSelectedOptionPalavra] = useState("qualquer-palavra");
   const [inputPalavra, setInputPalavra] = useState("");
 
-  const [toggleValue, setToggleValue] = useState<"publicar"|"comentarios"|"dm">("publicar");
+  const [toggleValue, setToggleValue] = useState<"publicar" | "comentarios" | "dm">("publicar");
+  const [commentContent, setCommentContent] = useState(""); // Novo estado para o conteúdo do comentário
 
   const [openDialog, setOpenDialog] = useState(false);
 
@@ -69,7 +78,10 @@ export default function UserPage() {
           setInstagramUser(userData);
 
           const mediaRes = await fetch(
-            `https://graph.instagram.com/me/media?fields=id,caption,media_url,like_count,comments_count&access_token=${accessToken}`
+            `https://graph.instagram.com/me/media?fields=` +
+              `id,caption,media_url,media_type,thumbnail_url,media_product_type,` +
+              `like_count,comments_count` +
+              `&access_token=${accessToken}`
           );
 
           if (!mediaRes.ok) {
@@ -99,6 +111,17 @@ export default function UserPage() {
     fetchInstagramData();
   }, [status, accessToken]);
 
+  // Função para lidar com a entrada na seção "Palavra ou Expressão"
+  const handlePalavraInputChange = (value: string) => {
+    setInputPalavra(value);
+    setCommentContent(value); // Atualiza o conteúdo do comentário
+    if (value.trim() !== "") {
+      setToggleValue("comentarios"); // Muda para a aba "comentarios" se houver entrada
+    } else {
+      setToggleValue("publicar"); // Volta para "publicar" se a entrada estiver vazia
+    }
+  };
+
   if (status === "loading") {
     return <LoadingState />;
   }
@@ -115,26 +138,30 @@ export default function UserPage() {
     return <ErrorState error={error} />;
   }
 
-  const ultimasPostagens = instagramMedia.slice(0,4);
+  const ultimasPostagens = instagramMedia.slice(0, 4);
 
   return (
-    <div style={{
-      display: "flex",
-      flexDirection: "row",
-      justifyContent: "center", // Centraliza as colunas no meio da página
-      minHeight: "100vh",
-      padding: "20px",
-      gap: "20px",
-    }}>
-      {/* Coluna Esquerda */}
-      <div style={{
-        flex: "1", // Ocupa 50% do espaço disponível
-        borderRight: "1px solid #333",
-        paddingRight: "20px",
+    <div
+      style={{
         display: "flex",
-        flexDirection: "column",
-        alignItems: "center", // Centraliza o conteúdo horizontalmente
-      }}>
+        flexDirection: "row",
+        justifyContent: "center", // Centraliza as colunas no meio da página
+        minHeight: "100vh",
+        padding: "20px",
+        gap: "20px",
+      }}
+    >
+      {/* Coluna Esquerda */}
+      <div
+        style={{
+          flex: "1", // Ocupa 50% do espaço disponível
+          borderRight: "1px solid #333",
+          paddingRight: "20px",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center", // Centraliza o conteúdo horizontalmente
+        }}
+      >
         <PostSelection
           selectedOptionPostagem={selectedOptionPostagem}
           setSelectedOptionPostagem={setSelectedOptionPostagem}
@@ -150,36 +177,43 @@ export default function UserPage() {
           selectedOptionPalavra={selectedOptionPalavra}
           setSelectedOptionPalavra={setSelectedOptionPalavra}
           inputPalavra={inputPalavra}
-          setInputPalavra={setInputPalavra}
+          setInputPalavra={handlePalavraInputChange} // Usando a função personalizada
         />
       </div>
 
       {/* Coluna Direita (Preview) */}
-      <div style={{
-        flex: "1", // Ocupa 50% do espaço disponível
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center", // Centraliza o conteúdo horizontalmente
-      }}>
-        <div style={{
+      <div
+        style={{
+          flex: "1", // Ocupa 50% do espaço disponível
           display: "flex",
-          justifyContent: "space-between",
-          width: "100%",
-          alignItems: "center",
-          marginBottom: "10px",
-        }}>
-          <span style={{fontWeight: "bold", fontSize: "16px"}}>Preview</span>
-          <Button variant="outline" size="sm" style={{textTransform:"none"}}>Ativar</Button>
+          flexDirection: "column",
+          alignItems: "center", // Centraliza o conteúdo horizontalmente
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            width: "100%",
+            alignItems: "center",
+            marginBottom: "10px",
+          }}
+        >
+          <span style={{ fontWeight: "bold", fontSize: "16px" }}>Preview</span>
+          <Button variant="outline" size="sm" style={{ textTransform: "none" }}>
+            Ativar
+          </Button>
         </div>
 
         <PreviewPhoneMockup
           selectedPost={selectedPost}
           instagramUser={instagramUser}
+          toggleValue={toggleValue}
+          commentContent={commentContent}
         />
 
         <ToggleActions toggleValue={toggleValue} setToggleValue={setToggleValue} />
       </div>
-
     </div>
   );
 }
