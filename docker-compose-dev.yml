@@ -1,18 +1,18 @@
 
-
 services:
   app:
     container_name: chatwit_dev
     build:
       context: .
       dockerfile: Dockerfile.dev
+    env_file:
+      - .env
     environment:
       NODE_ENV: development
     ports:
       - "3000:3000"
     volumes:
-      - .:/src
-      - node_modules:/src/node_modules  # Volume nomeado para node_modules
+      - node_modules:/src/node_modules
       - ./localhost-key.pem:/src/localhost-key.pem
       - ./localhost.pem:/src/localhost.pem
     command: npm run dev
@@ -33,7 +33,7 @@ services:
 
 volumes:
   node_modules:
-    driver: local  # Usa driver local para persistência
+    driver: local
 
 networks:
   app-network:

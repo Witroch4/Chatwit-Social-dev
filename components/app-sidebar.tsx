@@ -388,7 +388,7 @@ export function AppSidebar() {
               <SidebarMenuItem>
                 <SidebarMenuButton asChild>
                   <Link
-                    href="/user"
+                    href="chatwit"
                     className={`flex items-center ${
                       state === "collapsed" ? "justify-start pl-4" : "justify-start pl-2"
                     }`}

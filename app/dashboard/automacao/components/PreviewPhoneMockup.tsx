@@ -1,23 +1,29 @@
-// app/dashboard/automação/components/PreviewPhoneMockup.tsx
-
 "use client";
 
+import React from "react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Film } from "lucide-react";
 import { InstagramMediaItem, InstagramUserData } from "../page"; // Ajuste o caminho se necessário
-import { Film } from "lucide-react"; // Importando o ícone de vídeo do lucide-react
-import CommentsDrawer from "./CommentsDrawer"; // Importando o CommentsDrawer
+import CommentsDrawer from "./CommentsDrawer";
 
 interface Props {
   selectedPost: InstagramMediaItem | null;
   instagramUser: InstagramUserData | null;
   toggleValue: "publicar" | "comentarios" | "dm"; // Novo prop para controlar a aba ativa
   commentContent: string; // Novo prop para conteúdo do comentário
+
+  // Novas props para as DMs (Etapas 2 e 3)
+  dmWelcomeMessage: string;
+  dmQuickReply: string;
+  dmSecondMessage: string;
+  dmLink: string;
+  dmButtonLabel: string;
 }
 
 // Função auxiliar para truncar texto
 const truncateText = (text: string, maxLength: number) => {
   if (text.length <= maxLength) return text;
-  return text.slice(0, maxLength) + '...';
+  return text.slice(0, maxLength) + "...";
 };
 
 // Função para determinar se a postagem é um Reel
@@ -30,6 +36,13 @@ export default function PreviewPhoneMockup({
   instagramUser,
   toggleValue,
   commentContent,
+
+  // DM
+  dmWelcomeMessage,
+  dmQuickReply,
+  dmSecondMessage,
+  dmLink,
+  dmButtonLabel,
 }: Props) {
   return (
     <div
@@ -40,7 +53,6 @@ export default function PreviewPhoneMockup({
         display: "flex",
         justifyContent: "center",
         alignItems: "center",
-        // Removido backgroundColor para deixar o contêiner sem fundo
       }}
     >
       {/* Imagem de Fundo Preto do Smartphone */}
@@ -54,25 +66,26 @@ export default function PreviewPhoneMockup({
           width: "325px",
           height: "655px",
           objectFit: "cover",
-          zIndex: 0, // Abaixo do conteúdo e do mockup principal
-          pointerEvents: "none", // Evita que a imagem interfira em interações do usuário
+          zIndex: 0,
+          pointerEvents: "none",
         }}
       />
 
-      {/* Conteúdo do Preview */}
+      {/* Container de Conteúdo (tela do celular) */}
       <div
         style={{
           width: "285px",
           height: "615px",
           position: "relative",
-          zIndex: 1, // Acima da imagem de fundo preto
-          background: "transparent", // Removido background preto
+          zIndex: 1,
+          background: "transparent",
           borderRadius: "10px",
           overflow: "hidden",
           display: "flex",
           flexDirection: "column",
         }}
       >
+        {/* ======================== PREVIEW PARA PUBLICAR ======================== */}
         {toggleValue === "publicar" && (
           selectedPost ? (
             <div
@@ -81,8 +94,8 @@ export default function PreviewPhoneMockup({
                 flexDirection: "column",
                 width: "100%",
                 height: "100%",
-                paddingTop: "50px", // Início do conteúdo 50px abaixo do topo
-                paddingBottom: "60px", // Espaço para a legenda não tocar a navbar
+                paddingTop: "50px",
+                paddingBottom: "60px",
                 boxSizing: "border-box",
               }}
             >
@@ -93,7 +106,6 @@ export default function PreviewPhoneMockup({
                   flexDirection: "column",
                   gap: "10px",
                   padding: "10px",
-                  // Removido overflowY para eliminar a barra de rolagem
                 }}
               >
                 {/* Header do Post */}
@@ -102,7 +114,6 @@ export default function PreviewPhoneMockup({
                     display: "flex",
                     alignItems: "center",
                     gap: "10px",
-                    flexShrink: 0,
                   }}
                 >
                   {instagramUser?.profile_picture_url ? (
@@ -124,7 +135,7 @@ export default function PreviewPhoneMockup({
                       style={{
                         fontWeight: "bold",
                         fontSize: "14px",
-                        color: "#fff", // Garantir que o texto seja visível
+                        color: "#fff",
                       }}
                     >
                       {instagramUser.username}
@@ -146,7 +157,6 @@ export default function PreviewPhoneMockup({
                             width: "100%",
                             borderRadius: "8px",
                             objectFit: "cover",
-                            flexShrink: 0,
                           }}
                         />
                         {/* Indicador de Reel com Ícone de Vídeo */}
@@ -179,7 +189,6 @@ export default function PreviewPhoneMockup({
                           width: "100%",
                           borderRadius: "8px",
                           objectFit: "cover",
-                          flexShrink: 0,
                         }}
                         controls
                       />
@@ -191,7 +200,6 @@ export default function PreviewPhoneMockup({
                         width: "100%",
                         borderRadius: "8px",
                         objectFit: "cover",
-                        flexShrink: 0,
                       }}
                       controls
                     />
@@ -203,7 +211,6 @@ export default function PreviewPhoneMockup({
                         width: "100%",
                         borderRadius: "8px",
                         objectFit: "cover",
-                        flexShrink: 0,
                       }}
                     />
                   )
@@ -217,7 +224,6 @@ export default function PreviewPhoneMockup({
                     display: "flex",
                     justifyContent: "space-between",
                     alignItems: "center",
-                    flexShrink: 0,
                   }}
                 >
                   <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
@@ -271,7 +277,7 @@ export default function PreviewPhoneMockup({
                 </div>
 
                 {/* Legenda */}
-                <div style={{ flexShrink: 1 }}>
+                <div>
                   {selectedPost.caption ? (
                     <div style={{ fontSize: "14px", lineHeight: "18px", color: "#fff" }}>
                       <strong>{instagramUser?.username}</strong>{" "}
@@ -287,7 +293,7 @@ export default function PreviewPhoneMockup({
               <div
                 style={{
                   position: "absolute",
-                  bottom: "4px", // 4px acima da borda inferior
+                  bottom: "4px",
                   left: "50%",
                   transform: "translateX(-50%)",
                   display: "flex",
@@ -298,7 +304,7 @@ export default function PreviewPhoneMockup({
                   background: "#000",
                   width: "100%",
                   boxSizing: "border-box",
-                  zIndex: 3, // Acima do conteúdo
+                  zIndex: 3,
                 }}
               >
                 <svg width="25" height="24" style={{ fill: "#FAFAFA" }}>
@@ -316,14 +322,19 @@ export default function PreviewPhoneMockup({
                   />
                 </svg>
                 <svg width="25" height="24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M12.5 6a1 1 0 0 1 1 1v4h4a1 1 0 1 1 0 2h-4v4a1 1 0 1 1-2 0v-4h-4a1 1 0 1 1 0-2h4V7a1 1 0 0 1 1-1Z" fill="#FAFAFA"/>
-                  <path fillRule="evenodd" clipRule="evenodd"
-                    d="M11.505 2c-1.386 0-2.488 0-3.377.074-.91.075-1.685.234-2.394.602a6 6 0 0 0-2.558 2.558c-.368.709-.527 1.484-.602 2.394-.074.89-.074 1.991-.074 3.377v1.99c0 1.386 0 2.488.074 3.377.075.91.234 1.686.602 2.394a6 6 0 0 0 2.558 2.559c.709.367 1.484.526 2.394.601.89.074 1.992.074 3.377.074h1.99c1.386 0 2.488 0 3.377-.074.91-.075 1.686-.233 2.394-.601a6 6 0 0 0 2.558-2.56c.709-.707 1.068-1.483 1.068-2.393.074-.89.074-1.992.074-3.377v-1.99c0-1.385 0-2.488-.074-3.377-.075-.91-.233-1.685-.601-2.394a6 6 0 0 0-2.56-2.558c-.707-.368-1.483-.527-2.393-.602C15.982 2 14.88 2 13.495 2h-1.99ZM6.656 4.45c.375-.195.854-.318 1.638-.383C9.09 4 10.11 4 11.55 4h1.9c1.44 0 2.46 0 3.256.067.785.065 1.263.188 1.638.383a4 4 0 0 1 1.706 1.706c.195.375.318.854.383 1.638.066.796.067 1.815.067 3.256v1.9c0 1.44 0 2.46-.067 3.256-.065.785-.188 1.263-.383 1.638a4 4 0 0 1-1.706 1.706c-.375.195-.854.318-1.638.383C15.91 20 14.89 20 13.45 20h-1.9c-1.44 0-2.46 0-3.256-.067-.784-.065-1.263-.188-1.638-.383a4 4 0 0 1-1.706-1.706c-.195-.375-.318-.854-.383-1.638C4.5 15.41 4.5 14.39 4.5 12.95v-1.9c0-1.44 0-2.46.067-3.256.065-.784.188-1.263.383-1.638A4 4 0 0 1 6.656 4.45Z" fill="#FAFAFA"/>
+                  <path
+                    d="M12.5 6a1 1 0 0 1 1 1v4h4a1 1 0 1 1 0 2h-4v4a1 1 0 1 1-2 0v-4h-4a1 1 0 1 1 0-2h4V7a1 1 0 0 1 1-1Z"
+                    fill="#FAFAFA"
+                  />
+                  <path
+                    fillRule="evenodd"
+                    clipRule="evenodd"
+                    d="M11.505 2c-1.386 0-2.488 0-3.377.074-.91.075-1.685.234-2.394.602a6 6 0 0 0-2.558 2.558c-.368.709-.527 1.484-.602 2.394-.074.89-.074 1.991-.074 3.377v1.99c0 1.386 0 2.488.074 3.377.075.91.234 1.686.602 2.394a6 6 0 0 0 2.558 2.559c.709.367 1.484.526 2.394.601.89.074 1.992.074 3.377.074h1.99c1.386 0 2.488 0 3.377-.074.91-.075 1.686-.233 2.394-.601a6 6 0 0 0 2.558-2.56c.709-.707 1.068-1.483 1.068-2.393.074-.89.074-1.992.074-3.377v-1.99c0-1.385 0-2.488-.074-3.377-.075-.91-.233-1.685-.601-2.394a6 6 0 0 0-2.56-2.558c-.707-.368-1.483-.527-2.393-.602C15.982 2 14.88 2 13.495 2h-1.99ZM6.656 4.45c.375-.195.854-.318 1.638-.383C9.09 4 10.11 4 11.55 4h1.9c1.44 0 2.46 0 3.256.067.785.065 1.263.188 1.638.383a4 4 0 0 1 1.706 1.706c.195.375.318.854.383 1.638.066.796.067 1.815.067 3.256v1.9c0 1.44 0 2.46-.067 3.256-.065.785-.188 1.263-.383 1.638a4 4 0 0 1-1.706 1.706c-.375.195-.854.318-1.638.383C15.91 20 14.89 20 13.45 20h-1.9c-1.44 0-2.46 0-3.256-.067-.784-.065-1.263-.188-1.638-.383a4 4 0 0 1-1.706-1.706c-.195-.375-.318-.854-.383-1.638C4.5 15.41 4.5 14.39 4.5 12.95v-1.9c0-1.44 0-2.46.067-3.256.065-.784.188-1.263.383-1.638A4 4 0 0 1 6.656 4.45Z"
+                    fill="#FAFAFA"
+                  />
                 </svg>
                 <svg width="25" height="24" style={{ fill: "#FAFAFA" }}>
-                  <path
-                    d="M15.3 14.132a.438.438 0 0 1 0 .736l-4.2 2.574c-.267.164-.6-.04-.6-.367v-5.15c0-.327.333-.53.6-.368l4.2 2.575Z"
-                  />
+                  <path d="M15.3 14.132a.438.438 0 0 1 0 .736l-4.2 2.574c-.267.164-.6-.04-.6-.367v-5.15c0-.327.333-.53.6-.368l4.2 2.575Z" />
                   <path
                     fillRule="evenodd"
                     clipRule="evenodd"
@@ -357,8 +368,8 @@ export default function PreviewPhoneMockup({
                 justifyContent: "center",
                 width: "100%",
                 height: "100%",
-                paddingTop: "50px", // Início do conteúdo 50px abaixo do topo
-                paddingBottom: "60px", // Espaço para a legenda não tocar a navbar
+                paddingTop: "50px",
+                paddingBottom: "60px",
                 boxSizing: "border-box",
               }}
             >
@@ -368,34 +379,194 @@ export default function PreviewPhoneMockup({
           )
         )}
 
-        {/* Se a aba ativa for "comentarios", exibe o Drawer de Comentários */}
+        {/* ======================== PREVIEW PARA COMENTÁRIOS ======================== */}
         {toggleValue === "comentarios" && (
-          <CommentsDrawer
-            open={true}
-            commentContent={commentContent}
-            instagramUser={instagramUser}
-          />
+          <CommentsDrawer open={true} commentContent={commentContent} instagramUser={instagramUser} />
         )}
 
-        {/* Se a aba ativa for "dm", você pode criar outro componente ou simular algo similar */}
-        {toggleValue === "dm" && (
+ {/* ======================== PREVIEW PARA DM ======================== */}
+ {toggleValue === "dm" && (
           <div
             style={{
               display: "flex",
               flexDirection: "column",
+              alignItems: "flex-start", // Alinha as mensagens à esquerda
               width: "100%",
               height: "100%",
-              alignItems: "center",
-              justifyContent: "center",
-              color: "#999",
+              paddingTop: "40px",
+              paddingLeft: "10px",
+              paddingRight: "10px",
+              boxSizing: "border-box",
+              backgroundColor: "#000", // Simulação do fundo do chat
+              overflow: "hidden", // Remove a rolagem interna
             }}
           >
-            <span>Simulação da aba de DM...</span>
+            {/* Mensagem de Boas-Vindas com Botão (Etapa 2) */}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "flex-start",
+                marginBottom: "10px",
+                maxWidth: "80%", // Limita a largura do balão
+              }}
+            >
+              {/* Imagem do Usuário (Bot) */}
+              <img
+                src={instagramUser?.profile_picture_url || "/default_profile.png"} // Use uma imagem padrão se não houver
+                alt="Perfil Bot"
+                style={{
+                  borderRadius: "50%",
+                  width: "30px",
+                  height: "30px",
+                  objectFit: "cover",
+                  marginRight: "10px",
+                }}
+              />
+
+              {/* Balão da Mensagem */}
+              <div
+                style={{
+                  backgroundColor: "#262626",
+                  padding: "10px",
+                  borderRadius: "10px",
+                  color: "#fff",
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "flex-start",
+                  maxWidth: "100%", // Garante que o balão não exceda o container
+                  wordBreak: "break-word", // Quebra palavras longas
+                }}
+              >
+                {/* Texto da Mensagem */}
+                {dmWelcomeMessage.split("\n").map((line, index) => (
+                  <p key={index} style={{ margin: 0, marginBottom: "4px", fontSize: "14px" }}>
+                    {line}
+                  </p>
+                ))}
+
+                {/* Botão Simulado dentro da Mensagem */}
+                <div
+                  style={{
+                    backgroundColor: "#808080",
+                    padding: "6px 10px",
+                    borderRadius: "8px",
+                    color: "#fff",
+                    fontSize: "14px",
+                    display: "inline-block",
+                    marginTop: "8px",
+                    maxWidth: "100%", // Garante que o botão não exceda o balão
+                    wordBreak: "break-word",
+                  }}
+                >
+                  {dmQuickReply}
+                </div>
+              </div>
+            </div>
+
+            {/* Balão Azul Representando a Resposta do Usuário */}
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "flex-end",
+                alignItems: "flex-start",
+                marginBottom: "10px",
+                maxWidth: "80%", // Limita a largura do balão
+                alignSelf: "flex-end", // Alinha à direita
+              }}
+            >
+              {/* Balão da Mensagem */}
+              <div
+                style={{
+                  backgroundColor: "#3B82F6", // Tom de azul
+                  color: "#fff",
+                  borderRadius: "10px",
+                  padding: "10px",
+                  maxWidth: "100%", // Garante que o balão não exceda o container
+                  wordBreak: "break-word", // Quebra palavras longas
+                }}
+              >
+                {dmQuickReply}
+              </div>
+            </div>
+
+            {/* Mensagem com Link e Botão (Etapa 3) */}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "flex-start",
+                marginBottom: "10px",
+                maxWidth: "80%", // Limita a largura do balão
+              }}
+            >
+              {/* Imagem do Usuário (Bot) */}
+              <img
+                src={instagramUser?.profile_picture_url || "/default_profile.png"} // Use uma imagem padrão se não houver
+                alt="Perfil Bot"
+                style={{
+                  borderRadius: "50%",
+                  width: "30px",
+                  height: "30px",
+                  objectFit: "cover",
+                  marginRight: "10px",
+                }}
+              />
+
+              {/* Balão da Mensagem */}
+              <div
+                style={{
+                  backgroundColor: "#262626",
+                  padding: "10px",
+                  borderRadius: "10px",
+                  color: "#fff",
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "flex-start",
+                  maxWidth: "100%", // Garante que o balão não exceda o container
+                  wordBreak: "break-word", // Quebra palavras longas
+                }}
+              >
+                {/* Texto da Mensagem */}
+                <p style={{ margin: 0, marginBottom: "4px", fontSize: "14px" }}>{dmSecondMessage}</p>
+
+                {/* Balão Menor com o "Botão" */}
+                <div
+                  style={{
+                    backgroundColor: "#808080",
+                    padding: "6px 10px",
+                    borderRadius: "8px",
+                    color: "#fff",
+                    fontSize: "14px",
+                    display: "inline-block",
+                    marginTop: "8px",
+                    maxWidth: "100%", // Garante que o botão não exceda o balão
+                    wordBreak: "break-word",
+                  }}
+                >
+                  {dmButtonLabel}
+                </div>
+
+                {/* Exibição do Link */}
+                <p
+                  style={{
+                    margin: 0,
+                    marginTop: "4px",
+                    fontSize: "12px",
+                    color: "#999",
+                    wordBreak: "break-word", // Quebra palavras longas
+                  }}
+                >
+                  {dmLink}
+                </p>
+              </div>
+            </div>
+
+            {/* Espaço para "rolagem" ou placeholder */}
+            <div style={{ flex: 1 }} />
           </div>
         )}
       </div>
 
-      {/* Imagem do Mockup do Celular */}
+      {/* Mockup do Celular (imagem por cima) */}
       <img
         src="/smartphone.png"
         alt="Mockup de Celular"
@@ -406,8 +577,8 @@ export default function PreviewPhoneMockup({
           width: "325px",
           height: "655px",
           objectFit: "cover",
-          zIndex: 2, // Garantir que esteja acima do conteúdo e da imagem de fundo
-          pointerEvents: "none", // Evita que a imagem interfira em interações do usuário
+          zIndex: 2,
+          pointerEvents: "none",
         }}
       />
     </div>
