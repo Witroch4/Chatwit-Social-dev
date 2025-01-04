@@ -1,3 +1,4 @@
+//app/dashboard/automacao/components/PreviewPhoneMockup.tsx
 "use client";
 
 import React from "react";

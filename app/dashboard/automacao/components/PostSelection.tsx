@@ -1,6 +1,6 @@
-// app/dashboard/automação/components/PostSelection.tsx
+// app/dashboard/automacao/components/PostSelection.tsx
 
-import { InstagramMediaItem } from "../page"; // Certifique-se de que o caminho está correto
+import { InstagramMediaItem } from "../page"; // Ensure the path is correct
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -25,6 +25,7 @@ interface PostSelectionProps {
   instagramMedia: InstagramMediaItem[];
   openDialog: boolean;
   setOpenDialog: (open: boolean) => void;
+  onSelectPost: () => void; // New prop added
 }
 
 export default function PostSelection({
@@ -35,14 +36,30 @@ export default function PostSelection({
   ultimasPostagens,
   instagramMedia,
   openDialog,
-  setOpenDialog
+  setOpenDialog,
+  onSelectPost, // Destructuring the new prop
 }: PostSelectionProps) {
 
-  // Função para determinar se a postagem é um Reel
+  // Function to determine if the post is a Reel
   const isReel = (post: InstagramMediaItem) => {
     return post.media_type === "VIDEO" && post.media_product_type === "REELS";
   };
 
+  // Function to handle selecting a specific post
+  const handleSelectPost = (post: InstagramMediaItem) => {
+    setSelectedPost(post);
+    setSelectedOptionPostagem("especifico");
+    onSelectPost(); // Calling the handler to set toggleValue
+  };
+
+  // Function to handle "Mostrar Todos"
+  const handleMostrarTodos = () => {
+    setSelectedPost(null); // If "Mostrar Todos" means not selecting any specific post
+    setSelectedOptionPostagem("qualquer");
+    onSelectPost(); // Calling the handler to set toggleValue
+  };
+
+  // Ensure there's no extra closing brace here
   return (
     <div>
       <h2 style={{ marginBottom: "10px" }}>Quando Alguém faz um Comentário</h2>
@@ -50,7 +67,10 @@ export default function PostSelection({
         defaultValue="especifico"
         onValueChange={(v) => {
           setSelectedOptionPostagem(v);
-          if (v === "qualquer") setSelectedPost(null);
+          if (v === "qualquer") {
+            setSelectedPost(null);
+            onSelectPost(); // Calling to set toggleValue to "publicar"
+          }
         }}
         style={{ marginBottom: "20px" }}
       >
@@ -74,14 +94,14 @@ export default function PostSelection({
                   style={{
                     width: "70px",
                     height: "95px",
-                    border: "1px solid #333",
+                    border: selectedPost?.id === post.id ? "2px solid blue" : "1px solid #333",
                     borderRadius: "5px",
                     overflow: "hidden",
                     cursor: "pointer",
                     flexShrink: 0,
                     position: "relative"
                   }}
-                  onClick={() => setSelectedPost(post)}
+                  onClick={() => handleSelectPost(post)} // Using the function that calls onSelectPost
                 >
                   {post.media_url ? (
                     isReel(post) && post.thumbnail_url ? (
@@ -91,7 +111,7 @@ export default function PostSelection({
                           style={{ width: "100%", height: "100%", objectFit: "cover" }}
                           alt={post.caption || "Reels thumbnail"}
                         />
-                        {/* Indicador de Reel */}
+                        {/* Reel Indicator */}
                         <div style={{
                           position: "absolute",
                           bottom: "2px",
@@ -171,6 +191,7 @@ export default function PostSelection({
                     onClick={() => {
                       setSelectedPost(post);
                       setOpenDialog(false);
+                      onSelectPost(); // Calling the handler to set toggleValue
                     }}
                   >
                     {post.media_url ? (
@@ -181,7 +202,6 @@ export default function PostSelection({
                             style={{ width: "100%", height: "100%", objectFit: "cover" }}
                             alt={post.caption || "Reels thumbnail"}
                           />
-                          {/* Indicador de Reel */}
                           <div style={{
                             position: "absolute",
                             bottom: "2px",
@@ -219,8 +239,12 @@ export default function PostSelection({
               </DialogFooter>
             </DialogContent>
           </Dialog>
+
+
         </div>
       )}
+
     </div>
-  );
-}
+  ); // Ensure this closing parenthesis matches the opening one after 'return ('
+
+} // Ensure this closing brace matches the opening one for the function

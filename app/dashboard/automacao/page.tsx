@@ -147,6 +147,20 @@ export default function UserPage() {
     }
   };
 
+  // ------------------ HANDLER PARA SETAR TOGGLE VALUE PARA "PUBLICAR" ------------------
+  const handlePublicarToggle = () => {
+    setToggleValue("publicar");
+  };
+
+  // Adicional: Caso você prefira usar useEffect para monitorar mudanças em selectedPost
+  /*
+  useEffect(() => {
+    if (selectedPost || mostrarTodos) { // caso "mostrarTodos" seja um estado ou prop
+      setToggleValue("publicar");
+    }
+  }, [selectedPost, mostrarTodos]);
+  */
+
   if (status === "loading") {
     return <LoadingState />;
   }
@@ -199,6 +213,7 @@ export default function UserPage() {
           instagramMedia={instagramMedia}
           openDialog={openDialog}
           setOpenDialog={setOpenDialog}
+          onSelectPost={handlePublicarToggle} // Passando o handler
         />
 
         <PalavraExpressaoSelection
@@ -231,6 +246,7 @@ export default function UserPage() {
               className="mt-2"
               value={dmWelcomeMessage}
               onChange={(e) => setDmWelcomeMessage(e.target.value)}
+              onFocus={() => setToggleValue("dm")} // Adicionado
             />
           </div>
 
@@ -243,6 +259,7 @@ export default function UserPage() {
               className="mt-2"
               value={dmQuickReply}
               onChange={(e) => setDmQuickReply(e.target.value)}
+              onFocus={() => setToggleValue("dm")} // Adicionado
             />
           </div>
         </div>
@@ -267,6 +284,7 @@ export default function UserPage() {
               className="mt-2"
               value={dmSecondMessage}
               onChange={(e) => setDmSecondMessage(e.target.value)}
+              onFocus={() => setToggleValue("dm")} // Adicionado
             />
           </div>
 
@@ -279,6 +297,7 @@ export default function UserPage() {
               className="mt-2"
               value={dmLink}
               onChange={(e) => setDmLink(e.target.value)}
+              onFocus={() => setToggleValue("dm")} // Adicionado
             />
           </div>
 
@@ -291,6 +310,7 @@ export default function UserPage() {
               className="mt-2"
               value={dmButtonLabel}
               onChange={(e) => setDmButtonLabel(e.target.value)}
+              onFocus={() => setToggleValue("dm")} // Adicionado
             />
           </div>
         </div>
