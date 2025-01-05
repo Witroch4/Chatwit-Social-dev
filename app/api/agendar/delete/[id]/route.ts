@@ -1,4 +1,5 @@
 // app/api/agendar/delete/[id]/route.ts
+
 import { NextRequest, NextResponse } from 'next/server';
 import axios from 'axios';
 import dotenv from 'dotenv';
@@ -6,13 +7,18 @@ import { cancelAgendamentoBullMQ } from '@/lib/scheduler-bullmq';
 
 dotenv.config();
 
+/**
+ * DELETE em /api/agendar/delete/[id]
+ * - Deleta o agendamento do Baserow
+ * - Remove (cancela) o job do BullMQ
+ */
 export async function DELETE(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
-    const rowId = params.id;
-    const userID = request.headers.get('user-id');
+    const rowId = params.id; // ID do Baserow
+    const userID = request.headers.get('user-id'); // userID deve ser enviado no header
 
     if (!userID) {
       return NextResponse.json({ error: 'userID é obrigatório nos headers.' }, { status: 400 });
@@ -27,7 +33,7 @@ export async function DELETE(
 
     console.log(`[DELETE] Deletando agendamento com ID: ${rowId} para o usuário: ${userID}`);
 
-    // Verificar se o agendamento realmente pertence ao userID
+    // 1) Verifica se o agendamento realmente pertence ao userID informado
     const getAgendamentoResponse = await axios.get(
       `https://planilhatecnologicabd.witdev.com.br/api/database/rows/table/${BASEROW_TABLE_ID}/${rowId}/?user_field_names=true`,
       {
@@ -39,13 +45,16 @@ export async function DELETE(
 
     const agendamento = getAgendamentoResponse.data;
     if (agendamento.userID !== userID) {
-      return NextResponse.json({ error: 'Não autorizado a deletar este agendamento.' }, { status: 403 });
+      return NextResponse.json(
+        { error: 'Não autorizado a deletar este agendamento.' },
+        { status: 403 }
+      );
     }
 
-    // 1) Cancela na fila do BullMQ
+    // 2) Cancela o job na fila do BullMQ
     await cancelAgendamentoBullMQ(rowId);
 
-    // 2) Remove do Baserow
+    // 3) Remove o registro do Baserow
     await axios.delete(
       `https://planilhatecnologicabd.witdev.com.br/api/database/rows/table/${BASEROW_TABLE_ID}/${rowId}/?user_field_names=true`,
       {

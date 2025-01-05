@@ -1,17 +1,23 @@
 // app/api/agendar/update/[id]/route.ts
+
 import { NextRequest, NextResponse } from 'next/server';
 import axios from 'axios';
 import dotenv from 'dotenv';
-import { scheduleAgendamentoBullMQ } from '@/lib/scheduler-bullmq';
+import { scheduleAgendamentoBullMQ, cancelAgendamentoBullMQ } from '@/lib/scheduler-bullmq';
 
 dotenv.config();
 
+/**
+ * PATCH em /api/agendar/update/[id]
+ * - Atualiza o agendamento no Baserow
+ * - Re-agenda no BullMQ (remove job antigo e cria novo)
+ */
 export async function PATCH(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
-    const rowId = params.id;
+    const rowId = params.id; // ID do Baserow, ex.: "123"
     const {
       Data,
       Descrição,
@@ -31,7 +37,7 @@ export async function PATCH(
     }
 
     if (!rowId) {
-      return NextResponse.json({ error: 'row_id é obrigatório.' }, { status: 400 });
+      return NextResponse.json({ error: 'rowId é obrigatório na URL.' }, { status: 400 });
     }
 
     const BASEROW_TOKEN = process.env.BASEROW_TOKEN;
@@ -71,11 +77,13 @@ export async function PATCH(
 
     console.log('[Update] Resposta do Baserow:', response.data);
 
-    // 2) Re-agenda no BullMQ (cancela anterior e cria novo, se preferir)
-    //  - Caso você queira remover o anterior, faça `cancelAgendamentoBullMQ(rowId);` antes.
+    // 2) Cancela o job antigo e re-agenda
+    //    Para garantir que não haja jobs "fantasmas" rodando em paralelo
+    await cancelAgendamentoBullMQ(rowId);
+
     await scheduleAgendamentoBullMQ({
-      id: response.data.id,
-      Data: response.data.Data,
+      id: response.data.id,     // ID numérico do Baserow
+      Data: response.data.Data, // Nova data
       userID: response.data.userID,
     });
 
