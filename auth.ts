@@ -3,7 +3,7 @@ import { PrismaAdapter } from "@auth/prisma-adapter";
 import { UserRole } from "@prisma/client";
 import NextAuth from "next-auth";
 import authConfig from "./auth.config";
-import { prisma } from "./lib/db";
+import { prisma } from "./lib/prisma";
 import { findUserbyEmail } from "./services";
 import { isTwoFactorAutenticationEnabled } from "./services/auth";
 
@@ -47,9 +47,14 @@ export const {
       if (trigger === "update" && session) {
         console.log("Atualizando token com base na sessão");
 
+        // Remover 'instagramExpiresAt'
         token.isTwoFactorEnabled = session.user.isTwoFactorEnabled;
         token.instagramAccessToken = session.user.instagramAccessToken;
-        token.instagramExpiresAt = session.user.instagramExpiresAt;
+
+        // Adicionar 'providerAccountId'
+        if (session.user.providerAccountId) {
+          token.providerAccountId = session.user.providerAccountId;
+        }
 
         return token;
       }
@@ -75,11 +80,17 @@ export const {
         if (instagramAccount) {
           console.log("Conta do Instagram encontrada:", instagramAccount);
           token.instagramAccessToken = instagramAccount.access_token ?? undefined;
-          token.instagramExpiresAt = instagramAccount.expires_at ?? undefined;
+          // Remover a atribuição de 'instagramExpiresAt'
+          // token.instagramExpiresAt = instagramAccount.expires_at ?? undefined;
+
+          // Adicionar 'providerAccountId'
+          token.providerAccountId = instagramAccount.providerAccountId;
         } else {
           console.log("Nenhuma conta do Instagram encontrada.");
           token.instagramAccessToken = undefined;
-          token.instagramExpiresAt = undefined;
+          // Remover a atribuição de 'instagramExpiresAt'
+          // token.instagramExpiresAt = undefined;
+          token.providerAccountId = undefined;
         }
 
         token.role = user.role as UserRole;
@@ -99,7 +110,11 @@ export const {
 
         // Incluir o token do Instagram na sessão, se disponível
         session.user.instagramAccessToken = token.instagramAccessToken as string | undefined;
-        session.user.instagramExpiresAt = token.instagramExpiresAt as number | undefined;
+        // Remover 'instagramExpiresAt'
+        // session.user.instagramExpiresAt = token.instagramExpiresAt as number | undefined;
+
+        // Incluir 'providerAccountId' na sessão, se disponível
+        session.user.providerAccountId = token.providerAccountId as string | undefined;
       }
 
       return session;

@@ -2,7 +2,7 @@
 
 import { NextResponse } from 'next/server';
 import { auth, update } from "@/auth"; // Importa as funções auth e update do arquivo auth.ts
-import { prisma } from "@/lib/db"; // Ajuste conforme sua configuração do prisma
+import { prisma } from "@/lib/prisma"; // Ajuste conforme sua configuração do prisma
 
 export async function GET(request: Request) {
   try {
@@ -39,7 +39,16 @@ export async function GET(request: Request) {
       return new NextResponse('Erro ao obter token curto prazo', { status: 500 });
     }
 
-    const tokenData = await tokenResponse.json() as {
+    // **Alteração Principal: Tratar user_id como string para evitar perda de precisão**
+    const tokenResponseText = await tokenResponse.text();
+
+    // "Corrige" o JSON para que o user_id seja considerado string
+    const correctedResponseText = tokenResponseText.replace(
+      /"user_id":\s*(\d+)/,
+      '"user_id":"$1"'
+    );
+
+    const tokenData = JSON.parse(correctedResponseText) as {
       access_token: string;
       user_id: string;
       permissions: string[];
@@ -113,6 +122,7 @@ export async function GET(request: Request) {
           expires_at: expiresAt,
           token_type: longTokenData.token_type,
           scope: "instagram_business_basic,instagram_business_manage_messages,instagram_business_manage_comments,instagram_business_content_publish",
+          providerAccountId: tokenData.user_id, // Já é string após a correção
         }
       });
       console.log(`Token do Instagram atualizado para usuário ID: ${userId}`);
@@ -123,7 +133,7 @@ export async function GET(request: Request) {
           userId: userId,
           type: "oauth",
           provider: "instagram",
-          providerAccountId: String(tokenData.user_id), // Converte para String
+          providerAccountId: tokenData.user_id, // Já é string após a correção
           access_token: finalToken,
           expires_at: expiresAt,
           token_type: longTokenData.token_type,
@@ -134,19 +144,12 @@ export async function GET(request: Request) {
     }
 
     // 5. Atualizar o token JWT com os dados do Instagram
-    // Para disparar o callback 'jwt' com trigger 'update', precisamos passar os novos dados
-    // Uma maneira comum é atualizar a sessão do usuário
-
-    // Primeiro, atualizar os dados na sessão
-    // No NextAuth, o objeto de sessão é derivado do JWT, então precisamos garantir que o JWT reflita as mudanças
-    // Para isso, chamamos a função `update` exportada por NextAuth para reprocessar o JWT
-
-    // Aqui, você pode definir quais campos deseja atualizar no token
+    // Remover 'instagramExpiresAt' e adicionar 'providerAccountId'
     await update({
       trigger: 'update', // Define o gatilho como 'update' para que o callback JWT saiba que deve atualizar o token
       user: {
         instagramAccessToken: finalToken,
-        instagramExpiresAt: expiresAt,
+        providerAccountId: tokenData.user_id, // Já é string após a correção
       }
     });
 

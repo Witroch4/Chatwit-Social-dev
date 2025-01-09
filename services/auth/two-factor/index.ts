@@ -1,4 +1,4 @@
-import { prisma } from "@/lib/db";
+import { prisma } from "@/lib/prisma";
 import { generateOTP } from "@/lib/utils";
 
 export const findTwoFactorAuthTokenByEmail = async (email: string) => {

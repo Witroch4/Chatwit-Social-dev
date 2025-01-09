@@ -85,6 +85,60 @@ export default function AutomacaoSteps({
     contatoSemClique: false,
   });
 
+// --------------------------------------------
+  // FUNÇÃO PRINCIPAL PARA SALVAR AUTOMACAO
+  // --------------------------------------------
+  async function salvarAutomacao() {
+    try {
+      // 1) Montar o objeto payload
+      const payload = {
+        // Mídia selecionada ou "qualquer"
+        selectedMediaId: selectedPost?.id || null,
+        anyMediaSelected: selectedOptionPostagem === "qualquer",
+
+        // Palavras
+        selectedOptionPalavra, // "especifica" ou "qualquer"
+        palavrasChave,         // ex.: "Preço, Link, Comprar"
+
+        // DM de boas-vindas
+        fraseBoasVindas,
+        quickReplyTexto,
+
+        // DM com link
+        mensagemEtapa3,
+        linkEtapa3,
+        legendaBotaoEtapa3,
+
+        // Outros recursos (checkboxes)
+        responderPublico: outrosRecursos.responderPublico,
+        pedirEmailPro: outrosRecursos.pedirEmailPro,
+        pedirParaSeguirPro: outrosRecursos.pedirParaSeguirPro,
+        contatoSemClique: outrosRecursos.contatoSemClique,
+      };
+
+      // 2) Enviar para a rota /api/automacao
+      const res = await fetch("/api/automacao", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      // 3) Verificar se deu erro
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.error || "Erro ao salvar automação.");
+      }
+
+      // 4) Se deu certo, mostrar resultado
+      const data = await res.json();
+      console.log("Automação salva com sucesso:", data);
+      alert("Automação configurada e salva!");
+    } catch (error: any) {
+      console.error("Erro ao salvar automação:", error.message);
+      alert("Falha ao salvar automação: " + error.message);
+    }
+  }
+
   // Exemplo de estado para controlar qual aba do preview está ativa
   const [toggleValue, setToggleValue] = useState<ToggleValue>("dm");
   const [commentContent, setCommentContent] = useState("");

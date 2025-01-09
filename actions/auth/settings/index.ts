@@ -2,7 +2,7 @@
 
 import { auth } from "@/auth";
 import { useCurrentUser } from "@/components/hooks/use-current-user";
-import { prisma } from "@/lib/db";
+import { prisma } from "@/lib/prisma";
 import { UserSettingsSchema } from "@/schemas/auth";
 import { findUserbyEmail, findUserbyId } from "@/services";
 import bcryptjs from "bcryptjs";

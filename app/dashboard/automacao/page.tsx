@@ -18,7 +18,7 @@ import PalavraExpressaoSelection from "./components/PalavraExpressaoSelection";
 import PreviewPhoneMockup from "./components/PreviewPhoneMockup";
 import ToggleActions from "./components/ToggleActions";
 
-import CommentsDrawer from "./components/CommentsDrawer";
+import { useToast } from "@/hooks/use-toast"; // Caminho corrigido
 
 interface InstagramUserData {
   id: string;
@@ -27,7 +27,6 @@ interface InstagramUserData {
   profile_picture_url?: string;
 }
 
-// Dentro do page.tsx
 export interface InstagramMediaItem {
   id: string;
   caption?: string;
@@ -47,22 +46,19 @@ export default function UserPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // ------------------ ESTADOS DE POSTAGEM ------------------
-  const [selectedOptionPostagem, setSelectedOptionPostagem] = useState("especifico");
+  // ------------------ ESTADOS DE POSTAGEM (Etapa 1) ------------------
+  const [selectedOptionPostagem, setSelectedOptionPostagem] = useState<"especifico" | "qualquer">(
+    "especifico"
+  );
   const [selectedPost, setSelectedPost] = useState<InstagramMediaItem | null>(null);
 
-  // ------------------ ESTADOS DE PALAVRA/EXPRESSÃO ------------------
-  const [selectedOptionPalavra, setSelectedOptionPalavra] = useState("qualquer-palavra");
+  // ------------------ ESTADOS DE PALAVRA/EXPRESSÃO (Etapa 1) ------------------
+  const [selectedOptionPalavra, setSelectedOptionPalavra] = useState<"especifica" | "qualquer">(
+    "qualquer"
+  );
   const [inputPalavra, setInputPalavra] = useState("");
 
-  // ------------------ ESTADOS DE AÇÃO (TOGGLE) ------------------
-  const [toggleValue, setToggleValue] = useState<"publicar" | "comentarios" | "dm">("publicar");
-  const [commentContent, setCommentContent] = useState("");
-
-  // ------------------ ESTADO DO MODAL DE ESCOLHA DE POST ------------------
-  const [openDialog, setOpenDialog] = useState(false);
-
-  // ------------------ ESTADOS DE DM (NOVAS ETAPAS) ------------------
+  // ------------------ ESTADOS DE DM (Etapa 2 e 3) ------------------
   // Etapa 2
   const [dmWelcomeMessage, setDmWelcomeMessage] = useState(
     "Olá! Eu estou muito feliz que você está aqui, muito obrigado pelo seu interesse 😊\n\nClique abaixo e eu vou te mandar o link em um segundo ✨"
@@ -76,14 +72,25 @@ export default function UserPage() {
   const [dmLink, setDmLink] = useState("https://witdev.com.br");
   const [dmButtonLabel, setDmButtonLabel] = useState("Segue Nosso Site");
 
-  // Etapa 4 (Checkboxes)
+  // ------------------ ETAPA 4 - OUTROS RECURSOS ------------------
   const [checkboxResponderComentario, setCheckboxResponderComentario] = useState(false);
   const [checkboxPedirEmail, setCheckboxPedirEmail] = useState(false);
   const [checkboxPedirParaSeguir, setCheckboxPedirParaSeguir] = useState(false);
   const [checkboxEntrarEmContato, setCheckboxEntrarEmContato] = useState(false);
 
+  // ------------------ PARA O PREVIEW ------------------
+  const [openDialog, setOpenDialog] = useState(false);
+  const [toggleValue, setToggleValue] = useState<"publicar" | "comentarios" | "dm">("publicar");
+  const [commentContent, setCommentContent] = useState("");
+
   const accessToken = session?.user?.instagramAccessToken;
 
+  // Importando o hook useToast corretamente
+  const { toast } = useToast();
+
+  // ---------------------------------------------------------
+  //  FETCH INICIAL DAS MÍDIAS DO IG (caso o usuário esteja logado e com token)
+  // ---------------------------------------------------------
   useEffect(() => {
     const fetchInstagramData = async () => {
       if (status === "authenticated" && accessToken) {
@@ -136,31 +143,126 @@ export default function UserPage() {
     fetchInstagramData();
   }, [status, accessToken]);
 
-  // Função para lidar com a entrada no campo de palavra ou expressão
-  const handlePalavraInputChange = (value: string) => {
-    setInputPalavra(value);
-    setCommentContent(value); // Atualiza o conteúdo do comentário
-    if (value.trim() !== "") {
-      setToggleValue("comentarios"); // Muda para a aba "comentarios" se houver entrada
-    } else {
-      setToggleValue("publicar"); // Volta para "publicar" se a entrada estiver vazia
+  // --------------- FUNÇÃO DE VALIDAÇÃO --------------- //
+  function validarEtapas() {
+    // Etapa 1: Se "especifico", verifique se há um post selecionado.
+    // Se "qualquer", não precisa.
+    if (selectedOptionPostagem === "especifico" && !selectedPost) {
+      toast({
+        title: "Erro",
+        description: "Selecione uma postagem específica ou mude para 'qualquer postagem'.",
+        variant: "destructive",
+      });
+      return false;
     }
-  };
 
-  // ------------------ HANDLER PARA SETAR TOGGLE VALUE PARA "PUBLICAR" ------------------
-  const handlePublicarToggle = () => {
-    setToggleValue("publicar");
-  };
-
-  // Adicional: Caso você prefira usar useEffect para monitorar mudanças em selectedPost
-  /*
-  useEffect(() => {
-    if (selectedPost || mostrarTodos) { // caso "mostrarTodos" seja um estado ou prop
-      setToggleValue("publicar");
+    // Se "especifica" (palavra), verifique se inputPalavra não está vazio
+    if (selectedOptionPalavra === "especifica" && inputPalavra.trim() === "") {
+      toast({
+        title: "Erro",
+        description: "Preencha as palavras-chave ou selecione 'qualquer'.",
+        variant: "destructive",
+      });
+      return false;
     }
-  }, [selectedPost, mostrarTodos]);
-  */
 
+    // Etapa 2: DM de boas-vindas
+    if (dmWelcomeMessage.trim() === "" || dmQuickReply.trim() === "") {
+      toast({
+        title: "Erro",
+        description: "Preencha a DM de boas-vindas e o texto do Quick Reply.",
+        variant: "destructive",
+      });
+      return false;
+    }
+
+    // Etapa 3: DM com o link
+    if (
+      dmSecondMessage.trim() === "" ||
+      dmLink.trim() === "" ||
+      dmButtonLabel.trim() === ""
+    ) {
+      toast({
+        title: "Erro",
+        description: "Preencha a mensagem, o link e a legenda do botão da Etapa 3.",
+        variant: "destructive",
+      });
+      return false;
+    }
+
+    return true;
+  }
+
+  // ------------------------------------------------------------------
+  //  FUNÇÃO PARA "ATIVAR" A AUTOMAÇÃO -> SALVAR NO BANCO
+  // ------------------------------------------------------------------
+  async function handleAtivarAutomacao() {
+    // 1) Validação
+    if (!validarEtapas()) {
+      return;
+    }
+
+    try {
+      // 2) Montar o payload
+      const payload = {
+        // userId será determinado pelo servidor via session (api/automacao),
+        // mas se você quiser mandar no body, pode também (opcional).
+        selectedMediaId:
+          selectedOptionPostagem === "especifico" ? selectedPost?.id || null : null,
+        anyMediaSelected: selectedOptionPostagem === "qualquer",
+
+        selectedOptionPalavra,
+        palavrasChave:
+          selectedOptionPalavra === "especifica" ? inputPalavra : null,
+
+        // DM de boas-vindas
+        fraseBoasVindas: dmWelcomeMessage,
+        quickReplyTexto: dmQuickReply,
+
+        // DM com link
+        mensagemEtapa3: dmSecondMessage,
+        linkEtapa3: dmLink,
+        legendaBotaoEtapa3: dmButtonLabel,
+
+        // Outros recursos
+        responderPublico: checkboxResponderComentario,
+        pedirEmailPro: checkboxPedirEmail,
+        pedirParaSeguirPro: checkboxPedirParaSeguir,
+        contatoSemClique: checkboxEntrarEmContato,
+      };
+
+      // 3) Chamar a rota /api/automacao
+      const res = await fetch("/api/automacao", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.error || "Erro ao salvar automação.");
+      }
+
+      const data = await res.json();
+      console.log("Automação salva com sucesso:", data);
+      toast({
+        title: "Sucesso",
+        description: "Automação configurada e salva com sucesso!",
+        variant: "default",
+      });
+    } catch (error: any) {
+      console.error("Erro ao salvar automação:", error.message);
+      toast({
+        title: "Falha",
+        description: "Falha ao salvar automação: " + error.message,
+        variant: "destructive",
+      });
+    }
+  }
+
+  // ------------------------------------------------------
+  //  RENDERIZAÇÃO
+  // ------------------------------------------------------
   if (status === "loading") {
     return <LoadingState />;
   }
@@ -184,7 +286,7 @@ export default function UserPage() {
       style={{
         display: "flex",
         flexDirection: "row",
-        justifyContent: "center", // Centraliza as colunas no meio da página
+        justifyContent: "center",
         minHeight: "100vh",
         padding: "20px",
         gap: "20px",
@@ -195,7 +297,7 @@ export default function UserPage() {
       ============================================================================== */}
       <div
         style={{
-          flex: "1", // Ocupa 50% do espaço disponível
+          flex: "1",
           borderRight: "1px solid #333",
           paddingRight: "20px",
           display: "flex",
@@ -203,7 +305,7 @@ export default function UserPage() {
           alignItems: "center",
         }}
       >
-        {/* ---------------------- SELEÇÃO DE POST E PALAVRA ---------------------- */}
+        {/* --------------- ETAPA 1 --------------- */}
         <PostSelection
           selectedOptionPostagem={selectedOptionPostagem}
           setSelectedOptionPostagem={setSelectedOptionPostagem}
@@ -213,30 +315,31 @@ export default function UserPage() {
           instagramMedia={instagramMedia}
           openDialog={openDialog}
           setOpenDialog={setOpenDialog}
-          onSelectPost={handlePublicarToggle} // Passando o handler
         />
 
         <PalavraExpressaoSelection
           selectedOptionPalavra={selectedOptionPalavra}
           setSelectedOptionPalavra={setSelectedOptionPalavra}
           inputPalavra={inputPalavra}
-          setInputPalavra={handlePalavraInputChange}
+          setInputPalavra={(val) => {
+            setInputPalavra(val);
+            setCommentContent(val); // Atualiza o conteúdo do comentário
+            if (val.trim() !== "") {
+              setToggleValue("comentarios");
+            } else {
+              setToggleValue("publicar");
+            }
+          }}
         />
 
         <Separator className="my-4 w-full" />
 
-        {/* ========================================================================
-            ETAPA 2 - DM DE BOAS-VINDAS
-        ======================================================================== */}
+        {/* --------------- ETAPA 2 --------------- */}
         <div style={{ width: "100%" }}>
           <h3 className="text-lg font-semibold">Etapa 2</h3>
           <p className="text-sm text-muted-foreground mb-2">
             (Inicialmente, eles receberão uma DM de boas-vindas)
           </p>
-          <p className="text-sm">
-            Primeiro, é enviada a DM de abertura, seguida pela mensagem com o link.
-          </p>
-
           <div className="mt-4">
             <label className="text-sm font-semibold" htmlFor="dmWelcomeMessage">
               Mensagem de boas-vindas
@@ -246,29 +349,27 @@ export default function UserPage() {
               className="mt-2"
               value={dmWelcomeMessage}
               onChange={(e) => setDmWelcomeMessage(e.target.value)}
-              onFocus={() => setToggleValue("dm")} // Adicionado
+              onFocus={() => setToggleValue("dm")}
             />
           </div>
 
           <div className="mt-4">
             <label className="text-sm font-semibold" htmlFor="dmQuickReply">
-              Quick Reply (resposta rápida)
+              Quick Reply (ex.: "Me envie o link")
             </label>
             <Input
               id="dmQuickReply"
               className="mt-2"
               value={dmQuickReply}
               onChange={(e) => setDmQuickReply(e.target.value)}
-              onFocus={() => setToggleValue("dm")} // Adicionado
+              onFocus={() => setToggleValue("dm")}
             />
           </div>
         </div>
 
         <Separator className="my-4 w-full" />
 
-        {/* ========================================================================
-            ETAPA 3 - DM COM O LINK
-        ======================================================================== */}
+        {/* --------------- ETAPA 3 --------------- */}
         <div style={{ width: "100%" }}>
           <h3 className="text-lg font-semibold">Etapa 3</h3>
           <p className="text-sm text-muted-foreground mb-2">
@@ -284,7 +385,7 @@ export default function UserPage() {
               className="mt-2"
               value={dmSecondMessage}
               onChange={(e) => setDmSecondMessage(e.target.value)}
-              onFocus={() => setToggleValue("dm")} // Adicionado
+              onFocus={() => setToggleValue("dm")}
             />
           </div>
 
@@ -297,29 +398,27 @@ export default function UserPage() {
               className="mt-2"
               value={dmLink}
               onChange={(e) => setDmLink(e.target.value)}
-              onFocus={() => setToggleValue("dm")} // Adicionado
+              onFocus={() => setToggleValue("dm")}
             />
           </div>
 
           <div className="mt-4">
             <label className="text-sm font-semibold" htmlFor="dmButtonLabel">
-              Adicione legenda ao botão (Quick Reply)
+              Adicione legenda ao botão
             </label>
             <Input
               id="dmButtonLabel"
               className="mt-2"
               value={dmButtonLabel}
               onChange={(e) => setDmButtonLabel(e.target.value)}
-              onFocus={() => setToggleValue("dm")} // Adicionado
+              onFocus={() => setToggleValue("dm")}
             />
           </div>
         </div>
 
         <Separator className="my-4 w-full" />
 
-        {/* ========================================================================
-            ETAPA 4 - OUTROS RECURSOS
-        ======================================================================== */}
+        {/* --------------- ETAPA 4 --------------- */}
         <div style={{ width: "100%" }}>
           <h3 className="text-lg font-semibold">Etapa 4</h3>
           <p className="text-sm text-muted-foreground mb-4">
@@ -398,7 +497,7 @@ export default function UserPage() {
       </div>
 
       {/* =============================================================================
-          COLUNA DIREITA - PREVIEW
+          COLUNA DIREITA - PREVIEW (E BOTÃO ATIVAR)
       ============================================================================== */}
       <div
         style={{
@@ -419,7 +518,12 @@ export default function UserPage() {
           }}
         >
           <span style={{ fontWeight: "bold", fontSize: "16px" }}>Preview</span>
-          <Button variant="outline" size="sm" style={{ textTransform: "none" }}>
+          <Button
+            variant="outline"
+            size="sm"
+            style={{ textTransform: "none" }}
+            onClick={handleAtivarAutomacao}
+          >
             Ativar
           </Button>
         </div>
@@ -430,7 +534,6 @@ export default function UserPage() {
           instagramUser={instagramUser}
           toggleValue={toggleValue}
           commentContent={commentContent}
-          /* Passando as novas props de DM */
           dmWelcomeMessage={dmWelcomeMessage}
           dmQuickReply={dmQuickReply}
           dmSecondMessage={dmSecondMessage}

@@ -1,42 +1,50 @@
-//types\next-auth.d.ts
-import type { DefaultSession } from "next-auth";
-// The `JWT` interface can be found in the `next-auth/jwt` submodule
+// types/next-auth.d.ts
+
+import type { DefaultSession, DefaultUser } from "next-auth";
 import { JWT } from "next-auth/jwt";
+import { UserRole } from "@prisma/client"; // Ajuste o caminho conforme a localização do seu enum UserRole
+
 declare module "next-auth" {
-	/**
-	 * Returned by `auth`, `useSession`, `getSession` and received as a prop on the `SessionProvider` React Context
-	 */
-	interface Session {
-		user: {
-			role: UserRole;
-			isTwoFactorEnabled: boolean;
-			instagramAccessToken?: string;
-      		instagramExpiresAt?: number;
-			/**
-			 * By default, TypeScript merges new interface properties and overwrites existing ones.
-			 * In this case, the default session user properties will be overwritten,
-			 * with the new ones defined above. To keep the default session user properties,
-			 * you need to add them back into the newly declared interface.
-			 */
-		} & DefaultSession["user"];
-	}
-	  /**
-      * Extende a interface User para incluir propriedades adicionais.
-      */
-	  interface User extends DefaultUser {
-		role: UserRole;
-		isTwoFactorEnabled: boolean;
-		instagramAccessToken?: string;
-		instagramExpiresAt?: number;
-	  }
+  /**
+   * Interface estendida para a sessão do usuário
+   */
+  interface Session {
+    user: {
+      id: string; // Assegure-se de que o ID do usuário está disponível na sessão
+      role: UserRole;
+      isTwoFactorEnabled: boolean;
+      instagramAccessToken?: string;
+      providerAccountId?: string; // Adicionado
+      /**
+       * Por padrão, TypeScript mescla novas propriedades de interface e sobrescreve as existentes.
+       * Neste caso, as propriedades padrão do usuário na sessão serão sobrescritas,
+       * com as novas definidas acima. Para manter as propriedades padrão do usuário na sessão,
+       * você precisa adicioná-las de volta na interface declarada acima.
+       */
+    } & DefaultSession["user"];
+  }
+
+  /**
+   * Interface estendida para o usuário
+   */
+  interface User extends DefaultUser {
+    role: UserRole;
+    isTwoFactorEnabled: boolean;
+    instagramAccessToken?: string;
+    // instagramExpiresAt?: number; // Removido
+    providerAccountId?: string; // Adicionado
+  }
 }
 
 declare module "next-auth/jwt" {
-	/** Returned by the `jwt` callback and `auth`, when using JWT sessions */
-	interface JWT {
-		/** Two Factor Authentication */
-		isTwoFactorEnabled?: boolean;
-		instagramAccessToken?: string;
-    	instagramExpiresAt?: number;
-	}
+  /**
+   * Interface estendida para o JWT
+   */
+  interface JWT {
+    isTwoFactorEnabled?: boolean;
+    instagramAccessToken?: string;
+    // instagramExpiresAt?: number; // Removido
+    providerAccountId?: string; // Adicionado
+    role?: UserRole; // Adicionado se você deseja incluir o papel do usuário no JWT
+  }
 }

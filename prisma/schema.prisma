@@ -16,35 +16,36 @@ enum UserRole {
 }
 
 model User {
-  id                     String    @id @default(cuid())
+  id                     String      @id @default(cuid())
   name                   String?
-  email                  String    @unique
+  email                  String      @unique
   emailVerified          DateTime?
   image                  String?
-  role                   UserRole  @default(DEFAULT)
+  role                   UserRole    @default(DEFAULT)
   password               String?
-  isTwoFactorAuthEnabled Boolean   @default(false)
+  isTwoFactorAuthEnabled Boolean     @default(false)
   twoFactorAuthVerified  DateTime?
   accounts               Account[]
-  createdAt              DateTime  @default(now())
-  updatedAt              DateTime  @updatedAt
+  createdAt              DateTime    @default(now())
+  updatedAt              DateTime    @updatedAt
+  automacoes             Automacao[]
 }
 
 model Account {
-  id                 String   @id @default(cuid())
-  userId             String
-  type               String
-  provider           String
-  providerAccountId  String
-  refresh_token      String?
-  access_token       String?
-  expires_at         Int?
-  token_type         String?
-  scope              String?
-  id_token           String?
-  session_state      String?
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  id                String   @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -76,4 +77,36 @@ model ResetPasswordToken {
   expires DateTime
 
   @@unique([email, token])
+}
+
+model Automacao {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Se o usuário selecionou uma mídia específica, salvaremos o ID.
+  selectedMediaId  String?
+  anyMediaSelected Boolean @default(false)
+
+  // Opção de palavra específica ou qualquer
+  selectedOptionPalavra String // "especifica" ou "qualquer"
+  palavrasChave         String? // Ex.: "Preço, Link, Comprar"
+
+  // DM de boas-vindas (Etapa 2)
+  fraseBoasVindas String?
+  quickReplyTexto String?
+
+  // DM com o link (Etapa 3)
+  mensagemEtapa3     String?
+  linkEtapa3         String?
+  legendaBotaoEtapa3 String?
+
+  // Outros recursos (Etapa 4)
+  responderPublico   Boolean @default(false)
+  pedirEmailPro      Boolean @default(false)
+  pedirParaSeguirPro Boolean @default(false)
+  contatoSemClique   Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
