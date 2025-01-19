@@ -1,4 +1,5 @@
 // app/api/instagram/webhook/route.ts
+//https://moving-eagle-bright.ngrok-free.app/api/instagram/webhook
 import { NextRequest, NextResponse } from "next/server";
 import { instagramWebhookQueue } from "@/lib/queue/instagram-webhook.queue";
 import crypto from "crypto";
@@ -9,7 +10,7 @@ dotenv.config();
 /**
  * Token de verificação do webhook do Instagram.
  */
-const VERIFY_TOKEN = process.env.IG_VERIFY_TOKEN || "my_verify_token";
+const VERIFY_TOKEN = process.env.IG_VERIFY_TOKEN || "EAAIaqbt2rHgBO92NRTO2oMot3I8VPQGkJdnIMGVekpa5ebrdpSHfhqPytX0uih1kXLD5EZB0yHUHV5jHa1hryqrZAt8vWpZBpZCMnaLzuqGCjlKfX3mNoUSYbcnClC45md4NF5ZBKrkyZCiYLNtyeg9UgHZA7s4gafEWZCxZC0P9k4MY4Wh0jSiKpFuwVQy9crIZCW";
 
 /**
  * Secret da aplicação para verificar a assinatura do webhook.
@@ -48,10 +49,15 @@ export async function POST(request: NextRequest) {
       return new NextResponse("Assinatura inválida.", { status: 403 });
     }
 
-    const jsonBody = JSON.parse(body);
-    console.log("[Instagram Webhook] Recebido POST com dados:", JSON.stringify(jsonBody, null, 2));
+    // Logar o corpo recebido em formato de texto (bruto)
+    console.log("[Instagram Webhook] Recebendo webhook (raw body):", body);
 
-    // Adicionar o job na fila BullMQ
+    const jsonBody = JSON.parse(body);
+
+    // Logar o conteúdo JSON do webhook
+    console.log("[Instagram Webhook] Recebido POST com dados (JSON):", JSON.stringify(jsonBody, null, 2));
+
+    // Adicionar o job na fila BullMQ (caso esteja usando)
     await instagramWebhookQueue.add("instagram-event", jsonBody, {
       removeOnComplete: true,
       removeOnFail: false,

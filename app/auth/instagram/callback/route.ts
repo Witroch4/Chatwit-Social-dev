@@ -1,27 +1,26 @@
-// app/auth/instagram/callback/route.ts
-
 import { NextResponse } from 'next/server';
-import { auth, update } from "@/auth"; // Importa as funções auth e update do arquivo auth.ts
-import { prisma } from "@/lib/prisma"; // Ajuste conforme sua configuração do prisma
+import { auth, update } from "@/auth"; // Funções de autenticação
+import { prisma } from "@/lib/prisma";
 
 export async function GET(request: Request) {
   try {
+    // 1. Obter 'code' da query
     const url = new URL(request.url);
     const code = url.searchParams.get('code');
-
     if (!code) {
-      console.error('Código não fornecido na query string.');
-      return new NextResponse('Código não fornecido', { status: 400 });
+      console.error('Nenhum code fornecido na query string.');
+      return new NextResponse('Faltando code', { status: 400 });
     }
 
-    console.log(`Código recebido: ${code}`);
+    console.log(`Code recebido: ${code}`);
 
-    const clientId = process.env.INSTAGRAM_CLIENT_ID!;
-    const clientSecret = process.env.INSTAGRAM_CLIENT_SECRET!;
+    // Variáveis de ambiente
+    const clientId = process.env.INSTAGRAM_APP_ID!;
+    const clientSecret = process.env.INSTAGRAM_APP_SECRET!;
     const redirectUri = process.env.INSTAGRAM_REDIRECT_URI!;
 
-    // 1. Trocar code por token de curto prazo
-    const tokenResponse = await fetch('https://api.instagram.com/oauth/access_token', {
+    // 2. Trocar code por token de curto prazo
+    const tokenResp = await fetch('https://api.instagram.com/oauth/access_token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
@@ -30,136 +29,146 @@ export async function GET(request: Request) {
         grant_type: 'authorization_code',
         redirect_uri: redirectUri,
         code,
-      })
+      }),
     });
 
-    if (!tokenResponse.ok) {
-      const errorText = await tokenResponse.text();
+    if (!tokenResp.ok) {
+      const errorText = await tokenResp.text();
       console.error('Erro ao obter token curto prazo:', errorText);
-      return new NextResponse('Erro ao obter token curto prazo', { status: 500 });
+      return new NextResponse('Erro token curto prazo', { status: 500 });
     }
 
-    // **Alteração Principal: Tratar user_id como string para evitar perda de precisão**
-    const tokenResponseText = await tokenResponse.text();
-
-    // "Corrige" o JSON para que o user_id seja considerado string
-    const correctedResponseText = tokenResponseText.replace(
+    // Garantir que "user_id" seja string
+    const tokenRespText = await tokenResp.text();
+    const fixedRespText = tokenRespText.replace(
       /"user_id":\s*(\d+)/,
       '"user_id":"$1"'
     );
 
-    const tokenData = JSON.parse(correctedResponseText) as {
+    const shortTokenData = JSON.parse(fixedRespText) as {
       access_token: string;
       user_id: string;
-      permissions: string[];
     };
 
-    console.log(`Token curto prazo obtido: ${tokenData.access_token}`);
-    console.log(`User ID recebido: ${tokenData.user_id} (Tipo: ${typeof tokenData.user_id})`);
+    const shortLivedToken = shortTokenData.access_token;
+    console.log('Token curto prazo:', shortLivedToken);
+    console.log('User ID app-scoped:', shortTokenData.user_id);
 
-    const shortLivedToken = tokenData.access_token;
-
-    // 2. Trocar o token curto por um de longo prazo (60 dias)
-    const longTokenUrl = new URL('https://graph.instagram.com/access_token');
-    longTokenUrl.search = new URLSearchParams({
+    // 3. Trocar token curto por token longo
+    const exchangeUrl = new URL('https://graph.instagram.com/access_token');
+    exchangeUrl.search = new URLSearchParams({
       grant_type: 'ig_exchange_token',
       client_secret: clientSecret,
       access_token: shortLivedToken,
     }).toString();
 
-    const longTokenFetch = await fetch(longTokenUrl.toString(), {
-      method: 'GET',
-      headers: { 'Content-Type': 'application/json' },
-    });
-
-    if (!longTokenFetch.ok) {
-      const errorText = await longTokenFetch.text();
+    const longTokenResp = await fetch(exchangeUrl.toString());
+    if (!longTokenResp.ok) {
+      const errorText = await longTokenResp.text();
       console.error('Erro ao obter token longo prazo:', errorText);
-      return new NextResponse('Erro ao obter token longo prazo', { status: 500 });
+      return new NextResponse('Erro token longo prazo', { status: 500 });
     }
 
-    const longTokenData = await longTokenFetch.json() as {
+    const longTokenData = await longTokenResp.json() as {
       access_token: string;
       token_type: string;
       expires_in: number; // em segundos
     };
 
-    console.log(`Token longo prazo obtido: ${longTokenData.access_token}, expira em: ${longTokenData.expires_in} segundos`);
-
     const finalToken = longTokenData.access_token;
-    const expiresInSeconds = longTokenData.expires_in;
-    const expiresAt = Math.floor(Date.now() / 1000) + expiresInSeconds;
+    const expiresAt = Math.floor(Date.now() / 1000) + longTokenData.expires_in;
 
-    // 3. Obter a sessão do usuário logado usando auth()
-    const session = await auth(); // Chamada correta sem parâmetros
-    console.log('Sessão recebida:', session); // Log adicional
+    console.log('Token longo prazo:', finalToken);
 
-    if (!session || !session.user) {
-      console.error('Sessão não encontrada ou usuário não autenticado.');
-      return new NextResponse('Usuário não autenticado na plataforma', { status: 401 });
+    // 4. Obter sessão do usuário logado
+    const session = await auth();
+    if (!session?.user) {
+      console.error('Usuário não autenticado.');
+      return new NextResponse('Usuário não autenticado', { status: 401 });
     }
 
-    console.log(`Sessão obtida para usuário ID: ${session.user.id}`);
-
     const userId = session.user.id;
+    console.log(`Usuário logado (ID interno): ${userId}`);
 
-    // 4. Armazenar o token do Instagram no banco:
+    // 5. Obter user_id (a conta business = "1784...") via IG Graph
+    //    https://graph.instagram.com/me?fields=id,username,media_count,account_type,user_id
+    const meUrl = `https://graph.instagram.com/me?fields=id,username,media_count,account_type,user_id&access_token=${finalToken}`;
+    const meResp = await fetch(meUrl);
+    if (!meResp.ok) {
+      const errorText = await meResp.text();
+      console.error('Erro ao buscar /me:', errorText);
+      // podemos continuar, mas não teremos o user_id
+    }
+
+    let igBusinessId: string | null = null;
+    if (meResp.ok) {
+      const meData = await meResp.json() as {
+        id: string;
+        username: string;
+        account_type: string;
+        user_id?: string; // o "1784..."
+      };
+      console.log('meData:', meData);
+
+      if (meData.user_id) {
+        igBusinessId = meData.user_id;
+        console.log(`Conta BUSINESS ID (user_id) = ${igBusinessId}`);
+      }
+    }
+
+    // 6. Criar/atualizar a conta "instagram" (app-scoped user ID)
     const existingAccount = await prisma.account.findFirst({
       where: {
-        userId: userId,
+        userId,
         provider: "instagram",
-      }
+      },
     });
 
     if (existingAccount) {
-      // Atualizar a conta existente
       await prisma.account.update({
-        where: {
-          id: existingAccount.id,
-        },
+        where: { id: existingAccount.id },
         data: {
+          providerAccountId: shortTokenData.user_id,
           access_token: finalToken,
           expires_at: expiresAt,
           token_type: longTokenData.token_type,
           scope: "instagram_business_basic,instagram_business_manage_messages,instagram_business_manage_comments,instagram_business_content_publish",
-          providerAccountId: tokenData.user_id, // Já é string após a correção
-        }
+          // se quisermos salvar o "1784..." no mesmo registro, também podemos:
+          igUserId: igBusinessId || undefined,
+        },
       });
-      console.log(`Token do Instagram atualizado para usuário ID: ${userId}`);
+      console.log('Conta instagram atualizada.');
     } else {
-      // Criar uma nova conta Instagram
       await prisma.account.create({
         data: {
-          userId: userId,
-          type: "oauth",
+          userId,
           provider: "instagram",
-          providerAccountId: tokenData.user_id, // Já é string após a correção
+          type: "oauth",
+          providerAccountId: shortTokenData.user_id, // ID app-scoped
           access_token: finalToken,
           expires_at: expiresAt,
           token_type: longTokenData.token_type,
           scope: "instagram_business_basic,instagram_business_manage_messages,instagram_business_manage_comments,instagram_business_content_publish",
-        }
+          igUserId: igBusinessId || null,
+        },
       });
-      console.log(`Token do Instagram armazenado para usuário ID: ${userId}`);
+      console.log('Conta instagram criada.');
     }
 
-    // 5. Atualizar o token JWT com os dados do Instagram
-    // Remover 'instagramExpiresAt' e adicionar 'providerAccountId'
+    // 7. Atualizar o token JWT (opcional)
     await update({
-      trigger: 'update', // Define o gatilho como 'update' para que o callback JWT saiba que deve atualizar o token
+      trigger: 'update',
       user: {
         instagramAccessToken: finalToken,
-        providerAccountId: tokenData.user_id, // Já é string após a correção
-      }
+        providerAccountId: shortTokenData.user_id,
+      },
     });
 
-    console.log('JWT atualizado com os dados do Instagram.');
-
-    // 6. Redireciona o usuário de volta ao dashboard
+    // 8. Redirecionar para /dashboard
     return NextResponse.redirect(new URL('/dashboard', request.url));
 
-  } catch (error) {
-    console.error('Erro no callback do Instagram:', error);
-    return new NextResponse('Erro interno no servidor', { status: 500 });
+  } catch (err) {
+    console.error('Erro no callback do Instagram:', err);
+    return new NextResponse('Erro interno', { status: 500 });
   }
 }

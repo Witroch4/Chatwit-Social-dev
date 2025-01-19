@@ -2,7 +2,7 @@
 import { NextResponse } from 'next/server';
 
 export async function GET() {
-  const clientId = process.env.INSTAGRAM_CLIENT_ID!;
+  const clientId = process.env.INSTAGRAM_APP_ID!;
   const redirectUri = process.env.INSTAGRAM_REDIRECT_URI!;
 
   const scopes = [
