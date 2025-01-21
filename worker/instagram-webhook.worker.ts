@@ -15,10 +15,11 @@ dotenv.config();
 
 /**
  * Base da Graph API para Instagram.
- * Se você quiser usar a do Instagram Graph (para mensagens),
- * normalmente é graph.facebook.com/v17.0
+ * Caso queira usar a do Instagram Graph (para mensagens),
+ * normalmente é https://graph.instagram.com/vxx.0
  */
-const IG_GRAPH_API_BASE = process.env.IG_GRAPH_API_BASE || "https://graph.instagram.com/v21.0";
+const IG_GRAPH_API_BASE =
+  process.env.IG_GRAPH_API_BASE || "https://graph.instagram.com/v21.0";
 
 /**
  * Worker para processar a fila 'instagram-webhooks'.
@@ -41,25 +42,25 @@ const instagramWebhookWorker = new Worker<IInstagramWebhookJobData>(
 
       // Processar cada entry
       for (const event of entry) {
-        const igUserId = event.id; // ID da conta comercial ex.: "178414..."
+        const igUserId = event.id; // ex.: "178414..."
 
+        // Se tivermos "changes", então é evento de "comments"
         if (event.changes) {
           for (const change of event.changes) {
             const { field, value } = change;
-
             switch (field) {
               case "comments":
-                // Lida com comentários em posts/reels
                 await handleCommentChange(value, igUserId);
                 break;
-
               default:
-                console.warn(`[InstagramWebhookWorker] Campo não tratado: ${field}`);
+                console.warn(
+                  `[InstagramWebhookWorker] Campo não tratado: ${field}`
+                );
             }
           }
         }
 
-        // Se existirem eventos de "messaging", como DMs ou Quick Replies
+        // Se existirem eventos de "messaging", como DMs, postbacks, etc.
         if (event.messaging) {
           for (const msgEvt of event.messaging) {
             await handleMessageEvent(msgEvt, igUserId);
@@ -69,8 +70,11 @@ const instagramWebhookWorker = new Worker<IInstagramWebhookJobData>(
 
       console.log("[InstagramWebhookWorker] Evento(s) processado(s) com sucesso!");
     } catch (error: any) {
-      console.error("[InstagramWebhookWorker] Erro ao processar evento:", error.message);
-      throw error; // BullMQ re-tentará se houver falha
+      console.error(
+        "[InstagramWebhookWorker] Erro ao processar evento:",
+        error.message
+      );
+      throw error; // BullMQ fará re-tentativas se der erro
     }
   },
   { connection }
@@ -78,42 +82,38 @@ const instagramWebhookWorker = new Worker<IInstagramWebhookJobData>(
 
 /**
  * Lida com comentários em posts/reels (field: "comments").
- * - Verifica se a mídia e a palavra-chave batem com a Automacao do usuário
- * - Se bater, faz:
- *   1) Resposta pública (opcional)
- *   2) Private Reply com a frase de boas-vindas
- *   3) Quick Reply (opcional), se automacao.quickReplyTexto não estiver vazio
- */
-/**
- * Lida com comentários em posts/reels (field: "comments").
+ *   - Verifica mídia e palavra-chave (se necessário)
+ *   - Se aprovado, faz:
+ *       1) Resposta pública (opcional)
+ *       2) Envia DM (template) com automacao.DMreply + botão postback
  */
 async function handleCommentChange(value: any, igUserId: string) {
   try {
-    const {
-      id: comment_id,
-      text: commentText = "",
-      from,
-      media,
-    } = value;
-
+    const { id: comment_id, text: commentText = "", from, media } = value;
     const media_id = media?.id;
 
-    console.log(`[handleCommentChange] Recebido comentário. media_id=${media_id}, text=${commentText}`);
+    console.log(
+      `[handleCommentChange] Recebido comentário. media_id=${media_id}, text=${commentText}`
+    );
 
-    // Evitar loop se "from.id" é o mesmo que "igUserId"
+    // Evitar "loop" se o autor do comentário = igUserId
     if (from?.id === igUserId) {
-      console.log("[handleCommentChange] Ignorando comentário pois foi feito pelo próprio igUserId.");
+      console.log(
+        "[handleCommentChange] Ignorando comentário pois foi feito pelo próprio igUserId."
+      );
       return;
     }
 
     // 1) Encontrar token de acesso
     const accessToken = await getInstagramUserToken(igUserId);
     if (!accessToken) {
-      console.warn(`[handleCommentChange] Token não encontrado p/ igUserId=${igUserId}`);
+      console.warn(
+        `[handleCommentChange] Token não encontrado p/ igUserId=${igUserId}`
+      );
       return;
     }
 
-    // 2) Buscar automação configurada para esse igUserId
+    // 2) Buscar automação configurada
     const automacao = await prisma.automacao.findFirst({
       where: {
         user: {
@@ -126,257 +126,312 @@ async function handleCommentChange(value: any, igUserId: string) {
         },
       },
     });
-
     if (!automacao) {
-      console.log(`[handleCommentChange] Nenhuma automação p/ igUserId=${igUserId}`);
+      console.log(
+        `[handleCommentChange] Nenhuma automação p/ igUserId=${igUserId}`
+      );
       return;
     }
 
-    // (Verificar mídia e palavra-chave, etc.)
+    // ------------------------------------------------------
+    // Verificações de mídia e/ou palavra-chave
+    // ------------------------------------------------------
+    if (!automacao.anyMediaSelected) {
+      // se anyMediaSelected=false, precisa bater o ID exato
+      if (media_id !== automacao.selectedMediaId) {
+        console.log(
+          "[handleCommentChange] Mídia do comentário não coincide com o selectedMediaId. Ignorando."
+        );
+        return;
+      }
+    }
 
-    // --------------------------------------------------------------------
-    // Exemplo: Responder publicamente (opcional)
-    // --------------------------------------------------------------------
+    if (automacao.selectedOptionPalavra === "especifica") {
+      // Se for 'especifica', confere se o commentText contém automacao.palavrasChave
+      const palavrasChave = automacao.palavrasChave || "";
+      if (
+        !commentText.toLowerCase().includes(palavrasChave.toLowerCase())
+      ) {
+        console.log(
+          "[handleCommentChange] Comentário não contém a palavra-chave. Ignorando."
+        );
+        return;
+      }
+    }
+
+    // ------------------------------------------------------
+    // Se chegou aqui, as condições bateram => Dispara a automação
+    // ------------------------------------------------------
+
+    // 1) Resposta pública no comentário (se configurado)
     if (automacao.responderPublico) {
-      const publicReply = automacao.fraseBoasVindas || "Olá! Obrigado pelo seu comentário!";
+      const publicReply =
+        automacao.fraseBoasVindas || "Olá! Obrigado pelo seu comentário!";
       await replyPublicComment(comment_id, accessToken, publicReply);
     }
 
-    // --------------------------------------------------------------------
-    // 1) ENVIAR Private Reply com "texto grande"
-    // --------------------------------------------------------------------
-    // Aqui usamos 'automacao.fraseBoasVindas' como texto principal
-    const fullText = automacao.fraseBoasVindas ||
-      "Olá! Eu estou muito feliz que você está aqui. Obrigado pelo seu interesse!";
-
-    await sendPrivateReply(igUserId, accessToken, comment_id, fullText);
-
-    // --------------------------------------------------------------------
-    // 2) DM com QuickReply "somente botão"
-    // --------------------------------------------------------------------
-    // Precisamos do autor do comentário
+    // 2) Obter authorIgId para enviar DM
     const authorIgId = await getCommentAuthorId(comment_id, accessToken);
     if (!authorIgId) {
-      console.log("[handleCommentChange] Não foi possível obter o authorIgId");
+      console.log(
+        "[handleCommentChange] Não foi possível obter o authorIgId, abortando DM."
+      );
       return;
     }
 
-    // Se tiver quickReplyTexto, iremos mandar APENAS o botão, sem repetir o fullText
-    if (automacao.quickReplyTexto) {
-      // Exemplo: texto curto ou vazio
-      const minimalText = "Clique Aqui"; // pode ser "Clique no botão abaixo" ou deixar vazio
-
-      await sendDMWithQuickReply({
-        recipientId: authorIgId,
+    // 3) Enviar DM (template) com o "title" = automacao.DMreply
+    //    e botão postback = automacao.quickReplyTexto
+    if (automacao.quickReplyTexto && automacao.DMreply) {
+      // Ex.: payload "ACT::ME_ENVIE_O_LINK"
+      await sendTemplateMessage({
+        igUserId,
         accessToken,
-        text: minimalText,           // text bem curto
-        quickReplyLabel: automacao.quickReplyTexto, // o botão, ex: "Me envie o link"
+        recipientId: authorIgId,
+        title: automacao.DMreply,
+        buttonTitle: automacao.quickReplyTexto,
+        buttonPayload: "ACT::ME_ENVIE_O_LINK",
       });
     }
 
-    console.log("[handleCommentChange] Automação finalizada (PrivateReply + DM QuickReply)!");
+    console.log(
+      "[handleCommentChange] Automação finalizada (resposta pública + DM Template)!"
+    );
   } catch (err) {
     console.error("[handleCommentChange] Erro:", err);
   }
 }
 
-
-
 /**
- * Lida com evento de "messages" (DM) - ex.: Quick Reply.
- * Se detectarmos que é uma quick_reply com payload "ME_ENVIE_O_LINK", enviamos a Etapa 3 (link).
+ * Lida com evento "messaging" (DM, postback etc.).
+ *   - Se for postback com payload "ACT::ME_ENVIE_O_LINK", enviamos outro template
+ *     com link (mensagemEtapa3 + linkEtapa3 + legendaBotaoEtapa3).
  */
 async function handleMessageEvent(msgEvt: any, igUserId: string) {
   try {
     const senderId = msgEvt.sender?.id;
+    const recipientId = msgEvt.recipient?.id;
 
     // Se "senderId" = "igUserId", estamos recebendo nossa própria mensagem
     if (senderId === igUserId) {
-      console.log("[handleMessageEvent] Ignorando mensagem pois foi enviada pelo próprio igUserId.");
-      return;
-    }     // ID do usuário que enviou DM
-    // const recipientId = msgEvt.recipient?.id; // ID da conta IG que recebeu a DM
-
-    // Se for Quick Reply, virá algo como { message: { quick_reply: { payload: '...' } } }
-    const quickReplyPayload = msgEvt.message?.quick_reply?.payload;
-
-    if (!quickReplyPayload) {
-      console.log("[handleMessageEvent] Mensagem sem quick_reply payload, ignorando...");
+      console.log(
+        "[handleMessageEvent] Ignorando mensagem pois foi enviada pelo próprio igUserId."
+      );
       return;
     }
 
-    // Buscar a automação novamente
-    const automacao = await prisma.automacao.findFirst({
-      where: {
-        user: {
-          accounts: {
-            some: {
-              provider: "instagram",
-              igUserId: igUserId,
+    // 1) Check se é postback
+    if (msgEvt.postback) {
+      // Ex.: "payload": "ACT::ME_ENVIE_O_LINK"
+      const postbackPayload = msgEvt.postback.payload;
+      console.log("[handleMessageEvent] Recebeu postback:", postbackPayload);
+
+      // Buscar automação
+      const automacao = await prisma.automacao.findFirst({
+        where: {
+          user: {
+            accounts: {
+              some: {
+                provider: "instagram",
+                igUserId: igUserId,
+              },
             },
           },
         },
-      },
-    });
-    if (!automacao) {
-      console.log(`[handleMessageEvent] Nenhuma automação p/ igUserId=${igUserId}`);
-      return;
-    }
-
-    // 1) Se for o payload "ME_ENVIE_O_LINK", enviamos a Etapa 3: DM com o link
-    if (quickReplyPayload === "ME_ENVIE_O_LINK") {
-      const accessToken = await getInstagramUserToken(igUserId);
-      if (!accessToken) {
-        console.warn(`[handleMessageEvent] Falta token p/ igUserId=${igUserId}`);
+      });
+      if (!automacao) {
+        console.log(
+          `[handleMessageEvent] Nenhuma automação p/ igUserId=${igUserId}`
+        );
         return;
       }
 
-      const finalText = automacao.mensagemEtapa3 ||
-        "Aqui está o link que você pediu!";
-      const finalUrl = automacao.linkEtapa3 ||
-        "https://minha-loja.com.br";
-      const finalTitle = automacao.legendaBotaoEtapa3 ||
-        "Visite nosso site";
+      // Se for "ACT::ME_ENVIE_O_LINK", enviamos o Template com link
+      if (postbackPayload === "ACT::ME_ENVIE_O_LINK") {
+        const accessToken = await getInstagramUserToken(igUserId);
+        if (!accessToken) {
+          console.warn(
+            `[handleMessageEvent] Falta token p/ igUserId=${igUserId}`
+          );
+          return;
+        }
 
-      // Enviar a DM com link
-      await sendDirectMessage({
-        accessToken,
-        igUserId,
-        recipientId: senderId,
-        text: finalText,
-        button: {
+        const finalText =
+          automacao.mensagemEtapa3 || "Aqui está o link que você pediu!";
+        const finalUrl =
+          automacao.linkEtapa3 || "https://meu-site.com.br";
+        const finalTitle =
+          automacao.legendaBotaoEtapa3 || "Acessar";
+
+        // Mandar Template com botão web_url
+        await sendTemplateLink({
+          igUserId,
+          accessToken,
+          recipientId: senderId, // ID do usuário que clicou no postback
+          title: finalText,
           url: finalUrl,
-          title: finalTitle,
-        },
-      });
+          urlButtonTitle: finalTitle,
+        });
 
-      console.log("[handleMessageEvent] Etapa 3 (link) enviada com sucesso!");
+        console.log(
+          "[handleMessageEvent] Enviou template com link (Etapa 3) com sucesso!"
+        );
+      }
+
+      return;
     }
 
-    // Se você tiver outras payloads, trate aqui
-    // ...
+    // Se não for postback, pode ser message normal (texto), mas você disse que
+    // quer replicar a estratégia do ManyChat, que foca em postbacks.
+    // Deixamos aqui só um log:
+    console.log("[handleMessageEvent] Mensagem sem postback, ignorando...");
+
   } catch (err: any) {
     console.error("[handleMessageEvent] Erro:", err.message);
   }
 }
 
 /**
- * Resposta pública no comentário do IG
+ * Responde publicamente a um comentário do Instagram
  */
-async function replyPublicComment(commentId: string, accessToken: string, mensagem: string) {
+async function replyPublicComment(
+  commentId: string,
+  accessToken: string,
+  mensagem: string
+) {
   await axios.post(
     `${IG_GRAPH_API_BASE}/${commentId}/replies`,
     new URLSearchParams({
       message: mensagem,
       access_token: accessToken,
-    }),
+    })
   );
-  console.log(`[replyPublicComment] Resposta pública no commentId=${commentId} enviada.`);
+  console.log(
+    `[replyPublicComment] Resposta pública no commentId=${commentId} enviada.`
+  );
 }
 
 /**
- * Private Reply a um comentário (Instagram Business)
+ * Envia um Template genérico (tipo "generic") com um único 'element',
+ * contendo TÍTULO e um BOTÃO do tipo postback.
  */
-async function sendPrivateReply(
-  igUserId: string,
-  accessToken: string,
-  commentId: string,
-  text: string
-) {
+async function sendTemplateMessage({
+  igUserId,
+  accessToken,
+  recipientId,
+  title,
+  buttonTitle,
+  buttonPayload,
+}: {
+  igUserId: string;
+  accessToken: string;
+  recipientId: string;
+  title: string;
+  buttonTitle: string;
+  buttonPayload: string;
+}) {
   await axios.post(
     `${IG_GRAPH_API_BASE}/${igUserId}/messages`,
     {
-      recipient: { comment_id: commentId },
-      message: { text },
-    },
-    {
-      params: { access_token: accessToken },
-    }
-  );
-  console.log(`[sendPrivateReply] PrivateReply enviado (commentId=${commentId}).`);
-}
-
-/**
- * Envia uma DM com QuickReply "textual".
- */
-async function sendDMWithQuickReply({
-  recipientId,
-  accessToken,
-  text,
-  quickReplyLabel,
-}: {
-  recipientId: string;
-  accessToken: string;
-  text: string;
-  quickReplyLabel: string;
-}) {
-  // O endpoint "me/messages" ou "{igBusinessId}/messages"
-  // depende se o endpoint está configurado para mandar DMs.
-  // Geralmente, se IG_GRAPH_API_BASE = "https://graph.facebook.com/v17.0",
-  // e a conta é BUSINESS, use igBusinessId/messages
-  await axios.post(
-    `${IG_GRAPH_API_BASE}/me/messages`, // ou `${IG_GRAPH_API_BASE}/${igBusinessId}/messages`
-    {
-      recipient: { id: recipientId },
-      messaging_type: "RESPONSE",
+      recipient: {
+        id: recipientId,
+      },
       message: {
-        text,
-        quick_replies: [
-          {
-            content_type: "text",
-            title: quickReplyLabel,
-            payload: "ME_ENVIE_O_LINK",
+        attachment: {
+          type: "template",
+          payload: {
+            template_type: "generic",
+            elements: [
+              {
+                title: title,
+                buttons: [
+                  {
+                    type: "postback",
+                    title: buttonTitle,
+                    payload: buttonPayload,
+                  },
+                ],
+              },
+            ],
           },
-        ],
+        },
       },
     },
     {
-      params: { access_token: accessToken },
+      params: {
+        access_token: accessToken,
+      },
     }
   );
-  console.log(`[sendDMWithQuickReply] QuickReply enviado p/ userId=${recipientId}.`);
+  console.log(
+    `[sendTemplateMessage] Template com postback enviado p/ userId=${recipientId}.`
+  );
 }
 
 /**
- * Envia uma DM com (opcionalmente) um botão de link.
+ * Envia um Template genérico (tipo "generic") com um único 'element',
+ * contendo TÍTULO e um BOTÃO do tipo "web_url".
+ * Ex.: Para mandar link do seu site.
  */
-async function sendDirectMessage({
-  accessToken,
+async function sendTemplateLink({
   igUserId,
+  accessToken,
   recipientId,
-  text,
-  button,
+  title,
+  url,
+  urlButtonTitle,
 }: {
-  accessToken: string;
   igUserId: string;
+  accessToken: string;
   recipientId: string;
-  text: string;
-  button?: { url: string; title: string };
+  title: string;
+  url: string;
+  urlButtonTitle: string;
 }) {
-  let finalText = text;
-  if (button) {
-    // Adiciona o link como texto extra
-    finalText += `\n\n${button.title}: ${button.url}`;
-  }
-
   await axios.post(
     `${IG_GRAPH_API_BASE}/${igUserId}/messages`,
     {
-      recipient: { id: recipientId },
-      message: { text: finalText },
-      messaging_type: "RESPONSE",
+      recipient: {
+        id: recipientId,
+      },
+      message: {
+        attachment: {
+          type: "template",
+          payload: {
+            template_type: "generic",
+            elements: [
+              {
+                title: title,
+                buttons: [
+                  {
+                    type: "web_url",
+                    url: url,
+                    title: urlButtonTitle,
+                  },
+                ],
+              },
+            ],
+          },
+        },
+      },
     },
     {
-      params: { access_token: accessToken },
+      params: {
+        access_token: accessToken,
+      },
     }
   );
-  console.log(`[sendDirectMessage] DM enviada p/ userId=${recipientId}.`);
+  console.log(
+    `[sendTemplateLink] Template com link enviado p/ userId=${recipientId}.`
+  );
 }
 
 /**
- * Obtém o autor do comentário (ID do usuário) para podermos enviar DM
+ * Busca o autor do comentário para poder mandar DM
  */
-async function getCommentAuthorId(commentId: string, accessToken: string): Promise<string | null> {
+async function getCommentAuthorId(
+  commentId: string,
+  accessToken: string
+): Promise<string | null> {
   try {
     const resp = await axios.get(`${IG_GRAPH_API_BASE}/${commentId}`, {
       params: {
@@ -384,9 +439,12 @@ async function getCommentAuthorId(commentId: string, accessToken: string): Promi
         access_token: accessToken,
       },
     });
-    return resp.data.from?.id || null;
+    return resp.data?.from?.id || null;
   } catch (err) {
-    console.error("[getCommentAuthorId] Erro ao buscar autor:", (err as any)?.message);
+    console.error(
+      "[getCommentAuthorId] Erro ao buscar autor:",
+      (err as any)?.message
+    );
     return null;
   }
 }
@@ -401,7 +459,9 @@ instagramWebhookWorker.on("completed", (job) => {
 });
 
 instagramWebhookWorker.on("failed", (job, err) => {
-  console.error(`[InstagramWebhookWorker] Job falhou: id=${job?.id}, Erro: ${err.message}`);
+  console.error(
+    `[InstagramWebhookWorker] Job falhou: id=${job?.id}, Erro: ${err.message}`
+  );
 });
 
 instagramWebhookWorker.on("error", (err) => {

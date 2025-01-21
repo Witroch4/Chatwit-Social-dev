@@ -1,4 +1,4 @@
-// app/dashboard/automação/components/CommentsDrawer.tsx
+// app/dashboard/automacao/components/CommentsDrawer.tsx
 
 "use client";
 
@@ -9,12 +9,17 @@ interface CommentsDrawerProps {
   open: boolean; // Controla se o Drawer deve ser exibido ou não
   commentContent: string; // Conteúdo digitado na caixa de "Palavra ou Expressão"
   instagramUser: InstagramUserData | null;
+  // Novas props para Etapa 4
+  responderPublico?: boolean;
+  publicReply1?: string;
 }
 
 export default function CommentsDrawer({
   open,
   commentContent,
   instagramUser,
+  responderPublico,
+  publicReply1,
 }: CommentsDrawerProps) {
   // Se "open" for false, retorna null (drawer oculto)
   if (!open) return null;
@@ -79,84 +84,219 @@ export default function CommentsDrawer({
           gap: "16px",
         }}
       >
-        {/* Exemplo de um comentário — se não houver palavra/expressão, podemos ocultar ou exibir um placeholder */}
         {commentContent ? (
-          <div style={{ display: "flex", flexDirection: "row", gap: "8px", alignItems: "flex-start" }}>
-            {/* Foto do usuário que fez o comentário */}
-            {instagramUser?.profile_picture_url ? (
-              <img
-                src={instagramUser.profile_picture_url}
-                alt="Foto de Perfil"
-                style={{
-                  width: "32px",
-                  height: "32px",
-                  borderRadius: "50%",
-                  objectFit: "cover",
-                  flexShrink: 0,
-                }}
-              />
-            ) : (
-              <Skeleton className="h-8 w-8 rounded-full" />
-            )}
-
+          <>
+            {/* Simulando o comentário do "cliente" */}
             <div
               style={{
                 display: "flex",
-                flexDirection: "column",
-                flex: 1,
-                minWidth: 0, // Importante para evitar overflow em flex containers
+                flexDirection: "row",
+                gap: "8px",
+                alignItems: "flex-start",
               }}
             >
-              <div style={{ display: "flex", alignItems: "baseline", gap: "4px", flexWrap: "nowrap" }}>
-                <span style={{ color: "#FAFAFA", fontWeight: 600, whiteSpace: "nowrap" }}>Usuário</span>
-                <span style={{ color: "rgba(255,255,255,0.5)", fontSize: "12px", whiteSpace: "nowrap" }}>
-                  Agora
-                </span>
-              </div>
-
-              {/* Mensagem digitada (sem quebra de linha) */}
-              <span
-                style={{
-                  color: "#FAFAFA",
-                  whiteSpace: "nowrap",
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  display: "block",
-                }}
-              >
-                {commentContent}
-              </span>
+              {/* Foto do usuário que fez o comentário */}
+              {/* Neste exemplo, vamos usar um avatar "genérico" ou exibir skeleton, mas não a do instagramUser,
+                  pois instagramUser normalmente é a "marca". Caso queira, você pode mostrar outro ícone. */}
+              <Skeleton className="h-8 w-8 rounded-full" />
 
               <div
                 style={{
                   display: "flex",
-                  alignItems: "center",
-                  gap: "16px",
-                  marginTop: "4px",
+                  flexDirection: "column",
+                  flex: 1,
+                  minWidth: 0, // Importante para evitar overflow
                 }}
               >
-                <span style={{ color: "rgba(255,255,255,0.5)", fontSize: "12px" }}>Responder</span>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "baseline",
+                    gap: "4px",
+                    flexWrap: "nowrap",
+                  }}
+                >
+                  <span
+                    style={{
+                      color: "#FAFAFA",
+                      fontWeight: 600,
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    Cliente
+                  </span>
+                  <span
+                    style={{
+                      color: "rgba(255,255,255,0.5)",
+                      fontSize: "12px",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    Agora
+                  </span>
+                </div>
+
+                {/* Mensagem digitada (sem quebra de linha) */}
+                <span
+                  style={{
+                    color: "#FAFAFA",
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    display: "block",
+                  }}
+                >
+                  {commentContent}
+                </span>
+
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "16px",
+                    marginTop: "4px",
+                  }}
+                >
+                  <span
+                    style={{
+                      color: "rgba(255,255,255,0.5)",
+                      fontSize: "12px",
+                      cursor: "pointer",
+                    }}
+                  >
+                    Responder
+                  </span>
+                </div>
+              </div>
+
+              {/* Like Gray Icon */}
+              <div style={{ alignSelf: "center" }}>
+                <svg
+                  width="16"
+                  height="16"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                  style={{ cursor: "pointer" }}
+                >
+                  <path
+                    d="M7.97 12.898c-.13 0-.26-.03-.38-.12-1.48-1.08-3.01-2.26-4.14-3.89-.4-.57-.93-1.45-.95-2.57-.03-1.34.73-2.57 1.89-3.07s2.55-.21 3.52.75l.09.08.17-.17c1.1-1 2.61-1.19 3.78-.49 1.21.73 1.8 2.23 1.45 3.65-.31 1.26-1.09 2.22-1.8 3-.98 1.07-2.14 1.95-3.14 2.67-.11.08-.29.15-.48.15l-.01.01Zm-2.4-8.89c-.27 0-.53.05-.78.16-.79.34-1.31 1.2-1.29 2.13.01.65.25 1.28.77 2.02 1 1.44 2.38 2.53 3.73 3.52.97-.71 1.98-1.49 2.86-2.45.66-.72 1.31-1.52 1.57-2.56.25-1-.16-2.05-.99-2.55-.79-.48-1.81-.33-2.59.38-.11.1-.2.2-.3.31l-.51.54-.81-.79c-.47-.46-1.07-.71-1.65-.71h-.01Z"
+                    fill="#A8A8A8"
+                  />
+                </svg>
               </div>
             </div>
 
-            {/* Like Gray Icon */}
-            <div style={{ alignSelf: "center" }}>
-              <svg
-                width="16"
-                height="16"
-                fill="none"
-                xmlns="http://www.w3.org/2000/svg"
-                style={{ cursor: "pointer" }}
+            {/* Se "responderPublico" e "publicReply1" estiverem configurados,
+                exibimos a marca respondendo ao comentário */}
+            {responderPublico && publicReply1 && (
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "row",
+                  gap: "8px",
+                  alignItems: "flex-start",
+                }}
               >
-                <path
-                  d="M7.97 12.898c-.13 0-.26-.03-.38-.12-1.48-1.08-3.01-2.26-4.14-3.89-.4-.57-.93-1.45-.95-2.57-.03-1.34.73-2.57 1.89-3.07s2.55-.21 3.52.75l.09.08.17-.17c1.1-1 2.61-1.19 3.78-.49 1.21.73 1.8 2.23 1.45 3.65-.31 1.26-1.09 2.22-1.8 3-.98 1.07-2.14 1.95-3.14 2.67-.11.08-.29.15-.48.15l-.01.01Zm-2.4-8.89c-.27 0-.53.05-.78.16-.79.34-1.31 1.2-1.29 2.13.01.65.25 1.28.77 2.02 1 1.44 2.38 2.53 3.73 3.52.97-.71 1.98-1.49 2.86-2.45.66-.72 1.31-1.52 1.57-2.56.25-1-.16-2.05-.99-2.55-.79-.48-1.81-.33-2.59.38-.11.1-.2.2-.3.31l-.51.54-.81-.79c-.47-.46-1.07-.71-1.65-.71h-.01Z"
-                  fill="#A8A8A8"
-                />
-              </svg>
-            </div>
-          </div>
+                {/* Foto do InstagramUser (marca) */}
+                {instagramUser?.profile_picture_url ? (
+                  <img
+                    src={instagramUser.profile_picture_url}
+                    alt="Foto de Perfil da Marca"
+                    style={{
+                      width: "32px",
+                      height: "32px",
+                      borderRadius: "50%",
+                      objectFit: "cover",
+                      flexShrink: 0,
+                    }}
+                  />
+                ) : (
+                  <Skeleton className="h-8 w-8 rounded-full" />
+                )}
+
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    flex: 1,
+                    minWidth: 0,
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "baseline",
+                      gap: "4px",
+                      flexWrap: "nowrap",
+                    }}
+                  >
+                    <span
+                      style={{
+                        color: "#FAFAFA",
+                        fontWeight: 600,
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {instagramUser?.username || "Minha Marca"}
+                    </span>
+                    <span
+                      style={{
+                        color: "rgba(255,255,255,0.5)",
+                        fontSize: "12px",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      Agora
+                    </span>
+                  </div>
+
+                  <span
+                    style={{
+                      color: "#FAFAFA",
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      display: "block",
+                    }}
+                  >
+                    {publicReply1}
+                  </span>
+
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "16px",
+                      marginTop: "4px",
+                    }}
+                  >
+                    <span
+                      style={{
+                        color: "rgba(255,255,255,0.5)",
+                        fontSize: "12px",
+                        cursor: "pointer",
+                      }}
+                    >
+                      Curtir
+                    </span>
+                    <span
+                      style={{
+                        color: "rgba(255,255,255,0.5)",
+                        fontSize: "12px",
+                        cursor: "pointer",
+                      }}
+                    >
+                      Responder
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+          </>
         ) : (
-          <span style={{ color: "#999", fontSize: "14px" }}>Nenhum comentário ainda...</span>
+          <span style={{ color: "#999", fontSize: "14px" }}>
+            Nenhum comentário ainda...
+          </span>
         )}
       </div>
 
@@ -166,7 +306,7 @@ export default function CommentsDrawer({
           padding: "8px 12px",
           borderBottom: "1px solid #363636",
           backgroundColor: "#1f1f1f",
-          overflow: "hidden", // Remove a possibilidade de rolagem horizontal
+          overflow: "hidden",
         }}
       >
         <div
@@ -174,8 +314,8 @@ export default function CommentsDrawer({
             display: "flex",
             gap: "8px",
             justifyContent: "center",
-            flexWrap: "nowrap", // Impede quebra de linha
-            maxWidth: "100%", // Garante que a barra de emojis não exceda a largura
+            flexWrap: "nowrap",
+            maxWidth: "100%",
           }}
         >
           {emojis.map((emoji, index) => (

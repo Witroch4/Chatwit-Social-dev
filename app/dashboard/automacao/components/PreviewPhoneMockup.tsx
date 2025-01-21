@@ -10,15 +10,19 @@ import CommentsDrawer from "./CommentsDrawer";
 interface Props {
   selectedPost: InstagramMediaItem | null;
   instagramUser: InstagramUserData | null;
-  toggleValue: "publicar" | "comentarios" | "dm"; // Novo prop para controlar a aba ativa
-  commentContent: string; // Novo prop para conteúdo do comentário
+  toggleValue: "publicar" | "comentarios" | "dm";
+  commentContent: string;
 
-  // Novas props para as DMs (Etapas 2 e 3)
+  // Props para as DMs (Etapas 2 e 3)
   dmWelcomeMessage: string;
   dmQuickReply: string;
   dmSecondMessage: string;
   dmLink: string;
   dmButtonLabel: string;
+
+  // Props da Etapa 4 (resposta pública)
+  responderPublico?: boolean;
+  publicReply1?: string;
 }
 
 // Função auxiliar para truncar texto
@@ -38,12 +42,15 @@ export default function PreviewPhoneMockup({
   toggleValue,
   commentContent,
 
-  // DM
   dmWelcomeMessage,
   dmQuickReply,
   dmSecondMessage,
   dmLink,
   dmButtonLabel,
+
+  // ADICIONE essas duas linhas:
+  responderPublico,
+  publicReply1,
 }: Props) {
   return (
     <div
@@ -381,9 +388,15 @@ export default function PreviewPhoneMockup({
         )}
 
         {/* ======================== PREVIEW PARA COMENTÁRIOS ======================== */}
-        {toggleValue === "comentarios" && (
-          <CommentsDrawer open={true} commentContent={commentContent} instagramUser={instagramUser} />
-        )}
+                 {toggleValue === "comentarios" && (
+                  <CommentsDrawer
+                    open={true}
+                    commentContent={commentContent}
+                    instagramUser={instagramUser}
+                    responderPublico={responderPublico}
+                    publicReply1={publicReply1}
+                  />
+                )}
 
  {/* ======================== PREVIEW PARA DM ======================== */}
  {toggleValue === "dm" && (
