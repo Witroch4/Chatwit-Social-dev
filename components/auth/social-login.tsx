@@ -4,6 +4,7 @@ import LoginSocialButton from "./login-social-button";
 
 const SocialLogin = () => {
   const callbackUrl = `${process.env.NEXT_PUBLIC_URL}`;
+  console.log(callbackUrl);
   return (
     <div className="flex w-full justify-center items-center p-2 space-x-2">
       {/* Google */}

@@ -1,3 +1,4 @@
+//app/auth/instagram/callback/route.ts
 import { NextResponse } from 'next/server';
 import { auth, update } from "@/auth"; // Funções de autenticação
 import { prisma } from "@/lib/prisma";
@@ -15,9 +16,9 @@ export async function GET(request: Request) {
     console.log(`Code recebido: ${code}`);
 
     // Variáveis de ambiente
-    const clientId = process.env.INSTAGRAM_APP_ID!;
+    const clientId = process.env.NEXT_PUBLIC_INSTAGRAM_APP_ID!;
     const clientSecret = process.env.INSTAGRAM_APP_SECRET!;
-    const redirectUri = process.env.INSTAGRAM_REDIRECT_URI!;
+    const redirectUri = process.env.NEXT_PUBLIC_INSTAGRAM_REDIRECT_URI!;
 
     // 2. Trocar code por token de curto prazo
     const tokenResp = await fetch('https://api.instagram.com/oauth/access_token', {
