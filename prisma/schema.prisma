@@ -99,6 +99,7 @@ model Automacao {
   pedirEmailPro          Boolean  @default(false)
   pedirParaSeguirPro     Boolean  @default(false)
   contatoSemClique       Boolean  @default(false)
+  buttonPayload          String   @unique
 
   // Novo campo para salvar as 3 mensagens de resposta pública:
   publicReply            String?  // Você pode armazenar como JSON, string única etc.

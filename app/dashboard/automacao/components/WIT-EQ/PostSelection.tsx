@@ -1,6 +1,6 @@
-// app/dashboard/automacao/components/PostSelection.tsx
+//app/dashboard/automacao/components/WIT-EQ/PostSelection.tsx
 
-import { InstagramMediaItem } from "../page"; // Ajuste o caminho se necessário
+import { InstagramMediaItem } from "../../page"; // Ajuste o caminho se necessário
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";

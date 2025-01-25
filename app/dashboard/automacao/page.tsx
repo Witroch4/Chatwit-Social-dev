@@ -1,3 +1,4 @@
+//app/dashboard/automacao/page.tsx
 "use client";
 
 import { useSession } from "next-auth/react";
@@ -19,13 +20,13 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"; // Tooltip do shadcn
 
-import LoadingState from "./components/LoadingState";
-import UnauthenticatedState from "./components/UnauthenticatedState";
-import ErrorState from "./components/ErrorState";
-import PostSelection from "./components/PostSelection";
-import PalavraExpressaoSelection from "./components/PalavraExpressaoSelection";
+import LoadingState from "./components/WIT-EQ/LoadingState";
+import UnauthenticatedState from "./components/WIT-EQ/UnauthenticatedState";
+import ErrorState from "./components/WIT-EQ/ErrorState";
+import PostSelection from "./components/WIT-EQ/PostSelection";
+import PalavraExpressaoSelection from "./components/WIT-EQ/PalavraExpressaoSelection";
 import PreviewPhoneMockup from "./components/PreviewPhoneMockup";
-import ToggleActions from "./components/ToggleActions";
+import ToggleActions from "./components/WIT-EQ/ToggleActions";
 
 import { useToast } from "@/hooks/use-toast";
 

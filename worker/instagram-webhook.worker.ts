@@ -1,5 +1,3 @@
-// worker/instagram-webhook.worker.ts
-
 import { Worker, Job } from "bullmq"
 import axios from "axios"
 import dotenv from "dotenv"
@@ -14,17 +12,12 @@ import { getInstagramUserToken } from "@/lib/instagram-auth"
 dotenv.config()
 
 /**
- * Esta base de API normalmente é a do Messenger/Instagram Graph.
- * Ajuste conforme sua versão/endpoint:
- *   ex: "https://graph.instagram.com/v21.0"
+ * Ajuste se necessário para a versão do Graph API
  */
 const IG_GRAPH_API_BASE =
   process.env.IG_GRAPH_API_BASE || "https://graph.instagram.com/v21.0"
 
-/**
- * Worker para processar a fila 'instagram-webhooks'.
- */
-const instagramWebhookWorker = new Worker<IInstagramWebhookJobData>(
+export const instagramWebhookWorker = new Worker<IInstagramWebhookJobData>(
   INSTAGRAM_WEBHOOK_QUEUE_NAME,
   async (job: Job<IInstagramWebhookJobData>) => {
     try {
@@ -40,11 +33,10 @@ const instagramWebhookWorker = new Worker<IInstagramWebhookJobData>(
         return
       }
 
-      // Percorre cada "event" em entry
       for (const event of entry) {
         const igUserId = event.id // ex.: "1784..."
 
-        // 1) Se veio "changes", normalmente é comentário em post/reel
+        // 1) Se veio "changes", é comentário em post/reel
         if (event.changes) {
           for (const change of event.changes) {
             const { field, value } = change
@@ -56,7 +48,7 @@ const instagramWebhookWorker = new Worker<IInstagramWebhookJobData>(
           }
         }
 
-        // 2) Se veio "messaging", normalmente é DM ou postback
+        // 2) Se veio "messaging", é DM ou postback
         if (event.messaging) {
           for (const msgEvt of event.messaging) {
             await handleMessageEvent(msgEvt, igUserId)
@@ -67,7 +59,7 @@ const instagramWebhookWorker = new Worker<IInstagramWebhookJobData>(
       console.log("[InstagramWebhookWorker] Evento(s) processado(s) com sucesso!")
     } catch (error: any) {
       console.error("[InstagramWebhookWorker] Erro ao processar evento:", error.message)
-      throw error // BullMQ re-tentará se der erro
+      throw error
     }
   },
   { connection }
@@ -75,10 +67,6 @@ const instagramWebhookWorker = new Worker<IInstagramWebhookJobData>(
 
 /**
  * Trata comentários em posts ou reels.
- * - Verifica se a automação está configurada p/ responder esse comentário
- * - Se sim, publica uma resposta pública (random de `publicReply`) e
- *   envia DM no formato de Private Reply com Button Template
- *   contendo `fraseBoasVindas` e o botão `quickReplyTexto`.
  */
 async function handleCommentChange(value: any, igUserId: string) {
   try {
@@ -89,7 +77,7 @@ async function handleCommentChange(value: any, igUserId: string) {
       `[handleCommentChange] Recebido comentário. media_id=${media_id}, text=${commentText}`
     )
 
-    // Evitar loop se o autor do comentário é o próprio igUserId
+    // Ignora comentário do próprio dono da conta
     if (from?.id === igUserId) {
       console.log("[handleCommentChange] Ignorando comentário do próprio igUserId.")
       return
@@ -102,8 +90,8 @@ async function handleCommentChange(value: any, igUserId: string) {
       return
     }
 
-    // 2) Buscar automação (relacionada ao user que tem account.igUserId=igUserId)
-    const automacao = await prisma.automacao.findFirst({
+    // 2) Buscar TODAS as automações deste igUserId
+    const automacoes = await prisma.automacao.findMany({
       where: {
         user: {
           accounts: {
@@ -115,56 +103,66 @@ async function handleCommentChange(value: any, igUserId: string) {
         },
       },
     })
-    if (!automacao) {
+
+    if (!automacoes || automacoes.length === 0) {
       console.log(`[handleCommentChange] Nenhuma automação p/ igUserId=${igUserId}`)
       return
     }
 
-    // ------------------------------------------------------
-    // Filtrar por "anyMediaSelected" e "selectedMediaId"
-    // ------------------------------------------------------
-    if (!automacao.anyMediaSelected) {
-      // se false, então deve bater ID exato
-      if (media_id !== automacao.selectedMediaId) {
-        console.log("[handleCommentChange] Mídia != selectedMediaId. Ignorando.")
-        return
+    // 3) Verificar qual automação "bate" com este comentário
+    function matchesComment(automacao: any) {
+      // Verifica palavra-chave
+      if (automacao.selectedOptionPalavra === "especifica") {
+        const palavrasChave = automacao.palavrasChave?.toLowerCase() || ""
+        // Se preferir, faça split em várias palavras e teste cada.
+        // Aqui está simplificado, assumindo que "palavrasChave" é substring.
+        if (!commentText.toLowerCase().includes(palavrasChave)) {
+          return false
+        }
+      }
+      // Verifica mídia
+      if (automacao.anyMediaSelected) {
+        return true
+      } else {
+        return media_id === automacao.selectedMediaId
       }
     }
 
-    // ------------------------------------------------------
-    // Se "selectedOptionPalavra" = "especifica", checar "palavrasChave"
-    // ------------------------------------------------------
-    if (automacao.selectedOptionPalavra === "especifica") {
-      const palavras = automacao.palavrasChave || ""
-      // Exemplo simples: .includes() no texto
-      if (!commentText.toLowerCase().includes(palavras.toLowerCase())) {
-        console.log("[handleCommentChange] Comentário sem a palavra-chave. Ignorando.")
-        return
-      }
+    // Separa quem tem mídia específica e quem aceita qualquer mídia
+    const midiaEspecifica = automacoes.filter(
+      (a) => !a.anyMediaSelected && a.selectedMediaId && matchesComment(a)
+    )
+    const midiaQualquer = automacoes.filter(
+      (a) => a.anyMediaSelected && matchesComment(a)
+    )
+
+    let automacaoQueBate = midiaEspecifica.length > 0 ? midiaEspecifica[0] : undefined
+    if (!automacaoQueBate && midiaQualquer.length > 0) {
+      automacaoQueBate = midiaQualquer[0]
     }
 
-    // ------------------------------------------------------
-    // Se chegou aqui, dispara a automação
-    // ------------------------------------------------------
+    if (!automacaoQueBate) {
+      console.log("[handleCommentChange] Nenhuma automação bateu com mídia/palavra.")
+      return
+    }
 
-    // (1) Resposta pública (se "responderPublico" estiver true)
-    if (automacao.responderPublico) {
-      const randomReply = pickRandomPublicReply(automacao.publicReply)
+    // (1) Se automação configurada para responder publicamente
+    if (automacaoQueBate.responderPublico) {
+      const randomReply = pickRandomPublicReply(automacaoQueBate.publicReply)
       await replyPublicComment(comment_id, accessToken, randomReply)
     }
 
-    // (2) Enviar Private Reply em formato de Button Template
-    //     se "fraseBoasVindas" e "quickReplyTexto" estiverem configurados
-    if (automacao.fraseBoasVindas && automacao.quickReplyTexto) {
-      // Enviar a mensagem de boas-vindas (text) e um único botão
-      // "comment_id" => Private Reply atrelada ao comentário original
+    // (2) Se houver DM de boas-vindas configurada, envia "private reply" com botão
+    if (automacaoQueBate.fraseBoasVindas && automacaoQueBate.quickReplyTexto) {
+      // Agora o "payload" vem do BD: automacaoQueBate.buttonPayload
+      // Ex.: "WIT-EQ:b38ff768...".
       await sendPrivateReplyWithButton({
         igUserId,
         accessToken,
         commentId: comment_id,
-        text: automacao.fraseBoasVindas,
-        buttonTitle: automacao.quickReplyTexto,
-        buttonPayload: "ACT::ME_ENVIE_O_LINK",
+        text: automacaoQueBate.fraseBoasVindas,
+        buttonTitle: automacaoQueBate.quickReplyTexto,
+        buttonPayload: automacaoQueBate.buttonPayload, // <--- AQUI a mudança principal
       })
     }
 
@@ -176,24 +174,23 @@ async function handleCommentChange(value: any, igUserId: string) {
 
 /**
  * Trata eventos de mensagem (DM) e postback.
- * - Se o payload = "ACT::ME_ENVIE_O_LINK", enviamos 2ª DM c/ linkEtapa3
  */
 async function handleMessageEvent(msgEvt: any, igUserId: string) {
   try {
     const senderId = msgEvt.sender?.id
-
-    // Se "senderId" = "igUserId", ignorar (evitar loop do bot respondendo a si mesmo)
     if (senderId === igUserId) {
       console.log("[handleMessageEvent] Ignorando msg do próprio igUserId.")
       return
     }
 
-    // Se for postback
+    // Se for um postback (botão clicado)
     if (msgEvt.postback) {
       const postbackPayload = msgEvt.postback.payload
       console.log("[handleMessageEvent] Recebeu postback:", postbackPayload)
 
-      // Buscar automação
+      // Vamos procurar se existe ALGUMA automação que tenha esse buttonPayload
+      // e pertença ao mesmo usuário (igUserId).
+      // (Se quiser, pode usar findMany e iterar; aqui iremos no findFirst.)
       const automacao = await prisma.automacao.findFirst({
         where: {
           user: {
@@ -204,42 +201,46 @@ async function handleMessageEvent(msgEvt: any, igUserId: string) {
               },
             },
           },
+          buttonPayload: postbackPayload, // <--- Procuramos a automação cujo payload bateu
         },
       })
+
       if (!automacao) {
-        console.log(`[handleMessageEvent] Nenhuma automação p/ igUserId=${igUserId}`)
+        console.log(
+          `[handleMessageEvent] Nenhuma automação achada para payload=${postbackPayload}`
+        )
         return
       }
 
-      // Se for "ACT::ME_ENVIE_O_LINK", mandamos o link da Etapa 3
-      if (postbackPayload === "ACT::ME_ENVIE_O_LINK") {
-        const accessToken = await getInstagramUserToken(igUserId)
-        if (!accessToken) {
-          console.warn(`[handleMessageEvent] Sem token p/ igUserId=${igUserId}`)
-          return
-        }
-
-        const textEtapa3 =
-          automacao.mensagemEtapa3 || "Essa é uma resposta pois você clicou em Me envie o link!"
-        const link = automacao.linkEtapa3 || "https://seu-site.com.br"
-        const linkTitle = automacao.legendaBotaoEtapa3 || "Seguir Link"
-
-        // Enviar template com botão do tipo "web_url"
-        await sendTemplateLink({
-          igUserId,
-          accessToken,
-          recipientId: senderId,
-          title: textEtapa3,
-          url: link,
-          urlButtonTitle: linkTitle,
-        })
-
-        console.log("[handleMessageEvent] Enviou template da Etapa 3 (link).")
+      // Achamos a automação, então pegamos o token e enviamos a segunda DM
+      const accessToken = await getInstagramUserToken(igUserId)
+      if (!accessToken) {
+        console.warn(`[handleMessageEvent] Sem token p/ igUserId=${igUserId}`)
+        return
       }
+
+      // Mensagem da Etapa 3
+      const textEtapa3 =
+        automacao.mensagemEtapa3 || "Obrigado por ter respondido, segue nosso link."
+      const link = automacao.linkEtapa3 || "https://seu-site.com.br"
+      const linkTitle = automacao.legendaBotaoEtapa3 || "Acessar Link"
+
+      // Enviar template com botão do tipo "web_url"
+      await sendTemplateLink({
+        igUserId,
+        accessToken,
+        recipientId: senderId,
+        title: textEtapa3,
+        url: link,
+        urlButtonTitle: linkTitle,
+      })
+
+      console.log("[handleMessageEvent] Enviou template da Etapa 3 (link).")
+
       return
     }
 
-    // Caso não seja postback => ignorar
+    // Se não for postback => ignorar ou tratar DMs livres
     console.log("[handleMessageEvent] Mensagem sem postback, ignorando...")
   } catch (err: any) {
     console.error("[handleMessageEvent] Erro:", err.message)
@@ -292,9 +293,6 @@ function pickRandomPublicReply(publicReply?: string | null): string {
 
 /**
  * Envia uma Private Reply no formato de "Button Template".
- * - `commentId` é obrigatório para amarrar ao comentário.
- * - `text` é o texto principal (ex.: automacao.fraseBoasVindas).
- * - `buttonTitle` e `buttonPayload` definem o botão "postback".
  */
 async function sendPrivateReplyWithButton({
   igUserId,
@@ -325,7 +323,7 @@ async function sendPrivateReplyWithButton({
             {
               type: "postback",
               title: buttonTitle,
-              payload: buttonPayload,
+              payload: buttonPayload, // <-- Usando o 'buttonPayload' salvo no BD
             },
           ],
         },
@@ -343,7 +341,6 @@ async function sendPrivateReplyWithButton({
 
 /**
  * Manda um "template" com botão "web_url" (ex.: para mandar link).
- * Usado após o postback "ACT::ME_ENVIE_O_LINK".
  */
 async function sendTemplateLink({
   igUserId,
@@ -372,7 +369,7 @@ async function sendTemplateLink({
               title,
               buttons: [
                 {
-                  type: "web_url", // ou "open_url"
+                  type: "web_url",
                   url,
                   title: urlButtonTitle,
                 },
@@ -392,7 +389,7 @@ async function sendTemplateLink({
   )
 }
 
-// Eventos de debug do BullMQ
+/** Logs do BullMQ */
 instagramWebhookWorker.on("active", (job) => {
   console.log(`[InstagramWebhookWorker] Job ativo: id=${job.id}`)
 })

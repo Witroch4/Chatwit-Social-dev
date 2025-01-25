@@ -1,11 +1,11 @@
-// app/dashboard/automacao/components/AutomacaoSteps.tsx
+//app/dashboard/automacao/components/WIT-EQ/AutomacaoSteps.tsx
 
 "use client";
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import PreviewPhoneMockup from "./PreviewPhoneMockup";
+import PreviewPhoneMockup from "../PreviewPhoneMockup";
 
 interface InstagramUserData {
   id: string;

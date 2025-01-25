@@ -1,6 +1,8 @@
+// app/api/automacao/route.ts
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
+import crypto from "crypto";
 
 export async function POST(request: Request) {
   try {
@@ -27,9 +29,16 @@ export async function POST(request: Request) {
       pedirParaSeguirPro,
       contatoSemClique,
 
-      // <-- Novo campo
       publicReply,
     } = await request.json();
+
+    // Função para gerar buttonPayload único
+    function generateButtonPayload(): string {
+      const randomSuffix = crypto.randomBytes(6).toString("hex"); // 12 caracteres hexadecimais
+      return "WIT-EQ:" + randomSuffix;
+    }
+
+    const buttonPayload = generateButtonPayload();
 
     const automacao = await prisma.automacao.create({
       data: {
@@ -55,6 +64,9 @@ export async function POST(request: Request) {
 
         // Salvando a string do JSON com as 3 frases
         publicReply: publicReply || null,
+
+        // Incluindo o novo campo
+        buttonPayload: buttonPayload,
       },
     });
 

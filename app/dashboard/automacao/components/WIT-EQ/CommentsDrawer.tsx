@@ -1,9 +1,9 @@
-// app/dashboard/automacao/components/CommentsDrawer.tsx
+//app/dashboard/automacao/components/WIT-EQ/CommentsDrawer.tsx
 
 "use client";
 
 import { Skeleton } from "@/components/ui/skeleton";
-import { InstagramUserData } from "../page";
+import { InstagramUserData } from "../../page";
 
 interface CommentsDrawerProps {
   open: boolean; // Controla se o Drawer deve ser exibido ou não

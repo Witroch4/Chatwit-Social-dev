@@ -60,6 +60,29 @@ export function AppSidebar() {
       ? "/animations/logodarckInstagram.lottie"
       : "/animations/logolightInstagram.lottie";
 
+  // Função para desconectar o Instagram
+  async function handleInstagramLogout() {
+    try {
+      const res = await fetch("/auth/instagram/disconnect", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (res.ok) {
+        // Recarrega a página para atualizar o estado da sessão
+        window.location.reload();
+      } else {
+        const errorData = await res.json();
+        console.error("Falha ao desconectar do Instagram:", errorData);
+        alert("Falha ao desconectar do Instagram.");
+      }
+    } catch (error) {
+      console.error("Erro ao desconectar do Instagram:", error);
+      alert("Ocorreu um erro ao tentar desconectar do Instagram.");
+    }
+  }
   // Carregamento Inicial
   if (isLoading) {
     return (
@@ -181,6 +204,14 @@ export function AppSidebar() {
                       <p className="text-center mt-2">
                         Instagram conectado e pronto para chamadas API.
                       </p>
+                       {/* Botão de Sair do Instagram */}
+                       <button
+                        onClick={handleInstagramLogout}
+                        className="mt-4 flex items-center gap-2 px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 transition"
+                      >
+                        <Instagram className="w-5 h-5" />
+                        <span>Sair do Instagram</span>
+                      </button>
                     </div>
                   )}
                 </div>

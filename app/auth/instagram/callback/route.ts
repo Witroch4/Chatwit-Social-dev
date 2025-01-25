@@ -166,7 +166,7 @@ export async function GET(request: Request) {
     });
 
     // 8. Redirecionar para /dashboard
-    return NextResponse.redirect(new URL('/dashboard', request.url));
+    return NextResponse.redirect(`${process.env.NEXTAUTH_URL}/dashboard`);
 
   } catch (err) {
     console.error('Erro no callback do Instagram:', err);
