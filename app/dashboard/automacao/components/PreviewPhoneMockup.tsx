@@ -4,7 +4,7 @@
 import React from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Film } from "lucide-react";
-import { InstagramMediaItem, InstagramUserData } from "../page"; // Ajuste o caminho se necessário
+import { InstagramMediaItem, InstagramUserData } from "../guiado-facil/page"; // Ajuste o caminho se necessário
 import CommentsDrawer from "./WIT-EQ/CommentsDrawer";
 
 interface Props {

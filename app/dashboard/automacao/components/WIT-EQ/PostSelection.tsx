@@ -1,6 +1,6 @@
-//app/dashboard/automacao/components/WIT-EQ/PostSelection.tsx
+// app/dashboard/automacao/components/WIT-EQ/PostSelection.tsx
 
-import { InstagramMediaItem } from "../../page"; // Ajuste o caminho se necessário
+import { InstagramMediaItem } from "../../guiado-facil/page"; // Ajuste o caminho se necessário
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -25,11 +25,11 @@ interface PostSelectionProps {
   instagramMedia: InstagramMediaItem[];
   openDialog: boolean;
   setOpenDialog: (open: boolean) => void;
-  /**
-   * Chamado quando o usuário seleciona ou muda o estado de post
-   * (para atualizar o preview ou outro estado no componente pai).
-   */
   onSelectPost?: () => void;
+
+  // NOVO: Adicionando props para desabilitar o componente
+  disabled?: boolean;
+  className?: string;
 }
 
 export default function PostSelection({
@@ -42,6 +42,8 @@ export default function PostSelection({
   openDialog,
   setOpenDialog,
   onSelectPost,
+  disabled = false, // Valor padrão como false
+  className = "",
 }: PostSelectionProps) {
   // Verifica se é Reels (ajuste se sua lógica for diferente)
   const isReel = (post: InstagramMediaItem) => {
@@ -50,6 +52,7 @@ export default function PostSelection({
 
   // Ao selecionar um post específico
   const handleSelectPost = (post: InstagramMediaItem) => {
+    if (disabled) return; // <<< BLOQUEIA A SELEÇÃO SE ESTIVER DESABILITADO
     setSelectedPost(post);
     setSelectedOptionPostagem("especifico");
     onSelectPost?.(); // Usa optional chaining para evitar erro caso não exista
@@ -65,7 +68,7 @@ export default function PostSelection({
         border: selectedPost?.id === post.id ? "2px solid blue" : "1px solid #333",
         borderRadius: "5px",
         overflow: "hidden",
-        cursor: "pointer",
+        cursor: disabled ? "not-allowed" : "pointer", // <<< ALTERAÇÃO DO CURSOR
         flexShrink: 0,
         position: "relative",
       }}
@@ -118,10 +121,11 @@ export default function PostSelection({
         border: "1px solid #333",
         borderRadius: "5px",
         overflow: "hidden",
-        cursor: "pointer",
+        cursor: disabled ? "not-allowed" : "pointer", // <<< ALTERAÇÃO DO CURSOR
         position: "relative",
       }}
       onClick={() => {
+        if (disabled) return; // <<< BLOQUEIA A SELEÇÃO SE ESTIVER DESABILITADO
         setSelectedPost(post);
         setOpenDialog(false);
         setSelectedOptionPostagem("especifico");
@@ -165,12 +169,12 @@ export default function PostSelection({
   );
 
   return (
-    <div>
+    <div className={className} style={{ pointerEvents: disabled ? "none" : "auto", opacity: disabled ? 0.6 : 1 }}>
       <h2 style={{ marginBottom: "10px" }}>Quando Alguém faz um Comentário</h2>
       <RadioGroup
-        value={selectedOptionPostagem} // melhor que defaultValue, para refletir o estado atual
+        value={selectedOptionPostagem}
         onValueChange={(v) => {
-          // v será "especifico" ou "qualquer"
+          if (disabled) return; // <<< BLOQUEIA A MUDANÇA SE ESTIVER DESABILITADO
           setSelectedOptionPostagem(v as "especifico" | "qualquer");
           if (v === "qualquer") {
             setSelectedPost(null);
@@ -180,11 +184,11 @@ export default function PostSelection({
         style={{ marginBottom: "20px" }}
       >
         <div className="flex items-center space-x-2">
-          <RadioGroupItem value="especifico" id="especifico" />
+          <RadioGroupItem value="especifico" id="especifico" disabled={disabled} />
           <Label htmlFor="especifico">Uma Publicação ou Reels Específico</Label>
         </div>
         <div className="flex items-center space-x-2">
-          <RadioGroupItem value="qualquer" id="qualquer" />
+          <RadioGroupItem value="qualquer" id="qualquer" disabled={disabled} />
           <Label htmlFor="qualquer">Qualquer Publicação ou Reels</Label>
         </div>
       </RadioGroup>
@@ -219,11 +223,12 @@ export default function PostSelection({
                 style={{
                   background: "transparent",
                   border: "none",
-                  color: "#0af",
-                  textDecoration: "underline",
-                  cursor: "pointer",
+                  color: disabled ? "#aaa" : "#0af", // <<< COR P/ DESABILITADO
+                  textDecoration: disabled ? "none" : "underline",
+                  cursor: disabled ? "not-allowed" : "pointer",
                   marginTop: "10px",
                 }}
+                disabled={disabled} // <<< DESABILITA O BOTÃO
               >
                 Mostrar Todos
               </button>
@@ -253,7 +258,7 @@ export default function PostSelection({
 
               <DialogFooter className="sm:justify-start">
                 <DialogClose asChild>
-                  <Button type="button" variant="secondary">
+                  <Button type="button" variant="secondary" disabled={disabled}>
                     Fechar
                   </Button>
                 </DialogClose>

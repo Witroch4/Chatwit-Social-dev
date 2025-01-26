@@ -1,4 +1,4 @@
-// components/agendamento/AgendamentoDePostagens.tsx
+// app\dashboard\agendamento\page.tsx
 
 "use client";
 

@@ -1,578 +1,543 @@
-//app/dashboard/automacao/page.tsx
-"use client";
+"use client"
 
-import { useSession } from "next-auth/react";
-import { useEffect, useState } from "react";
-
-import { Skeleton } from "@/components/ui/skeleton";
-import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch"; // Switch do shadcn
-
+import React, { useEffect, useState } from "react"
+import { useSession } from "next-auth/react"
+import { useRouter } from "next/navigation"
+import { Button } from "@/components/ui/button"
+import { Separator } from "@/components/ui/separator"
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip"; // Tooltip do shadcn
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { cn } from "@/lib/utils"
 
-import LoadingState from "./components/WIT-EQ/LoadingState";
-import UnauthenticatedState from "./components/WIT-EQ/UnauthenticatedState";
-import ErrorState from "./components/WIT-EQ/ErrorState";
-import PostSelection from "./components/WIT-EQ/PostSelection";
-import PalavraExpressaoSelection from "./components/WIT-EQ/PalavraExpressaoSelection";
-import PreviewPhoneMockup from "./components/PreviewPhoneMockup";
-import ToggleActions from "./components/WIT-EQ/ToggleActions";
+import { ChevronDown } from "lucide-react"
+import { DotLottieReact } from "@lottiefiles/dotlottie-react"
 
-import { useToast } from "@/hooks/use-toast";
+// DropdownMenu do shadcn/ui
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu"
 
-// Tipagens
-interface InstagramUserData {
-  id: string;
-  username: string;
-  media_count: number;
-  profile_picture_url?: string;
+// Tipagens (ajuste conforme seu schema do Prisma, se necessário)
+interface Pasta {
+  id: string
+  name: string
+  userId: string
 }
 
-export interface InstagramMediaItem {
-  id: string;
-  caption?: string;
-  media_url?: string;
-  media_type?: string;
-  thumbnail_url?: string;
-  media_product_type?: string;
-  like_count?: number;
-  comments_count?: number;
+interface Automacao {
+  id: string
+  fraseBoasVindas: string | null // Pode ser usado como "título" da automação
+  updatedAt: string
+  folderId: string | null
 }
 
-export default function UserPage() {
-  const { data: session, status } = useSession();
-  const { toast } = useToast();
+export default function AutomacaoPage() {
+  const { data: session, status } = useSession()
+  const router = useRouter()
 
-  // ------------ Estado geral ------------
-  const [instagramUser, setInstagramUser] = useState<InstagramUserData | null>(null);
-  const [instagramMedia, setInstagramMedia] = useState<InstagramMediaItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  // =========================================================================
+  // =========================== Estados de Pasta =============================
+  // =========================================================================
+  const [pastas, setPastas] = useState<Pasta[]>([])
+  const [openNovaPasta, setOpenNovaPasta] = useState(false)
+  const [novaPastaName, setNovaPastaName] = useState("")
 
-  // ------------ Etapa 1: Seleção de Post ------------
-  const [selectedOptionPostagem, setSelectedOptionPostagem] = useState<"especifico" | "qualquer">(
-    "especifico"
-  );
-  const [selectedPost, setSelectedPost] = useState<InstagramMediaItem | null>(null);
+  // =========================================================================
+  // ========================= Estados de Automação ===========================
+  // =========================================================================
+  const [automacoes, setAutomacoes] = useState<Automacao[]>([])
+  const [loading, setLoading] = useState<boolean>(true)
+  const [error, setError] = useState<string | null>(null)
 
-  // ------------ Etapa 1: Palavra/Expressão ------------
-  const [selectedOptionPalavra, setSelectedOptionPalavra] = useState<"especifica" | "qualquer">(
-    "qualquer"
-  );
-  const [inputPalavra, setInputPalavra] = useState("");
+  // Diálogo "+ Nova Automação"
+  const [openNovaAutomacao, setOpenNovaAutomacao] = useState(false)
 
-  // ------------ Etapas 2 e 3: DMs ------------
-  // Etapa 2
-  const [dmWelcomeMessage, setDmWelcomeMessage] = useState(
-    "Olá! Eu estou muito feliz que você está aqui, muito obrigado pelo seu interesse 😊\n\nClique abaixo e eu vou te mandar o link em um segundo ✨"
-  );
-  const [dmQuickReply, setDmQuickReply] = useState("Me envie o link");
+  // =========================================================================
+  // ===================== Diálogo de "Renomear Automação" ===================
+  // =========================================================================
+  const [openRenameDialog, setOpenRenameDialog] = useState(false)
+  const [renameInputValue, setRenameInputValue] = useState("")
+  const [selectedAutoForRename, setSelectedAutoForRename] = useState<Automacao | null>(null)
 
-  // Etapa 3
-  const [dmSecondMessage, setDmSecondMessage] = useState(
-    "Obrigado por ter respondido segue o nosso link do produto"
-  );
-  const [dmLink, setDmLink] = useState("https://witdev.com.br");
-  const [dmButtonLabel, setDmButtonLabel] = useState("Segue Nosso Site");
-
-  // ------------ Etapa 4: Outros recursos ------------
-  // Switch: "Responder comentário publicamente"
-  const [switchResponderComentario, setSwitchResponderComentario] = useState(false);
-
-  // 3 frases de resposta pública
-  const [publicReply1, setPublicReply1] = useState("Obrigado! ❤️ Por favor, veja DMs.");
-  const [publicReply2, setPublicReply2] = useState("Te enviei uma mensagem ✅️  Verificar.");
-  const [publicReply3, setPublicReply3] = useState("Que bom 👍 Verifica as tuas DMs.");
-
-  // Checkboxes PRO
-  const [checkboxPedirEmail, setCheckboxPedirEmail] = useState(false);
-  const [checkboxPedirParaSeguir, setCheckboxPedirParaSeguir] = useState(false);
-  const [checkboxEntrarEmContato, setCheckboxEntrarEmContato] = useState(false);
-
-  // ------------ Preview ------------
-  const [openDialog, setOpenDialog] = useState(false);
-  const [toggleValue, setToggleValue] = useState<"publicar" | "comentarios" | "dm">("publicar");
-  const [commentContent, setCommentContent] = useState("");
-
-  // ------------ Access Token ------------
-  const accessToken = session?.user?.instagramAccessToken;
-
-  // ============ Carregar dados do Instagram ============
+  // =========================================================================
+  // =============== Carrega Pastas e Automações ao montar ===================
+  // =========================================================================
   useEffect(() => {
-    const fetchInstagramData = async () => {
-      if (status === "authenticated" && accessToken) {
-        try {
-          // 1) Dados do usuário
-          const userRes = await fetch(
-            `https://graph.instagram.com/me?fields=id,username,media_count,profile_picture_url&access_token=${accessToken}`
-          );
-          if (!userRes.ok) {
-            const errorText = await userRes.text();
-            console.error("Erro ao buscar dados do Instagram (usuário):", errorText);
-            setError("Não foi possível obter os dados do Instagram do usuário.");
-            setLoading(false);
-            return;
-          }
-          const userData: InstagramUserData = await userRes.json();
-          setInstagramUser(userData);
+    if (status === "loading") return
+    if (!session?.user?.id) return
+    fetchData()
+  }, [session, status])
 
-          // 2) Dados das mídias
-          const mediaRes = await fetch(
-            `https://graph.instagram.com/me/media?fields=id,caption,media_url,media_type,thumbnail_url,media_product_type,like_count,comments_count&access_token=${accessToken}`
-          );
-          if (!mediaRes.ok) {
-            const errorText = await mediaRes.text();
-            console.error("Erro ao buscar mídias do Instagram:", errorText);
-            setError("Não foi possível obter as mídias do Instagram.");
-            setLoading(false);
-            return;
-          }
-          const mediaData = await mediaRes.json();
-          setInstagramMedia(mediaData.data || []);
-          setLoading(false);
-        } catch (err) {
-          console.error("Erro ao conectar-se à API do Instagram:", err);
-          setError("Erro ao conectar-se à API do Instagram.");
-          setLoading(false);
-        }
-      } else if (status === "authenticated") {
-        // Usuário autenticado, mas sem accessToken
-        setLoading(false);
-      } else {
-        // Não autenticado
-        setLoading(false);
+  async function fetchData() {
+    setLoading(true)
+    setError(null)
+    try {
+      const [resPastas, resAutomacoes] = await Promise.all([
+        fetch("/api/pasta"),
+        fetch("/api/automacao"),
+      ])
+
+      if (!resPastas.ok) {
+        const err1 = await resPastas.json()
+        throw new Error(err1.error || "Falha ao carregar pastas")
       }
-    };
-    fetchInstagramData();
-  }, [status, accessToken]);
-
-  // ============ Validação das etapas ============
-  function validarEtapas(): boolean {
-    // Etapa 1
-    if (selectedOptionPostagem === "especifico" && !selectedPost) {
-      toast({
-        title: "Erro",
-        description: "Selecione uma postagem específica ou mude para 'qualquer postagem'.",
-        variant: "destructive",
-      });
-      return false;
-    }
-    if (selectedOptionPalavra === "especifica" && inputPalavra.trim() === "") {
-      toast({
-        title: "Erro",
-        description: "Preencha as palavras-chave ou selecione 'qualquer'.",
-        variant: "destructive",
-      });
-      return false;
-    }
-
-    // Etapa 2
-    if (dmWelcomeMessage.trim() === "" || dmQuickReply.trim() === "") {
-      toast({
-        title: "Erro",
-        description: "Preencha a DM de boas-vindas e o texto do Quick Reply.",
-        variant: "destructive",
-      });
-      return false;
-    }
-
-    // Etapa 3
-    if (dmSecondMessage.trim() === "" || dmLink.trim() === "" || dmButtonLabel.trim() === "") {
-      toast({
-        title: "Erro",
-        description: "Preencha a mensagem, o link e a legenda do botão da Etapa 3.",
-        variant: "destructive",
-      });
-      return false;
-    }
-
-    // Etapa 4: se estiver ON, validar as frases
-    if (switchResponderComentario) {
-      if (
-        publicReply1.trim() === "" ||
-        publicReply2.trim() === "" ||
-        publicReply3.trim() === ""
-      ) {
-        toast({
-          title: "Erro",
-          description: "Preencha as 3 opções de respostas públicas antes de ativar.",
-          variant: "destructive",
-        });
-        return false;
+      if (!resAutomacoes.ok) {
+        const err2 = await resAutomacoes.json()
+        throw new Error(err2.error || "Falha ao carregar automações")
       }
+
+      const dataPastas = await resPastas.json()
+      const dataAutomacoes = await resAutomacoes.json()
+
+      setPastas(dataPastas)
+      setAutomacoes(dataAutomacoes)
+    } catch (e: any) {
+      setError(e.message)
+      console.error("Erro:", e)
+    } finally {
+      setLoading(false)
     }
-    return true;
   }
 
-  // ============ Salvar Automação ============
-  async function handleAtivarAutomacao() {
-    if (!validarEtapas()) return;
-
+  // =========================================================================
+  // =========================== Ações de Pastas ==============================
+  // =========================================================================
+  async function handleCriarNovaPasta() {
+    if (!novaPastaName.trim()) return
     try {
-      // Montar as 3 respostas em um único campo (JSON)
-      const publicReplyArray = [publicReply1, publicReply2, publicReply3];
-      const publicReplyJson = switchResponderComentario ? JSON.stringify(publicReplyArray) : null;
-
-      // Payload
-      const payload = {
-        // Etapa 1
-        selectedMediaId:
-          selectedOptionPostagem === "especifico" ? selectedPost?.id || null : null,
-        anyMediaSelected: selectedOptionPostagem === "qualquer",
-
-        selectedOptionPalavra,
-        palavrasChave: selectedOptionPalavra === "especifica" ? inputPalavra : null,
-
-        // Etapa 2
-        fraseBoasVindas: dmWelcomeMessage,
-        quickReplyTexto: dmQuickReply,
-
-        // Etapa 3
-        mensagemEtapa3: dmSecondMessage,
-        linkEtapa3: dmLink,
-        legendaBotaoEtapa3: dmButtonLabel,
-
-        // Etapa 4
-        responderPublico: switchResponderComentario,
-        pedirEmailPro: checkboxPedirEmail,
-        pedirParaSeguirPro: checkboxPedirParaSeguir,
-        contatoSemClique: checkboxEntrarEmContato,
-        publicReply: publicReplyJson,
-      };
-
-      // Chamar a rota /api/automacao
-      const res = await fetch("/api/automacao", {
+      const res = await fetch("/api/pasta", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
+        body: JSON.stringify({ name: novaPastaName.trim() }),
+      })
       if (!res.ok) {
-        const errData = await res.json();
-        throw new Error(errData.error || "Erro ao salvar automação.");
+        const err = await res.json()
+        throw new Error(err.error || "Falha ao criar pasta")
       }
-
-      const data = await res.json();
-      console.log("Automação salva com sucesso:", data);
-      toast({
-        title: "Sucesso",
-        description: "Automação configurada e salva com sucesso!",
-        variant: "default",
-      });
-    } catch (error: any) {
-      console.error("Erro ao salvar automação:", error.message);
-      toast({
-        title: "Falha",
-        description: "Falha ao salvar automação: " + error.message,
-        variant: "destructive",
-      });
+      // Se der certo, limpa o input e fecha o diálogo
+      setNovaPastaName("")
+      setOpenNovaPasta(false)
+      fetchData()
+    } catch (e: any) {
+      console.error(e.message)
     }
   }
 
-  // ============ Renderização principal ============
-  if (status === "loading") {
-    return <LoadingState />;
-  }
-  if (status === "unauthenticated") {
-    return <UnauthenticatedState />;
-  }
-  if (loading) {
-    return <LoadingState />;
-  }
-  if (error) {
-    return <ErrorState error={error} />;
+  // =========================================================================
+  // ========================= Ações de Automação =============================
+  // =========================================================================
+
+  // Abrir Dialog de Renomear Automação
+  function handleOpenRenameDialog(auto: Automacao) {
+    setSelectedAutoForRename(auto)
+    setRenameInputValue(auto.fraseBoasVindas || "")
+    setOpenRenameDialog(true)
   }
 
-  const ultimasPostagens = instagramMedia.slice(0, 4);
+  // Confirmar Renomear Automação
+  async function handleConfirmRename() {
+    if (!selectedAutoForRename) return
+    try {
+      const res = await fetch(`/api/automacao/${selectedAutoForRename.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "rename",
+          newName: renameInputValue,
+        }),
+      })
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.error || "Falha ao renomear automação")
+      }
+      // Atualiza a lista e fecha o diálogo
+      setOpenRenameDialog(false)
+      fetchData()
+    } catch (e: any) {
+      console.error(e.message)
+    }
+  }
+
+  // Duplicar Automação
+  async function handleDuplicateAutomacao(autoId: string) {
+    const confirmDup = window.confirm("Deseja duplicar esta automação?")
+    if (!confirmDup) return
+    try {
+      const res = await fetch(`/api/automacao/${autoId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "duplicate" }),
+      })
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.error || "Falha ao duplicar automação")
+      }
+      fetchData()
+    } catch (e: any) {
+      console.error(e.message)
+    }
+  }
+
+  // Mover Automação para uma Pasta
+  async function handleMoveAutomacao(autoId: string) {
+    const pastaNames = pastas.map((p) => p.name).join("\n")
+    const pastaEscolhida = window.prompt(
+      "Selecione a pasta digitando o nome:\n\n" + pastaNames
+    )
+    if (!pastaEscolhida) return
+    const folder = pastas.find((p) => p.name === pastaEscolhida)
+    if (!folder) {
+      window.alert("Pasta não encontrada")
+      return
+    }
+    try {
+      const res = await fetch(`/api/automacao/${autoId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "move", folderId: folder.id }),
+      })
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.error || "Falha ao mover automação")
+      }
+      fetchData()
+    } catch (e: any) {
+      console.error(e.message)
+    }
+  }
+
+  // Deletar Automação
+  async function handleDeleteAutomacao(autoId: string) {
+    const confirmDel = window.confirm("Tem certeza que deseja apagar esta automação?")
+    if (!confirmDel) return
+    try {
+      const res = await fetch(`/api/automacao/${autoId}`, {
+        method: "DELETE",
+      })
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.error || "Falha ao deletar automação")
+      }
+      fetchData()
+    } catch (e: any) {
+      console.error(e.message)
+    }
+  }
+
+  // Criar Automação Rápida (Card “Automação Eu Quero...”)
+  function handleCardAutomacaoEuQuero() {
+    // Vai para página "guiado-facil"
+    router.push("/dashboard/automacao/guiado-facil")
+    setOpenNovaAutomacao(false)
+  }
+
+  // Abrir página de edição de Automação existente
+  function handleOpenAutomacao(autoId: string) {
+    // Ex: "/dashboard/automacao/guiado-facil/cm6cjpdbh000bph24ptcktbtz"
+    router.push(`/dashboard/automacao/guiado-facil/${autoId}`)
+  }
+
+  // =========================================================================
+  // ================================ Render ==================================
+  // =========================================================================
+  // Tela de “carregando” sessão do next-auth
+  if (status === "loading") {
+    return <div className="p-4">Carregando sessão...</div>
+  }
+
+  // Se o usuário não está autenticado
+  if (!session?.user?.id) {
+    return <div className="p-4">Você não está autenticado.</div>
+  }
 
   return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "row",
-        justifyContent: "center",
-        minHeight: "100vh",
-        padding: "20px",
-        gap: "20px",
-      }}
-    >
-      {/* ======================================================
-          COLUNA ESQUERDA - FORMULÁRIO
-      ======================================================= */}
-      <div
-        style={{
-          flex: 1,
-          borderRight: "1px solid #333",
-          paddingRight: "20px",
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-        }}
-      >
-        {/* Etapa 1 */}
-        <PostSelection
-          selectedOptionPostagem={selectedOptionPostagem}
-          setSelectedOptionPostagem={setSelectedOptionPostagem}
-          selectedPost={selectedPost}
-          setSelectedPost={setSelectedPost}
-          ultimasPostagens={ultimasPostagens}
-          instagramMedia={instagramMedia}
-          openDialog={openDialog}
-          setOpenDialog={setOpenDialog}
-        />
+    <div className="p-4">
+      <h1 className="text-2xl font-bold">Automatização</h1>
+      <Separator className="my-3" />
 
-        <PalavraExpressaoSelection
-          selectedOptionPalavra={selectedOptionPalavra}
-          setSelectedOptionPalavra={setSelectedOptionPalavra}
-          inputPalavra={inputPalavra}
-          setInputPalavra={(val) => {
-            setInputPalavra(val);
-            setCommentContent(val); // Passa a "palavra" para o preview de comentário
-            if (val.trim() !== "") {
-              setToggleValue("comentarios"); // Muda o preview para comentários
-            } else {
-              setToggleValue("publicar"); // Caso apague, volta a publicar
-            }
-          }}
-        />
+      <h2 className="text-xl font-semibold mb-2">Minhas Automações</h2>
 
-        <Separator className="my-4 w-full" />
+      {/* --------------------------------------------------------------
+          BARRA DE AÇÕES (Nova Automação, Nova Pasta)
+      -------------------------------------------------------------- */}
+      <div className="flex items-center gap-2 mb-6">
+        {/* + Nova Automação */}
+        <Dialog open={openNovaAutomacao} onOpenChange={setOpenNovaAutomacao}>
+          <DialogTrigger asChild>
+            <Button>+ Nova Automação</Button>
+          </DialogTrigger>
+          <DialogContent
+            className={cn(
+              "sm:max-w-[800px]",
+              "max-h-[80vh] overflow-y-auto",
+              "mx-auto"
+            )}
+          >
+            <DialogHeader>
+              <DialogTitle>Modelos prontos</DialogTitle>
+              <DialogDescription>
+                Recomendados &mdash; Principais modelos para impulsionar o seu Instagram
+              </DialogDescription>
+            </DialogHeader>
 
-        {/* Etapa 2 */}
-        <div style={{ width: "100%" }}>
-          <h3 className="text-lg font-semibold">Etapa 2</h3>
-          <p className="text-sm text-muted-foreground mb-2">
-            (Inicialmente, eles receberão uma DM de boas-vindas)
-          </p>
-          <div className="mt-4">
-            <label className="text-sm font-semibold" htmlFor="dmWelcomeMessage">
-              Mensagem de boas-vindas
-            </label>
-            <Textarea
-              id="dmWelcomeMessage"
-              className="mt-2"
-              value={dmWelcomeMessage}
-              onChange={(e) => setDmWelcomeMessage(e.target.value)}
-              onFocus={() => setToggleValue("dm")}
-            />
-          </div>
-
-          <div className="mt-4">
-            <label className="text-sm font-semibold" htmlFor="dmQuickReply">
-              Quick Reply (ex.: "Me envie o link")
-            </label>
-            <Input
-              id="dmQuickReply"
-              className="mt-2"
-              value={dmQuickReply}
-              onChange={(e) => setDmQuickReply(e.target.value)}
-              onFocus={() => setToggleValue("dm")}
-            />
-          </div>
-        </div>
-
-        <Separator className="my-4 w-full" />
-
-        {/* Etapa 3 */}
-        <div style={{ width: "100%" }}>
-          <h3 className="text-lg font-semibold">Etapa 3</h3>
-          <p className="text-sm text-muted-foreground mb-2">
-            (Logo depois, a DM com o link será enviada)
-          </p>
-
-          <div className="mt-4">
-            <label className="text-sm font-semibold" htmlFor="dmSecondMessage">
-              Escreva uma mensagem
-            </label>
-            <Textarea
-              id="dmSecondMessage"
-              className="mt-2"
-              value={dmSecondMessage}
-              onChange={(e) => setDmSecondMessage(e.target.value)}
-              onFocus={() => setToggleValue("dm")}
-            />
-          </div>
-
-          <div className="mt-4">
-            <label className="text-sm font-semibold" htmlFor="dmLink">
-              Adicionar um link
-            </label>
-            <Input
-              id="dmLink"
-              className="mt-2"
-              value={dmLink}
-              onChange={(e) => setDmLink(e.target.value)}
-              onFocus={() => setToggleValue("dm")}
-            />
-          </div>
-
-          <div className="mt-4">
-            <label className="text-sm font-semibold" htmlFor="dmButtonLabel">
-              Adicione legenda ao botão
-            </label>
-            <Input
-              id="dmButtonLabel"
-              className="mt-2"
-              value={dmButtonLabel}
-              onChange={(e) => setDmButtonLabel(e.target.value)}
-              onFocus={() => setToggleValue("dm")}
-            />
-          </div>
-        </div>
-
-        <Separator className="my-4 w-full" />
-
-        {/* Etapa 4 */}
-        <div style={{ width: "100%" }}>
-          <h3 className="text-lg font-semibold">Etapa 4</h3>
-          <p className="text-sm text-muted-foreground mb-4">
-            (Outros recursos para automatizar)
-          </p>
-
-          <TooltipProvider>
-            <div className="flex items-center space-x-2 mb-2">
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <div className="flex items-center space-x-2">
-                    <Switch
-                      id="switchResponderComentario"
-                      checked={switchResponderComentario}
-                      onCheckedChange={(checked) => setSwitchResponderComentario(checked)}
-                    />
-                    <Label htmlFor="switchResponderComentario">
-                      Responder ao comentário de forma pública
-                    </Label>
-                  </div>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>
-                    Escolha 3 opções de respostas públicas que vamos mandar 1 delas aleatoriamente
-                    em cada comentário 😊
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Card habilitado */}
+                <div
+                  onClick={handleCardAutomacaoEuQuero}
+                  className="border border-gray-300 rounded-lg p-3 cursor-pointer hover:border-blue-400"
+                >
+                  <h3 className="font-bold text-sm md:text-base mb-1">
+                    Automação Eu Quero - Enviar links automaticamente por DM a partir dos comentários
+                  </h3>
+                  <p className="text-xs md:text-sm text-muted-foreground">
+                    Envie um link sempre que alguém comentar em uma publicação ou reel
                   </p>
-                </TooltipContent>
-              </Tooltip>
+                  <div className="text-xs md:text-sm flex items-center justify-between mt-3">
+                    <span className="font-semibold">Automação Rápida</span>
+                    <span className="px-2 py-1 text-xs bg-pink-500 text-white rounded-full">
+                      POPULAR
+                    </span>
+                  </div>
+                </div>
+
+                {/* Exemplo de cartões em desenvolvimento */}
+                <CardEmDesenvolvimento
+                  titulo="Gere leads dos stories"
+                  descricao="Use ofertas por tempo limitado nos Stories para converter leads"
+                  rodape="Fluxo Canva"
+                />
+                <CardEmDesenvolvimento
+                  titulo="Use IA para automatizar interações"
+                  descricao="Utilize a IA para coletar as informações dos seus seguidores..."
+                  rodape="Fluxo Canva    AI"
+                />
+                {/* ... adicione outros cards que quiser ... */}
+              </div>
             </div>
-          </TooltipProvider>
 
-          {switchResponderComentario && (
-            <div className="space-y-2 mb-4 mt-2">
-              <Input
-                value={publicReply1}
-                onChange={(e) => setPublicReply1(e.target.value)}
-              />
-              <Input
-                value={publicReply2}
-                onChange={(e) => setPublicReply2(e.target.value)}
-              />
-              <Input
-                value={publicReply3}
-                onChange={(e) => setPublicReply3(e.target.value)}
-              />
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setOpenNovaAutomacao(false)}>
+                Fechar
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* + Nova Pasta */}
+        <Dialog open={openNovaPasta} onOpenChange={setOpenNovaPasta}>
+          <DialogTrigger asChild>
+            <Button variant="outline">+ Nova Pasta</Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-[425px]">
+            <DialogHeader>
+              <DialogTitle>Criar nova pasta</DialogTitle>
+              <DialogDescription>
+                Digite o nome da pasta para organizar suas automações.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="nomePasta" className="text-right">
+                  Nome
+                </Label>
+                <Input
+                  id="nomePasta"
+                  placeholder="Minha nova pasta"
+                  className="col-span-3"
+                  value={novaPastaName}
+                  onChange={(e) => setNovaPastaName(e.target.value)}
+                />
+              </div>
             </div>
-          )}
-
-          <div className="flex items-center space-x-2 mb-2">
-            <Checkbox
-              id="checkboxPedirEmail"
-              checked={checkboxPedirEmail}
-              onCheckedChange={(checked) => setCheckboxPedirEmail(Boolean(checked))}
-            />
-            <label
-              htmlFor="checkboxPedirEmail"
-              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed"
-            >
-              Pedir email <span className="text-xs text-muted-foreground">PRO</span>
-            </label>
-          </div>
-
-          <div className="flex items-center space-x-2 mb-2">
-            <Checkbox
-              id="checkboxPedirParaSeguir"
-              checked={checkboxPedirParaSeguir}
-              onCheckedChange={(checked) => setCheckboxPedirParaSeguir(Boolean(checked))}
-            />
-            <label
-              htmlFor="checkboxPedirParaSeguir"
-              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed"
-            >
-              Pedir para seguir antes de enviar o link{" "}
-              <span className="text-xs text-muted-foreground">PRO</span>
-            </label>
-          </div>
-
-          <div className="flex items-center space-x-2 mb-2">
-            <Checkbox
-              id="checkboxEntrarEmContato"
-              checked={checkboxEntrarEmContato}
-              onCheckedChange={(checked) => setCheckboxEntrarEmContato(Boolean(checked))}
-            />
-            <label
-              htmlFor="checkboxEntrarEmContato"
-              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed"
-            >
-              Entrar em contato caso não cliquem no link
-            </label>
-          </div>
-        </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setOpenNovaPasta(false)}>
+                Cancelar
+              </Button>
+              <Button onClick={handleCriarNovaPasta}>Criar</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
 
-      {/* ======================================================
-          COLUNA DIREITA - PREVIEW E BOTÃO
-      ======================================================= */}
-      <div
-        style={{
-          flex: 1,
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-        }}
-      >
-        {/* Topo do preview */}
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            width: "100%",
-            alignItems: "center",
-            marginBottom: "10px",
-          }}
-        >
-          <span style={{ fontWeight: "bold", fontSize: "16px" }}>Preview</span>
-          <Button variant="outline" size="sm" onClick={handleAtivarAutomacao}>
-            Ativar
-          </Button>
+      {/* --------------------------------------------------------------
+          LISTAGEM DE PASTAS
+      -------------------------------------------------------------- */}
+      <div className="mb-6 space-y-2">
+        {pastas.map((pasta) => (
+          <div key={pasta.id} className="flex items-center gap-2">
+            <FolderIcon />
+            <span>{pasta.name}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* --------------------------------------------------------------
+          LISTAGEM DE AUTOMAÇÕES
+      -------------------------------------------------------------- */}
+      {loading && (
+        <div className="flex justify-center items-center">
+          <DotLottieReact
+            src="/animations/loading.lottie"
+            autoplay
+            loop
+            style={{ width: 150, height: 150 }}
+            aria-label="Carregando automações"
+          />
         </div>
+      )}
 
-        {/* Componente de Preview */}
-        <PreviewPhoneMockup
-          selectedPost={selectedPost}
-          instagramUser={instagramUser}
-          toggleValue={toggleValue}
-          commentContent={commentContent}
-          dmWelcomeMessage={dmWelcomeMessage}
-          dmQuickReply={dmQuickReply}
-          dmSecondMessage={dmSecondMessage}
-          dmLink={dmLink}
-          dmButtonLabel={dmButtonLabel}
+      {error && <div className="text-red-500">Erro: {error}</div>}
 
-          // Props da etapa 4 (para exibir no preview de comentários)
-          responderPublico={switchResponderComentario}
-          publicReply1={publicReply1}
-        />
+      {!loading && !error && automacoes.length === 0 && (
+        <div className="text-sm text-muted-foreground">
+          Nenhuma automação cadastrada.
+        </div>
+      )}
 
-        {/* Toggle entre as ações do preview */}
-        <ToggleActions toggleValue={toggleValue} setToggleValue={setToggleValue} />
+      {!loading && !error && automacoes.length > 0 && (
+        <div className="space-y-2">
+          {automacoes.map((auto) => (
+            <div
+              key={auto.id}
+              className="flex items-center justify-between px-4 py-3 border rounded"
+            >
+              {/* Clique no nome para abrir automação */}
+              <div
+                className="flex flex-col cursor-pointer"
+                onClick={() => handleOpenAutomacao(auto.id)}
+              >
+                <span className="font-semibold">
+                  {auto.fraseBoasVindas || "Automação Sem Título"}
+                </span>
+                <div className="text-xs text-muted-foreground">ID: {auto.id}</div>
+              </div>
+
+              {/* Menu Dropdown de ações */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="icon" className="p-1">
+                    <ChevronDown className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="w-40">
+                  <DropdownMenuItem onClick={() => handleOpenRenameDialog(auto)}>
+                    Renomear
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleDuplicateAutomacao(auto.id)}>
+                    Duplicar
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleMoveAutomacao(auto.id)}>
+                    Mover para
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    className="text-red-600"
+                    onClick={() => handleDeleteAutomacao(auto.id)}
+                  >
+                    Apagar
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* --------------------------------------------------------------
+          DIALOG "RENOMEAR AUTOMAÇÃO"
+      -------------------------------------------------------------- */}
+      <Dialog open={openRenameDialog} onOpenChange={setOpenRenameDialog}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Renomear automação</DialogTitle>
+            <DialogDescription>
+              Informe um novo nome para a automação.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="nomeAutomacao" className="text-right">
+                Novo Nome
+              </Label>
+              <Input
+                id="nomeAutomacao"
+                className="col-span-3"
+                value={renameInputValue}
+                onChange={(e) => setRenameInputValue(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpenRenameDialog(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleConfirmRename}>Renomear</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  )
+}
+
+/* ------------------------------------------------------------------
+   CARD "Em Desenvolvimento"
+------------------------------------------------------------------ */
+function CardEmDesenvolvimento({
+  titulo,
+  descricao,
+  rodape,
+}: {
+  titulo: string
+  descricao: string
+  rodape: string
+}) {
+  return (
+    <div className="relative border border-gray-300 rounded-lg p-3 opacity-50 cursor-not-allowed">
+      <div className="absolute top-2 -right-10 transform rotate-45 bg-red-600 text-white text-xs font-bold px-6 py-1">
+        Em Desenvolvimento
+      </div>
+      <h3 className="font-bold text-sm md:text-base mb-1">{titulo}</h3>
+      <p className="text-xs md:text-sm text-muted-foreground">{descricao}</p>
+      <div className="text-xs md:text-sm flex items-center justify-between mt-3">
+        <span>{rodape}</span>
       </div>
     </div>
-  );
+  )
+}
+
+/* ------------------------------------------------------------------
+   ÍCONE DE PASTA
+------------------------------------------------------------------ */
+function FolderIcon() {
+  return (
+    <svg
+      width="16"
+      height="16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      viewBox="0 0 24 24"
+      className="text-gray-600"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M2.25 12.75v-5.5c0-.828.672-1.5 1.5-1.5h6l2 2h8a1.5 1.5 0 011.5 1.5v3.5M2.25 12.75h19.5M2.25 12.75l1.5 7.5c.15.75.825 1.25 1.575 1.25h13.35c.75 0 1.425-.5 1.575-1.25l1.5-7.5"
+      ></path>
+    </svg>
+  )
 }

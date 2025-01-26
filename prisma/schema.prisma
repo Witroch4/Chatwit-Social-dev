@@ -1,3 +1,5 @@
+// prisma/schema.prisma
+
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
@@ -26,7 +28,12 @@ model User {
   accounts               Account[]
   createdAt              DateTime    @default(now())
   updatedAt              DateTime    @updatedAt
+
+  // Relação com Automacoes
   automacoes             Automacao[]
+
+  // Relação com Pastas
+  pastas                 Pasta[]
 }
 
 model Account {
@@ -44,9 +51,6 @@ model Account {
   session_state     String?
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
-
-  // <<< Novo campo para armazenar o user_id retornado em /me?fields=...,
-  //     que é o ID da conta BUSINESS (1784...) >>>
   igUserId          String?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -86,6 +90,10 @@ model Automacao {
   userId                 String
   user                   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  // Pasta - opcional
+  folderId               String?
+  folder                 Pasta?   @relation(fields: [folderId], references: [id])
+
   selectedMediaId        String?
   anyMediaSelected       Boolean  @default(false)
   selectedOptionPalavra  String
@@ -100,11 +108,20 @@ model Automacao {
   pedirParaSeguirPro     Boolean  @default(false)
   contatoSemClique       Boolean  @default(false)
   buttonPayload          String   @unique
-
-  // Novo campo para salvar as 3 mensagens de resposta pública:
-  publicReply            String?  // Você pode armazenar como JSON, string única etc.
+  publicReply            String?
 
   createdAt              DateTime @default(now())
   updatedAt              DateTime @updatedAt
 }
 
+model Pasta {
+  id       String     @id @default(cuid())
+  name     String
+  userId   String
+  user     User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  // Relação com Automacoes
+  automacoes Automacao[]
+}
