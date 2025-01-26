@@ -109,7 +109,7 @@ model Automacao {
   contatoSemClique       Boolean  @default(false)
   buttonPayload          String   @unique
   publicReply            String?
-
+  live                   Boolean  @default(true)  // <--- Campo novo
   createdAt              DateTime @default(now())
   updatedAt              DateTime @updatedAt
 }

@@ -1,282 +1,295 @@
-"use client"
+// app/dashboard/automacao/guiado-facil/[id]/page.tsx
 
-import { useParams } from "next/navigation"
-import { useSession } from "next-auth/react"
-import { useEffect, useState } from "react"
+"use client";
+
+import { useParams } from "next/navigation";
+import { useSession } from "next-auth/react";
+import { useEffect, useState } from "react";
 
 // Imports de componentes que você já usa
-import LoadingState from "../../components/WIT-EQ/LoadingState"
-import UnauthenticatedState from "../../components/WIT-EQ/UnauthenticatedState"
-import ErrorState from "../../components/WIT-EQ/ErrorState"
-import PostSelection from "../../components/WIT-EQ/PostSelection"
-import PalavraExpressaoSelection from "../../components/WIT-EQ/PalavraExpressaoSelection"
-import PreviewPhoneMockup from "../../components/PreviewPhoneMockup"
-import ToggleActions from "../../components/WIT-EQ/ToggleActions"
+import LoadingState from "../../components/WIT-EQ/LoadingState";
+import UnauthenticatedState from "../../components/WIT-EQ/UnauthenticatedState";
+import ErrorState from "../../components/WIT-EQ/ErrorState";
+import PostSelection from "../../components/WIT-EQ/PostSelection";
+import PalavraExpressaoSelection from "../../components/WIT-EQ/PalavraExpressaoSelection";
+import PreviewPhoneMockup from "../../components/PreviewPhoneMockup";
+import ToggleActions from "../../components/WIT-EQ/ToggleActions";
 
-import { useToast } from "@/hooks/use-toast"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Switch } from "@/components/ui/switch"
-import { Label } from "@/components/ui/label"
-import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
-import { Button } from "@/components/ui/button"
-import { Separator } from "@/components/ui/separator"
+import { useToast } from "@/hooks/use-toast";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from "@/components/ui/tooltip"
+} from "@/components/ui/tooltip";
 
 // Tipagens para IG
 interface InstagramUserData {
-  id: string
-  username: string
-  media_count: number
-  profile_picture_url?: string
+  id: string;
+  username: string;
+  media_count: number;
+  profile_picture_url?: string;
 }
 
 export interface InstagramMediaItem {
-  id: string
-  caption?: string
-  media_url?: string
-  media_type?: string
-  thumbnail_url?: string
-  media_product_type?: string
-  like_count?: number
-  comments_count?: number
+  id: string;
+  caption?: string;
+  media_url?: string;
+  media_type?: string;
+  thumbnail_url?: string;
+  media_product_type?: string;
+  like_count?: number;
+  comments_count?: number;
 }
 
 // Tipagem do que vem do BD (Automacao)
 interface AutomacaoDB {
-  id: string
-  selectedMediaId: string | null
-  anyMediaSelected: boolean
-  selectedOptionPalavra: string // "especifica" | "qualquer"
-  palavrasChave: string | null
-  fraseBoasVindas: string | null
-  quickReplyTexto: string | null
-  mensagemEtapa3: string | null
-  linkEtapa3: string | null
-  legendaBotaoEtapa3: string | null
-  responderPublico: boolean
-  pedirEmailPro: boolean
-  pedirParaSeguirPro: boolean
-  contatoSemClique: boolean
-  publicReply: string | null // JSON string
+  id: string;
+  selectedMediaId: string | null;
+  anyMediaSelected: boolean;
+  selectedOptionPalavra: string; // "especifica" | "qualquer"
+  palavrasChave: string | null;
+  fraseBoasVindas: string | null;
+  quickReplyTexto: string | null;
+  mensagemEtapa3: string | null;
+  linkEtapa3: string | null;
+  legendaBotaoEtapa3: string | null;
+  responderPublico: boolean;
+  pedirEmailPro: boolean;
+  pedirParaSeguirPro: boolean;
+  contatoSemClique: boolean;
+  publicReply: string | null; // JSON string
+  live: boolean; // Novo campo
   // etc...
 }
 
 export default function GuiadoFacilEditPage() {
-  const { data: session, status } = useSession()
-  const { id } = useParams()
-  const { toast } = useToast()
+  const { data: session, status } = useSession();
+  const { id } = useParams();
+  const { toast } = useToast();
 
   // ========== NOVO: Estado de edição ou bloqueado ==========
-  const [isEditing, setIsEditing] = useState(false)
+  const [isEditing, setIsEditing] = useState(false);
 
   // Estados de loading e erro para carregamento da automação
-  const [loadingAuto, setLoadingAuto] = useState(true)
-  const [autoError, setAutoError] = useState<string | null>(null)
+  const [loadingAuto, setLoadingAuto] = useState(true);
+  const [autoError, setAutoError] = useState<string | null>(null);
 
   // ========== Estados do seu formulário (passo 1, 2, 3, 4 etc.) ==========
-  const [instagramUser, setInstagramUser] = useState<InstagramUserData | null>(null)
-  const [instagramMedia, setInstagramMedia] = useState<InstagramMediaItem[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [instagramUser, setInstagramUser] = useState<InstagramUserData | null>(null);
+  const [instagramMedia, setInstagramMedia] = useState<InstagramMediaItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   // Etapa 1: Seleção de Post
-  const [selectedOptionPostagem, setSelectedOptionPostagem] = useState<"especifico" | "qualquer">("especifico")
-  const [selectedPost, setSelectedPost] = useState<InstagramMediaItem | null>(null)
+  const [selectedOptionPostagem, setSelectedOptionPostagem] = useState<"especifico" | "qualquer">(
+    "especifico"
+  );
+  const [selectedPost, setSelectedPost] = useState<InstagramMediaItem | null>(null);
 
   // Novo: Guardar o selectedMediaId que veio do BD,
   // para podermos tentar associar com instagramMedia quando ele carregar
-  const [selectedMediaIdLocal, setSelectedMediaIdLocal] = useState<string | null>(null)
+  const [selectedMediaIdLocal, setSelectedMediaIdLocal] = useState<string | null>(null);
 
   // Etapa 1: Palavra/Expressão
-  const [selectedOptionPalavra, setSelectedOptionPalavra] = useState<"especifica" | "qualquer">("qualquer")
-  const [inputPalavra, setInputPalavra] = useState("")
+  const [selectedOptionPalavra, setSelectedOptionPalavra] = useState<"especifica" | "qualquer">(
+    "qualquer"
+  );
+  const [inputPalavra, setInputPalavra] = useState("");
 
   // Etapa 2
-  const [dmWelcomeMessage, setDmWelcomeMessage] = useState("")
-  const [dmQuickReply, setDmQuickReply] = useState("")
+  const [dmWelcomeMessage, setDmWelcomeMessage] = useState("");
+  const [dmQuickReply, setDmQuickReply] = useState("");
 
   // Etapa 3
-  const [dmSecondMessage, setDmSecondMessage] = useState("")
-  const [dmLink, setDmLink] = useState("")
-  const [dmButtonLabel, setDmButtonLabel] = useState("")
+  const [dmSecondMessage, setDmSecondMessage] = useState("");
+  const [dmLink, setDmLink] = useState("");
+  const [dmButtonLabel, setDmButtonLabel] = useState("");
 
   // Etapa 4
-  const [switchResponderComentario, setSwitchResponderComentario] = useState(false)
-  const [publicReply1, setPublicReply1] = useState("")
-  const [publicReply2, setPublicReply2] = useState("")
-  const [publicReply3, setPublicReply3] = useState("")
+  const [switchResponderComentario, setSwitchResponderComentario] = useState(false);
+  const [publicReply1, setPublicReply1] = useState("");
+  const [publicReply2, setPublicReply2] = useState("");
+  const [publicReply3, setPublicReply3] = useState("");
 
   // Checkboxes PRO
-  const [checkboxPedirEmail, setCheckboxPedirEmail] = useState(false)
-  const [checkboxPedirParaSeguir, setCheckboxPedirParaSeguir] = useState(false)
-  const [checkboxEntrarEmContato, setCheckboxEntrarEmContato] = useState(false)
+  const [checkboxPedirEmail, setCheckboxPedirEmail] = useState(false);
+  const [checkboxPedirParaSeguir, setCheckboxPedirParaSeguir] = useState(false);
+  const [checkboxEntrarEmContato, setCheckboxEntrarEmContato] = useState(false);
+
+  // Novo: Estado para controlar o live
+  const [isLive, setIsLive] = useState(true);
 
   // Preview
-  const [openDialog, setOpenDialog] = useState(false)
-  const [toggleValue, setToggleValue] = useState<"publicar" | "comentarios" | "dm">("publicar")
-  const [commentContent, setCommentContent] = useState("")
+  const [openDialog, setOpenDialog] = useState(false);
+  const [toggleValue, setToggleValue] = useState<"publicar" | "comentarios" | "dm">("publicar");
+  const [commentContent, setCommentContent] = useState("");
 
   // Access Token
-  const accessToken = session?.user?.instagramAccessToken
+  const accessToken = session?.user?.instagramAccessToken;
 
   // ----------------------------------------------------------------------
   // 1) Carrega a automação do BD pelo ID
   // ----------------------------------------------------------------------
   useEffect(() => {
-    if (!id) return
-    if (!session?.user?.id) return
+    if (!id) return;
+    if (!session?.user?.id) return;
 
     async function fetchAutomacao() {
       try {
-        setLoadingAuto(true)
-        setAutoError(null)
+        setLoadingAuto(true);
+        setAutoError(null);
 
         const res = await fetch(`/api/automacao/${id}`, {
           method: "GET",
-        })
+        });
         if (!res.ok) {
-          const errData = await res.json()
-          throw new Error(errData.error || "Falha ao buscar automação")
+          const errData = await res.json();
+          throw new Error(errData.error || "Falha ao buscar automação");
         }
 
-        const data = (await res.json()) as AutomacaoDB
+        const data = (await res.json()) as AutomacaoDB;
 
         // Preenche os estados do formulário
-        setSelectedOptionPostagem(data.anyMediaSelected ? "qualquer" : "especifico")
+        setSelectedOptionPostagem(data.anyMediaSelected ? "qualquer" : "especifico");
 
         // Guardar no estado local
-        setSelectedMediaIdLocal(data.selectedMediaId)
+        setSelectedMediaIdLocal(data.selectedMediaId);
 
-        setSelectedOptionPalavra(data.selectedOptionPalavra as "especifica" | "qualquer")
-        setInputPalavra(data.palavrasChave || "")
+        setSelectedOptionPalavra(data.selectedOptionPalavra as "especifica" | "qualquer");
+        setInputPalavra(data.palavrasChave || "");
 
-        setDmWelcomeMessage(data.fraseBoasVindas || "")
-        setDmQuickReply(data.quickReplyTexto || "")
+        setDmWelcomeMessage(data.fraseBoasVindas || "");
+        setDmQuickReply(data.quickReplyTexto || "");
 
-        setDmSecondMessage(data.mensagemEtapa3 || "")
-        setDmLink(data.linkEtapa3 || "")
-        setDmButtonLabel(data.legendaBotaoEtapa3 || "")
+        setDmSecondMessage(data.mensagemEtapa3 || "");
+        setDmLink(data.linkEtapa3 || "");
+        setDmButtonLabel(data.legendaBotaoEtapa3 || "");
 
-        setSwitchResponderComentario(data.responderPublico)
+        setSwitchResponderComentario(data.responderPublico);
         if (data.publicReply) {
           try {
-            const arr = JSON.parse(data.publicReply) as string[]
-            setPublicReply1(arr[0] || "")
-            setPublicReply2(arr[1] || "")
-            setPublicReply3(arr[2] || "")
+            const arr = JSON.parse(data.publicReply) as string[];
+            setPublicReply1(arr[0] || "");
+            setPublicReply2(arr[1] || "");
+            setPublicReply3(arr[2] || "");
           } catch {}
         }
 
-        setCheckboxPedirEmail(data.pedirEmailPro)
-        setCheckboxPedirParaSeguir(data.pedirParaSeguirPro)
-        setCheckboxEntrarEmContato(data.contatoSemClique)
+        setCheckboxPedirEmail(data.pedirEmailPro);
+        setCheckboxPedirParaSeguir(data.pedirParaSeguirPro);
+        setCheckboxEntrarEmContato(data.contatoSemClique);
+
+        // Definir o estado de live conforme o que veio do banco
+        setIsLive(data.live);
       } catch (err: any) {
-        setAutoError(err.message)
+        setAutoError(err.message);
       } finally {
-        setLoadingAuto(false)
+        setLoadingAuto(false);
       }
     }
 
-    fetchAutomacao()
-  }, [id, session])
+    fetchAutomacao();
+  }, [id, session]);
 
   // ----------------------------------------------------------------------
   // 2) Carrega dados do Instagram (se necessário)
   // ----------------------------------------------------------------------
   useEffect(() => {
     const fetchInstagramData = async () => {
-      setLoading(true)
+      setLoading(true);
       if (status === "authenticated" && accessToken) {
         try {
           // 1) Dados do usuário
           const userRes = await fetch(
             `https://graph.instagram.com/me?fields=id,username,media_count,profile_picture_url&access_token=${accessToken}`
-          )
+          );
           if (!userRes.ok) {
-            const errorText = await userRes.text()
-            console.error("Erro ao buscar dados do Instagram (usuário):", errorText)
-            setError("Não foi possível obter os dados do Instagram do usuário.")
-            setLoading(false)
-            return
+            const errorText = await userRes.text();
+            console.error("Erro ao buscar dados do Instagram (usuário):", errorText);
+            setError("Não foi possível obter os dados do Instagram do usuário.");
+            setLoading(false);
+            return;
           }
-          const userData: InstagramUserData = await userRes.json()
-          setInstagramUser(userData)
+          const userData: InstagramUserData = await userRes.json();
+          setInstagramUser(userData);
 
           // 2) Dados das mídias
           const mediaRes = await fetch(
             `https://graph.instagram.com/me/media?fields=id,caption,media_url,media_type,thumbnail_url,media_product_type,like_count,comments_count&access_token=${accessToken}`
-          )
+          );
           if (!mediaRes.ok) {
-            const errorText = await mediaRes.text()
-            console.error("Erro ao buscar mídias do Instagram:", errorText)
-            setError("Não foi possível obter as mídias do Instagram.")
-            setLoading(false)
-            return
+            const errorText = await mediaRes.text();
+            console.error("Erro ao buscar mídias do Instagram:", errorText);
+            setError("Não foi possível obter as mídias do Instagram.");
+            setLoading(false);
+            return;
           }
-          const mediaData = await mediaRes.json()
-          setInstagramMedia(mediaData.data || [])
-          setLoading(false)
+          const mediaData = await mediaRes.json();
+          setInstagramMedia(mediaData.data || []);
+          setLoading(false);
         } catch (err) {
-          console.error("Erro ao conectar-se à API do Instagram:", err)
-          setError("Erro ao conectar-se à API do Instagram.")
-          setLoading(false)
+          console.error("Erro ao conectar-se à API do Instagram:", err);
+          setError("Erro ao conectar-se à API do Instagram.");
+          setLoading(false);
         }
       } else if (status === "authenticated") {
         // Usuário autenticado, mas sem accessToken
-        setLoading(false)
+        setLoading(false);
       } else {
         // Não autenticado
-        setLoading(false)
+        setLoading(false);
       }
-    }
-    fetchInstagramData()
-  }, [status, accessToken])
+    };
+    fetchInstagramData();
+  }, [status, accessToken]);
 
   // ----------------------------------------------------------------------
   // [NOVO] 2.1) Quando já temos "instagramMedia" e "selectedMediaIdLocal"
   // -------------------------------------------------------------
   useEffect(() => {
-    if (!selectedMediaIdLocal) return
-    if (selectedOptionPostagem !== "especifico") return
-    if (instagramMedia.length === 0) return
+    if (!selectedMediaIdLocal) return;
+    if (selectedOptionPostagem !== "especifico") return;
+    if (instagramMedia.length === 0) return;
 
     // Tenta achar a mídia correspondente
-    const found = instagramMedia.find((m) => m.id === selectedMediaIdLocal)
+    const found = instagramMedia.find((m) => m.id === selectedMediaIdLocal);
     if (found) {
-      setSelectedPost(found)
+      setSelectedPost(found);
     } else {
       // Se não achar, você pode forçar "qualquer"
       // ou deixar como "específico" sem post (vazio)
-      console.warn("Mídia salva no BD não encontrada nas últimas do Instagram.")
+      console.warn("Mídia salva no BD não encontrada nas últimas do Instagram.");
     }
-  }, [selectedMediaIdLocal, selectedOptionPostagem, instagramMedia])
+  }, [selectedMediaIdLocal, selectedOptionPostagem, instagramMedia]);
 
   // ----------------------------------------------------------------------
   // 3) Exibir estados de carregamento e erro
   // ----------------------------------------------------------------------
   if (status === "loading") {
-    return <LoadingState />
+    return <LoadingState />;
   }
   if (status === "unauthenticated") {
-    return <UnauthenticatedState />
+    return <UnauthenticatedState />;
   }
   if (loadingAuto) {
-    return <LoadingState />
+    return <LoadingState />;
   }
   if (autoError) {
-    return <ErrorState error={autoError} />
+    return <ErrorState error={autoError} />;
   }
   if (loading) {
-    return <LoadingState />
+    return <LoadingState />;
   }
   if (error) {
-    return <ErrorState error={error} />
+    return <ErrorState error={error} />;
   }
 
   // ----------------------------------------------------------------------
@@ -288,28 +301,62 @@ export default function GuiadoFacilEditPage() {
         title: "Erro",
         description: "Selecione uma postagem específica ou mude para 'qualquer postagem'.",
         variant: "destructive",
-      })
-      return false
+      });
+      return false;
     }
     if (selectedOptionPalavra === "especifica" && inputPalavra.trim() === "") {
       toast({
         title: "Erro",
         description: "Preencha as palavras-chave ou selecione 'qualquer'.",
         variant: "destructive",
-      })
-      return false
+      });
+      return false;
     }
-    return true
+
+    // Etapa 2
+    if (dmWelcomeMessage.trim() === "" || dmQuickReply.trim() === "") {
+      toast({
+        title: "Erro",
+        description: "Preencha a DM de boas-vindas e o texto do Quick Reply.",
+        variant: "destructive",
+      });
+      return false;
+    }
+
+    // Etapa 3
+    if (dmSecondMessage.trim() === "" || dmLink.trim() === "" || dmButtonLabel.trim() === "") {
+      toast({
+        title: "Erro",
+        description: "Preencha a mensagem, o link e a legenda do botão da Etapa 3.",
+        variant: "destructive",
+      });
+      return false;
+    }
+
+    // Etapa 4: se estiver ON, validar as frases
+    if (switchResponderComentario) {
+      if (
+        publicReply1.trim() === "" ||
+        publicReply2.trim() === "" ||
+        publicReply3.trim() === ""
+      ) {
+        toast({
+          title: "Erro",
+          description: "Preencha as 3 opções de respostas públicas antes de ativar.",
+          variant: "destructive",
+        });
+        return false;
+      }
+    }
+    return true;
   }
 
   async function handleAtivarAutomacao() {
-    if (!validarEtapas()) return
+    if (!validarEtapas()) return;
 
     try {
-      const publicReplyArray = [publicReply1, publicReply2, publicReply3]
-      const publicReplyJson = switchResponderComentario
-        ? JSON.stringify(publicReplyArray)
-        : null
+      const publicReplyArray = [publicReply1, publicReply2, publicReply3];
+      const publicReplyJson = switchResponderComentario ? JSON.stringify(publicReplyArray) : null;
 
       const payload = {
         // Etapa 1
@@ -335,7 +382,10 @@ export default function GuiadoFacilEditPage() {
         pedirParaSeguirPro: checkboxPedirParaSeguir,
         contatoSemClique: checkboxEntrarEmContato,
         publicReply: publicReplyJson,
-      }
+
+        // Novo: Incluir o estado de live
+        live: isLive,
+      };
 
       const res = await fetch(`/api/automacao/${id}`, {
         method: "PATCH",
@@ -344,57 +394,94 @@ export default function GuiadoFacilEditPage() {
           action: "updateAll",
           data: payload,
         }),
-      })
+      });
 
       if (!res.ok) {
-        const errData = await res.json()
-        throw new Error(errData.error || "Erro ao salvar automação.")
+        const errData = await res.json();
+        throw new Error(errData.error || "Erro ao salvar automação.");
       }
 
       toast({
         title: "Sucesso",
         description: "Automação atualizada com sucesso!",
         variant: "default",
-      })
+      });
     } catch (error: any) {
-      console.error("Erro ao salvar automação:", error.message)
+      console.error("Erro ao salvar automação:", error.message);
       toast({
         title: "Falha",
         description: "Falha ao salvar automação: " + error.message,
         variant: "destructive",
-      })
+      });
     }
   }
 
   // Controlar botões Editar/Pausar & Cancelar/Salvar
-  function handleClickEdit() {
+  async function handleClickEdit() {
     if (isEditing) {
       // Cancelar
-      setIsEditing(false)
+      setIsEditing(false);
     } else {
       // Editar
-      setIsEditing(true)
+      setIsEditing(true);
     }
   }
 
   async function handleClickPauseOrSalvar() {
     if (isEditing) {
       // Modo edição => Salvar
-      await handleAtivarAutomacao()
-      setIsEditing(false)
+      await handleAtivarAutomacao();
+      setIsEditing(false);
     } else {
-      // Modo bloqueado => Pausar
-      console.log("Pausando automação... (implementar lógica se desejar)")
+      // Modo bloqueado => Pausar ou Ativar
+      try {
+        // Inverter o estado de live
+        const newLiveStatus = !isLive;
+
+        const payload = {
+          live: newLiveStatus,
+        };
+
+        const res = await fetch(`/api/automacao/${id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "updateAll",
+            data: payload,
+          }),
+        });
+
+        if (!res.ok) {
+          const errData = await res.json();
+          throw new Error(errData.error || "Erro ao atualizar status da automação.");
+        }
+
+        // Atualizar o estado local
+        setIsLive(newLiveStatus);
+
+        toast({
+          title: "Sucesso",
+          description: `Automação ${newLiveStatus ? "ativada" : "pausada"} com sucesso!`,
+          variant: "default",
+        });
+      } catch (error: any) {
+        console.error("Erro ao atualizar status da automação:", error.message);
+        toast({
+          title: "Falha",
+          description: "Falha ao atualizar status da automação: " + error.message,
+          variant: "destructive",
+        });
+      }
     }
   }
 
-  const editButtonLabel = isEditing ? "Cancelar" : "Editar"
-  const pauseButtonLabel = isEditing ? "Salvar" : "Pausar"
+  const editButtonLabel = isEditing ? "Cancelar" : "Editar";
+  const pauseButtonLabel = isEditing ? "Salvar" : isLive ? "Pausar" : "Ativar";
 
   // ----------------------------------------------------------------------
   // 5) Render final
   // ----------------------------------------------------------------------
-  const ultimasPostagens = instagramMedia.slice(0, 4)
+  const ultimasPostagens = instagramMedia.slice(0, 4);
 
   return (
     <div
@@ -434,7 +521,7 @@ export default function GuiadoFacilEditPage() {
           onSelectPost={() => {
             // Selecione manualmente um post
             if (selectedPost) {
-              setCommentContent(selectedPost.caption || "")
+              setCommentContent(selectedPost.caption || "");
             }
           }}
         />
@@ -444,12 +531,12 @@ export default function GuiadoFacilEditPage() {
           setSelectedOptionPalavra={setSelectedOptionPalavra}
           inputPalavra={inputPalavra}
           setInputPalavra={(val) => {
-            setInputPalavra(val)
-            setCommentContent(val)
+            setInputPalavra(val);
+            setCommentContent(val);
             if (val.trim() !== "") {
-              setToggleValue("comentarios")
+              setToggleValue("comentarios");
             } else {
-              setToggleValue("publicar")
+              setToggleValue("publicar");
             }
           }}
           disabled={!isEditing}
@@ -588,18 +675,21 @@ export default function GuiadoFacilEditPage() {
                 onChange={(e) => setPublicReply1(e.target.value)}
                 disabled={!isEditing}
                 className={!isEditing ? "cursor-not-allowed" : ""}
+                placeholder="Resposta Pública 1"
               />
               <Input
                 value={publicReply2}
                 onChange={(e) => setPublicReply2(e.target.value)}
                 disabled={!isEditing}
                 className={!isEditing ? "cursor-not-allowed" : ""}
+                placeholder="Resposta Pública 2"
               />
               <Input
                 value={publicReply3}
                 onChange={(e) => setPublicReply3(e.target.value)}
                 disabled={!isEditing}
                 className={!isEditing ? "cursor-not-allowed" : ""}
+                placeholder="Resposta Pública 3"
               />
             </div>
           )}
@@ -652,6 +742,36 @@ export default function GuiadoFacilEditPage() {
               Entrar em contato caso não cliquem no link
             </label>
           </div>
+
+          {/* Novo: Switch para controlar o live */}
+          <div className="flex items-center space-x-2 mb-4 mt-4">
+            <Switch
+              id="switchLive"
+              checked={isLive}
+              onCheckedChange={(checked) => setIsLive(checked)}
+              disabled={!isEditing}
+              className={!isEditing ? "cursor-not-allowed" : ""}
+            />
+            <Label htmlFor="switchLive">
+              {isLive ? "Automação Ativa" : "Automação Pausada"}
+            </Label>
+          </div>
+        </div>
+
+        {/* Botões Editar/Pausar ou Cancelar/Salvar */}
+        <div style={{ marginTop: "20px", width: "100%" }}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleClickEdit}
+            style={{ marginRight: "10px" }}
+          >
+            {editButtonLabel}
+          </Button>
+
+          <Button variant="outline" size="sm" onClick={handleClickPauseOrSalvar}>
+            {pauseButtonLabel}
+          </Button>
         </div>
       </div>
 
@@ -666,26 +786,6 @@ export default function GuiadoFacilEditPage() {
           alignItems: "center",
         }}
       >
-        {/* Topo do preview + BOTÕES Editar/Pausar ou Cancelar/Salvar */}
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "flex-end",
-            width: "100%",
-            alignItems: "center",
-            marginBottom: "10px",
-            gap: "8px",
-          }}
-        >
-          <Button variant="outline" size="sm" onClick={handleClickEdit}>
-            {editButtonLabel}
-          </Button>
-
-          <Button variant="outline" size="sm" onClick={handleClickPauseOrSalvar}>
-            {pauseButtonLabel}
-          </Button>
-        </div>
-
         {/* Título do Preview */}
         <div style={{ width: "100%", marginBottom: "10px" }}>
           <span style={{ fontWeight: "bold", fontSize: "16px" }}>Preview</span>
@@ -710,5 +810,5 @@ export default function GuiadoFacilEditPage() {
         <ToggleActions toggleValue={toggleValue} setToggleValue={setToggleValue} />
       </div>
     </div>
-  )
+  );
 }

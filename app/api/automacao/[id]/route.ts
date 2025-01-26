@@ -1,4 +1,4 @@
-// app/api/automacao/[id]/route.ts
+//app/api/automacao/[id]/route.ts
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { auth } from "@/auth"
@@ -10,14 +10,39 @@ interface PatchBody {
   action: PatchAction
   newName?: string
   folderId?: string
-  data?: any  // Para o updateAll: { [campo]: valor }
+  data?: any // Para o updateAll: { [campo]: valor }
 }
+
+// Exemplo de model "Automacao" no Prisma (ilustrativo):
+// model Automacao {
+//   id                    String   @id @default(uuid())
+//   userId                String
+//   folderId              String?
+//   selectedMediaId       String?
+//   anyMediaSelected      Boolean  @default(false)
+//   selectedOptionPalavra String   @default("qualquer")
+//   palavrasChave         String?
+//   fraseBoasVindas       String?
+//   quickReplyTexto       String?
+//   mensagemEtapa3        String?
+//   linkEtapa3            String?
+//   legendaBotaoEtapa3    String?
+//   responderPublico      Boolean  @default(false)
+//   pedirEmailPro         Boolean  @default(false)
+//   pedirParaSeguirPro    Boolean  @default(false)
+//   contatoSemClique      Boolean  @default(false)
+//   publicReply           String?
+//   live                  Boolean  @default(true)
+//   buttonPayload         String?
+//   createdAt             DateTime @default(now())
+//   updatedAt             DateTime @updatedAt
+// }
 
 // ======================== GET ========================
 // Retorna os dados de uma automação pelo ID
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> } // Agora 'params' é assíncrono
 ) {
   try {
     const session = await auth()
@@ -25,7 +50,10 @@ export async function GET(
       return NextResponse.json({ error: "Usuário não autenticado." }, { status: 401 })
     }
 
-    const automacaoId = params.id
+    // Aguarda o params antes de usar
+    const paramObj = await context.params
+    const automacaoId = paramObj.id
+
     const automacao = await prisma.automacao.findUnique({
       where: { id: automacaoId },
     })
@@ -51,7 +79,7 @@ export async function GET(
 // Executa diversas ações em uma automação: rename, duplicate, move, updateAll
 export async function PATCH(
   request: Request,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> } // Ajuste para assíncrono
 ) {
   try {
     const session = await auth()
@@ -59,7 +87,10 @@ export async function PATCH(
       return NextResponse.json({ error: "Usuário não autenticado." }, { status: 401 })
     }
 
-    const automacaoId = params.id
+    // Aguardar o params antes de usar
+    const paramObj = await context.params
+    const automacaoId = paramObj.id
+
     const body = (await request.json()) as PatchBody
 
     // Carrega automação
@@ -85,8 +116,8 @@ export async function PATCH(
         const renamed = await prisma.automacao.update({
           where: { id: automacaoId },
           data: {
-            // Se quiser um campo "title", use-o aqui.
-            // Por enquanto, usamos "fraseBoasVindas" para ilustrar.
+            // Ajuste conforme o campo que de fato quer "renomear"
+            // Por exemplo, se você tem um campo "title" ou "nomeAutomacao"
             fraseBoasVindas: body.newName,
           },
         })
@@ -95,7 +126,6 @@ export async function PATCH(
 
       // 2. Duplicar
       case "duplicate": {
-        // Duplique a automação
         const duplicated = await prisma.automacao.create({
           data: {
             userId: automacao.userId,
@@ -113,8 +143,9 @@ export async function PATCH(
             pedirEmailPro: automacao.pedirEmailPro,
             pedirParaSeguirPro: automacao.pedirParaSeguirPro,
             contatoSemClique: automacao.contatoSemClique,
-            buttonPayload: `WIT-EQ:${uuidv4()}`, // gera outro payload único
             publicReply: automacao.publicReply,
+            live: automacao.live,
+            buttonPayload: `WIT-EQ:${uuidv4()}`,
           },
         })
         return NextResponse.json(duplicated, { status: 201 })
@@ -147,30 +178,19 @@ export async function PATCH(
           )
         }
 
-        // Adapte se quiser filtrar campos específicos
+        // Exemplo simples: atualiza só o que vier em data
+        // Isso evita sobrescrever com null
+        const updatedData: any = {}
+
+        // Copiar as chaves presentes em body.data
+        for (const key of Object.keys(body.data)) {
+          updatedData[key] = body.data[key]
+        }
+
+        // Executa o update parcial
         const updated = await prisma.automacao.update({
           where: { id: automacaoId },
-          data: {
-            selectedMediaId: body.data.selectedMediaId || null,
-            anyMediaSelected: !!body.data.anyMediaSelected,
-            selectedOptionPalavra:
-              body.data.selectedOptionPalavra || automacao.selectedOptionPalavra,
-            palavrasChave: body.data.palavrasChave || null,
-
-            fraseBoasVindas: body.data.fraseBoasVindas || null,
-            quickReplyTexto: body.data.quickReplyTexto || null,
-
-            mensagemEtapa3: body.data.mensagemEtapa3 || null,
-            linkEtapa3: body.data.linkEtapa3 || null,
-            legendaBotaoEtapa3: body.data.legendaBotaoEtapa3 || null,
-
-            responderPublico: !!body.data.responderPublico,
-            pedirEmailPro: !!body.data.pedirEmailPro,
-            pedirParaSeguirPro: !!body.data.pedirParaSeguirPro,
-            contatoSemClique: !!body.data.contatoSemClique,
-
-            publicReply: body.data.publicReply || null,
-          },
+          data: updatedData,
         })
 
         return NextResponse.json(updated, { status: 200 })
@@ -192,7 +212,7 @@ export async function PATCH(
 // Remove a automação
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await auth()
@@ -200,7 +220,8 @@ export async function DELETE(
       return NextResponse.json({ error: "Usuário não autenticado." }, { status: 401 })
     }
 
-    const automacaoId = params.id
+    const paramObj = await context.params
+    const automacaoId = paramObj.id
 
     // Verifica se pertence ao usuário
     const automacao = await prisma.automacao.findUnique({

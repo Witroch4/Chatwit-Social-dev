@@ -1,11 +1,9 @@
+//worker\automacao\eu-quero\automation.ts
 import axios from "axios"
 import { prisma } from "@/lib/prisma"
 import { getInstagramUserToken } from "@/lib/instagram-auth"
 
-/**
- * Ajuste se necessário para a versão do Graph API
- * (você pode movê-la para .env, se preferir)
- */
+// Ajuste se necessário para a versão do Graph API
 const IG_GRAPH_API_BASE =
   process.env.IG_GRAPH_API_BASE || "https://graph.instagram.com/v21.0"
 
@@ -70,7 +68,7 @@ async function handleCommentChange(value: any, igUserId: string) {
       return
     }
 
-    // 2) Buscar TODAS as automações deste igUserId
+    // 2) Buscar TODAS as automações ATIVAS deste igUserId (live: true)
     const automacoes = await prisma.automacao.findMany({
       where: {
         user: {
@@ -81,11 +79,12 @@ async function handleCommentChange(value: any, igUserId: string) {
             },
           },
         },
+        live: true, // <--- IGNORA as pausadas
       },
     })
 
     if (!automacoes || automacoes.length === 0) {
-      console.log(`[handleCommentChange] Nenhuma automação p/ igUserId=${igUserId}`)
+      console.log(`[handleCommentChange] Nenhuma automação ativa p/ igUserId=${igUserId}`)
       return
     }
 
@@ -176,12 +175,13 @@ async function handleMessageEvent(msgEvt: any, igUserId: string) {
             },
           },
           buttonPayload: postbackPayload,
+          live: true, // <--- Também ignora se não estiver ativa
         },
       })
 
       if (!automacao) {
         console.log(
-          `[handleMessageEvent] Nenhuma automação achada para payload=${postbackPayload}`
+          `[handleMessageEvent] Nenhuma automação ATIVA achada para payload=${postbackPayload}`
         )
         return
       }

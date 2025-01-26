@@ -3,8 +3,8 @@
 "use client";
 
 import * as React from "react";
-import { add, format } from "date-fns";
-import { ptBR } from "date-fns/locale"; // Importando pt-BR
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
 import { CalendarIcon } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -19,31 +19,38 @@ import { TimePickerDemo } from "./time-picker-demo";
 
 interface DateTimePickerProps {
   date: Date;
-  setDate: (date: Date) => void;
+  setDate: (date: Date | undefined) => void;
 }
 
 export function DateTimePicker({ date, setDate }: DateTimePickerProps) {
-  /**
-   * Carregar a hora atual quando um usuário clica em um novo dia
-   * em vez de resetar para 00:00
-   */
-  const handleSelect = (newDay: Date | undefined) => {
-    if (!newDay) return;
-    if (!date) {
-      setDate(newDay);
-      return;
-    }
-    const diff = newDay.getTime() - date.getTime();
-    const diffInDays = diff / (1000 * 60 * 60 * 24);
-    const newDateFull = add(date, { days: Math.ceil(diffInDays) });
-    setDate(newDateFull);
+  const handleSelect = (selectedDay: Date | undefined) => {
+    if (!selectedDay) return;
+
+    // Preserva a hora do "date" atual
+    const oldHours = date.getHours();
+    const oldMinutes = date.getMinutes();
+    const oldSeconds = date.getSeconds();
+    const oldMs = date.getMilliseconds();
+
+    // Cria nova data juntando o dia/mes/ano do 'selectedDay'
+    // com a hora do 'date' atual
+    const newDateWithOldTime = new Date(
+      selectedDay.getFullYear(),
+      selectedDay.getMonth(),
+      selectedDay.getDate(),
+      oldHours,
+      oldMinutes,
+      oldSeconds,
+      oldMs
+    );
+
+    setDate(newDateWithOldTime);
   };
 
   return (
     <div className="space-y-2">
-      {/* Label para o seletor de data e hora */}
       <label className="block text-sm font-medium text-gray-700">
-        Escolha Data e Hora (padrão 24h)
+        Escolha Data e Hora
       </label>
 
       <Popover>
@@ -67,17 +74,10 @@ export function DateTimePicker({ date, setDate }: DateTimePickerProps) {
             selected={date}
             onSelect={handleSelect}
             initialFocus
-            locale={ptBR} // Passando a localidade para o Calendar
+            locale={ptBR}
             className="border border-gray-300 rounded-md"
-            nextLabel="Próximo" // Customizando o label do botão Próximo
-            prevLabel="Anterior" // Customizando o label do botão Anterior
-            modifiers={{
-              selected: date ? { start: date, end: date } : undefined,
-            }}
-            modifiersClassNames={{
-              selected: "bg-indigo-500 text-white",
-              today: "border border-indigo-500",
-            }}
+
+            
           />
           <div className="p-3 border-t border-border">
             <TimePickerDemo setDate={setDate} date={date} />

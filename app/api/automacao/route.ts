@@ -47,6 +47,7 @@ export async function POST(request: Request) {
       contatoSemClique,
       publicReply,
       folderId, // Caso queira criar diretamente em uma pasta
+      live = true,
     } = body
 
     // Gera um payload único
@@ -75,6 +76,7 @@ export async function POST(request: Request) {
         publicReply: publicReply || null,
         buttonPayload,
         folderId: folderId || null,
+        live: live, 
       },
     })
 

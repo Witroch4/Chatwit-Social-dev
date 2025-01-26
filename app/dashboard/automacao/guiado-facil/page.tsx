@@ -1,8 +1,9 @@
-//app/dashboard/automacao/guiado-facil.tsx
+// app/dashboard/automacao/guiado-facil/page.tsx
 "use client";
 
 import { useSession } from "next-auth/react";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation"; // Importando useRouter
 
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
@@ -52,6 +53,7 @@ export interface InstagramMediaItem {
 export default function UserPage() {
   const { data: session, status } = useSession();
   const { toast } = useToast();
+  const router = useRouter(); // Inicializando useRouter
 
   // ------------ Estado geral ------------
   const [instagramUser, setInstagramUser] = useState<InstagramUserData | null>(null);
@@ -156,7 +158,25 @@ export default function UserPage() {
     fetchInstagramData();
   }, [status, accessToken]);
 
-  // ============ Validação das etapas ============
+  // ----------------------------------------------------------------------
+  // 3) Exibir estados de carregamento e erro
+  // ----------------------------------------------------------------------
+  if (status === "loading") {
+    return <LoadingState />;
+  }
+  if (status === "unauthenticated") {
+    return <UnauthenticatedState />;
+  }
+  if (loading) {
+    return <LoadingState />;
+  }
+  if (error) {
+    return <ErrorState error={error} />;
+  }
+
+  // ----------------------------------------------------------------------
+  // 4) Lógica de validar e salvar (se precisar)
+  // ----------------------------------------------------------------------
   function validarEtapas(): boolean {
     // Etapa 1
     if (selectedOptionPostagem === "especifico" && !selectedPost) {
@@ -248,6 +268,9 @@ export default function UserPage() {
         pedirParaSeguirPro: checkboxPedirParaSeguir,
         contatoSemClique: checkboxEntrarEmContato,
         publicReply: publicReplyJson,
+
+        // Novo: Definir live como true na criação
+        live: true,
       };
 
       // Chamar a rota /api/automacao
@@ -269,6 +292,9 @@ export default function UserPage() {
         description: "Automação configurada e salva com sucesso!",
         variant: "default",
       });
+
+      // Redirecionar para a página de edição da automação recém-criada
+      router.push(`/dashboard/automacao/guiado-facil/${data.id}`);
     } catch (error: any) {
       console.error("Erro ao salvar automação:", error.message);
       toast({
@@ -279,20 +305,9 @@ export default function UserPage() {
     }
   }
 
-  // ============ Renderização principal ============
-  if (status === "loading") {
-    return <LoadingState />;
-  }
-  if (status === "unauthenticated") {
-    return <UnauthenticatedState />;
-  }
-  if (loading) {
-    return <LoadingState />;
-  }
-  if (error) {
-    return <ErrorState error={error} />;
-  }
-
+  // ----------------------------------------------------------------------
+  // 5) Render final
+  // ----------------------------------------------------------------------
   const ultimasPostagens = instagramMedia.slice(0, 4);
 
   return (
@@ -524,6 +539,16 @@ export default function UserPage() {
             </label>
           </div>
         </div>
+
+        {/* Botão de Ativar */}
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleAtivarAutomacao}
+          style={{ marginTop: "20px" }}
+        >
+          Ativar
+        </Button>
       </div>
 
       {/* ======================================================
@@ -548,9 +573,7 @@ export default function UserPage() {
           }}
         >
           <span style={{ fontWeight: "bold", fontSize: "16px" }}>Preview</span>
-          <Button variant="outline" size="sm" onClick={handleAtivarAutomacao}>
-            Ativar
-          </Button>
+          {/* O botão de ativar foi movido para a coluna esquerda */}
         </div>
 
         {/* Componente de Preview */}
