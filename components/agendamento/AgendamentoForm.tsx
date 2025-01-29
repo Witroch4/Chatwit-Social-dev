@@ -18,7 +18,7 @@ import { UploadedFile } from "@/components/custom/FileUpload";
 
 interface AgendamentoFormProps {
   dateTime: Date;
-  setDateTime: (dateTime: Date) => void;
+  setDateTime: (dateTime: Date | undefined) => void;
   tipoPostagem: string[];
   setTipoPostagem: (tipo: string[]) => void;
   legenda: string;
