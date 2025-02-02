@@ -42,7 +42,7 @@ export default function PastasEAutomacoes({
   const [openNovaPasta, setOpenNovaPasta] = useState(false)
   const [novaPastaName, setNovaPastaName] = useState("")
 
-  // Estado que indica qual pasta está aberta (ou null se estiver no "raiz")
+  // Estado que indica qual pasta está aberta (ou null se estiver na raiz)
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null)
 
   // Cria uma nova pasta
@@ -71,7 +71,7 @@ export default function PastasEAutomacoes({
     setCurrentFolderId(folderId)
   }
 
-  // Se estiver dentro de uma pasta, esse botão volta para a raiz
+  // Se estiver dentro de uma pasta, este botão volta para a raiz
   function handleGoBackToRoot() {
     setCurrentFolderId(null)
   }
@@ -82,14 +82,14 @@ export default function PastasEAutomacoes({
   }
 
   // -------------------------------------------------------------
-  // Filtragem de automações baseado em currentFolderId
+  // Filtragem de automações baseada em currentFolderId
   // -------------------------------------------------------------
   const automacoesFiltradas = automacoes.filter((auto) => {
     // Se NÃO há pasta selecionada, mostra apenas automações sem folderId
     if (!currentFolderId) {
       return auto.folderId === null
     }
-    // Se há pasta selecionada, mostra as automações cujo folderId = currentFolderId
+    // Se há pasta selecionada, mostra as automações cujo folderId seja igual a currentFolderId
     return auto.folderId === currentFolderId
   })
 
@@ -99,8 +99,6 @@ export default function PastasEAutomacoes({
   return (
     <div>
       {/* Botão "Nova Pasta" + Diálogo */}
-
-      
 
       {/* Se estamos dentro de uma pasta, exibe o botão "Voltar" */}
       {currentFolderId && (
@@ -117,7 +115,7 @@ export default function PastasEAutomacoes({
           {pastas.map((pasta) => (
             <div
               key={pasta.id}
-              className="flex items-center gap-2 cursor-pointer"
+              className="flex items-center gap-2 cursor-pointer hover:bg-gray-100 transition-colors p-2 rounded"
               onClick={() => handleEnterFolder(pasta.id)}
             >
               <FolderIcon />
@@ -140,7 +138,7 @@ export default function PastasEAutomacoes({
               className="flex items-center justify-between px-4 py-3 border rounded"
             >
               <div
-                className="flex flex-col cursor-pointer"
+                className="flex flex-col cursor-pointer hover:bg-gray-100 transition-colors p-2 rounded"
                 onClick={() => handleOpenAutomacao(auto.id)}
               >
                 <span className="font-semibold">
@@ -183,3 +181,4 @@ function FolderIcon() {
     </svg>
   )
 }
+

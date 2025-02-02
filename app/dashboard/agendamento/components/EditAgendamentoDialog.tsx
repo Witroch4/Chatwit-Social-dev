@@ -1,5 +1,3 @@
-// components/agendamento/EditAgendamentoDialog.tsx
-
 "use client";
 
 import React, { useState } from "react";
@@ -12,16 +10,16 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import DateSelector from "./DateSelector";
-import TimeSelector from "./TimeSelector";
+import { DateTimePicker } from "./date-time-picker"; // Componente unificado de data/hora
 import LegendaInput from "./LegendaInput";
-import FileUpload from "@/components/custom/FileUpload"; // Certifique-se de importar corretamente
+import FileUpload from "@/components/custom/FileUpload"; // Certifique-se de que o caminho está correto
 import PostTypeSelector from "./PostTypeSelector";
 import axios from "axios";
 import { useToast } from "@/hooks/use-toast";
 import { UploadedFile } from "@/components/custom/FileUpload";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface Agendamento {
   id: string;
@@ -54,7 +52,7 @@ interface Agendamento {
         height: number;
       };
     };
-    visible_name: string; // Adicionei visible_name
+    visible_name: string;
   }>;
   X: boolean;
   Linkedin: boolean;
@@ -95,20 +93,17 @@ const EditAgendamentoDialog: React.FC<EditAgendamentoDialogProps> = ({
 }) => {
   const { toast } = useToast();
 
-  // Estados para os campos de edição
+  // Estado unificado para data e hora
   const [date, setDate] = useState<Date | undefined>(new Date(agendamento.Data));
-  const [hora, setHora] = useState<string>(
-    formatTime(new Date(agendamento.Data))
-  );
   const [tipoPostagem, setTipoPostagem] = useState<string[]>([
     ...getTipoPostagemFromAgendamento(agendamento),
   ]);
   const [legenda, setLegenda] = useState<string>(agendamento.Descrição);
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>(
     agendamento.midia.map((m) => ({
-      id: m.name, // Utiliza m.name como ID único
-      name: m.name, // Mantém o nome único para ID
-      original_name: m.visible_name, // Usa visible_name para exibição
+      id: m.name,
+      name: m.name,
+      original_name: m.visible_name,
       progress: 100, // Mídias existentes já estão uploadadas
       url: m.url,
       thumbnails: m.thumbnails,
@@ -121,14 +116,6 @@ const EditAgendamentoDialog: React.FC<EditAgendamentoDialogProps> = ({
   );
   const [uploading, setUploading] = useState<boolean>(false);
 
-  // Função auxiliar para formatar a hora
-  function formatTime(date: Date): string {
-    const hours = date.getHours().toString().padStart(2, "0");
-    const minutes = date.getMinutes().toString().padStart(2, "0");
-    return `${hours}:${minutes}`;
-  }
-
-  // Função auxiliar para extrair os tipos de postagem do agendamento
   function getTipoPostagemFromAgendamento(agendamento: Agendamento): string[] {
     const tipos: string[] = [];
     if (agendamento.Randomizar) tipos.push("Aleatório");
@@ -141,7 +128,7 @@ const EditAgendamentoDialog: React.FC<EditAgendamentoDialogProps> = ({
 
   // Função para lidar com a submissão do formulário de edição
   const handleEditar = async () => {
-    if (!date || !hora) {
+    if (!date) {
       toast({
         title: "Edição Incompleta",
         description: "Por favor, selecione data e hora para o agendamento.",
@@ -174,18 +161,15 @@ const EditAgendamentoDialog: React.FC<EditAgendamentoDialogProps> = ({
         Aleatorio: tipoPostagem.includes("Aleatório"),
       };
 
-      const [hours, minutes] = hora.split(":").map(Number);
-      const combinedDate = new Date(date);
-      combinedDate.setHours(hours, minutes, 0, 0);
-      const isoDate = combinedDate.toISOString();
+      const isoDate = date.toISOString();
 
       const updatedRow = {
         Data: isoDate,
         Descrição: legenda,
         midia: uploadedFiles
-          .filter((file) => file.url) // Apenas mídias existentes ou que foram uploadadas
+          .filter((file) => file.url)
           .map((file) => ({
-            name: file.name, // Usar 'name' para ID único
+            name: file.name,
             // Adicione outros campos necessários se houver
           })),
         X: tipos.Aleatorio,
@@ -199,20 +183,22 @@ const EditAgendamentoDialog: React.FC<EditAgendamentoDialogProps> = ({
         userID: agendamento.userID,
       };
 
-      const response = await axios.patch(`/api/agendar/update/${agendamento.id}`, updatedRow, {
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
+      const response = await axios.patch(
+        `/api/agendar/update/${agendamento.id}`,
+        updatedRow,
+        {
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }
+      );
 
       setUploading(false);
 
       if (response.status === 200) {
         toast({
           title: "Agendamento Atualizado com Sucesso!",
-          description: `Data: ${format(combinedDate, "PPP", {
-            locale: ptBR,
-          })} às ${hora}`,
+          description: `Data: ${format(date, "PPP 'às' p", { locale: ptBR })}`,
         });
 
         refetch(); // Atualizar a lista de agendamentos
@@ -230,7 +216,8 @@ const EditAgendamentoDialog: React.FC<EditAgendamentoDialogProps> = ({
       toast({
         title: "Erro ao Atualizar Agendamento",
         description:
-          error.response?.data?.error || "Ocorreu um erro ao atualizar o agendamento.",
+          error.response?.data?.error ||
+          "Ocorreu um erro ao atualizar o agendamento.",
         variant: "destructive",
       });
     }
@@ -238,36 +225,33 @@ const EditAgendamentoDialog: React.FC<EditAgendamentoDialogProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[600px]">
+      <DialogContent className="w-full sm:w-full max-w-lg sm:max-w-[600px] max-h-[calc(100vh-100px)] p-4 md:p-6">
         <DialogHeader>
           <DialogTitle>Editar Agendamento</DialogTitle>
           <DialogDescription>
             Faça as alterações necessárias no agendamento.
           </DialogDescription>
         </DialogHeader>
-        <div className="flex flex-col space-y-4">
-          {/* Data da Postagem */}
-          <DateSelector selectedDate={date} onDateChange={setDate} />
-
-          {/* Hora da Postagem */}
-          <TimeSelector selectedTime={hora} onTimeChange={setHora} />
-
-          {/* Legenda da Postagem */}
-          <LegendaInput legenda={legenda} setLegenda={setLegenda} />
-
-          {/* Upload de Mídia */}
-          <FileUpload
-            uploadedFiles={uploadedFiles}
-            setUploadedFiles={setUploadedFiles}
-          />
-
-          {/* Tipo de Postagem */}
-          <PostTypeSelector
-            tipoPostagem={tipoPostagem}
-            setTipoPostagem={setTipoPostagem}
-          />
-        </div>
-        <DialogFooter>
+        {/* Área rolável com padding interno para evitar que a scrollbar sobreponha o conteúdo */}
+        <ScrollArea className="max-h-[calc(100vh-250px)]">
+          <div className="flex flex-col space-y-4 pr-4">
+            {/* Componente unificado de Data e Hora */}
+            <DateTimePicker date={date!} setDate={setDate} />
+            {/* Legenda da Postagem */}
+            <LegendaInput legenda={legenda} setLegenda={setLegenda} />
+            {/* Upload de Mídia */}
+            <FileUpload
+              uploadedFiles={uploadedFiles}
+              setUploadedFiles={setUploadedFiles}
+            />
+            {/* Tipo de Postagem */}
+            <PostTypeSelector
+              tipoPostagem={tipoPostagem}
+              setTipoPostagem={setTipoPostagem}
+            />
+          </div>
+        </ScrollArea>
+        <DialogFooter className="mt-4">
           <Button onClick={handleEditar} disabled={uploading}>
             {uploading ? "Concluindo..." : "Concluir"}
           </Button>

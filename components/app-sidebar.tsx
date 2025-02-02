@@ -269,11 +269,11 @@ export function AppSidebar() {
                       </SidebarMenuButton>
                     </SidebarMenuItem>
 
-                    {/* /admin/user */}
+                    {/* /dashboard/calendario */}
                     <SidebarMenuItem>
                       <SidebarMenuButton asChild>
                         <Link
-                          href="/admin/user"
+                          href="/dashboard/calendario"
                           className={`flex items-center ${
                             state === "collapsed"
                               ? "justify-start pl-4"
@@ -377,7 +377,7 @@ export function AppSidebar() {
               <SidebarMenuItem>
                 <SidebarMenuButton asChild>
                   <Link
-                    href="/admin/queue"
+                    href="/dashboard/calendario"
                     className={`flex items-center ${
                       state === "collapsed" ? "justify-start pl-4" : "justify-start pl-2"
                     }`}

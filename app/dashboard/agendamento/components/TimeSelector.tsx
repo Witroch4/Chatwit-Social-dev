@@ -4,7 +4,7 @@
 import React, { useState, useEffect, ChangeEvent } from "react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
-import { ScrollArea } from "../ui/scroll-area";
+import { ScrollArea } from "../../../../components/ui/scroll-area";
 
 interface TimeSelectorProps {
   selectedTime: string;

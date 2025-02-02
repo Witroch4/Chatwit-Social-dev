@@ -1,5 +1,3 @@
-// components/agendamento/date-time-picker.tsx
-
 "use client";
 
 import * as React from "react";
@@ -68,7 +66,11 @@ export function DateTimePicker({ date, setDate }: DateTimePickerProps) {
               : <span>Selecionar data e hora</span>}
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-auto p-0" align="start">
+        {/* Adicione as classes 'z-50' e 'pointer-events-auto' */}
+        <PopoverContent
+          className="w-auto p-0 z-50 pointer-events-auto"
+          align="start"
+        >
           <Calendar
             mode="single"
             selected={date}
@@ -76,8 +78,6 @@ export function DateTimePicker({ date, setDate }: DateTimePickerProps) {
             initialFocus
             locale={ptBR}
             className="border border-gray-300 rounded-md"
-
-            
           />
           <div className="p-3 border-t border-border">
             <TimePickerDemo setDate={setDate} date={date} />
