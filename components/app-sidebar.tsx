@@ -13,6 +13,7 @@ import {
   Calendar,
   MessageCircle,
   HelpCircle,
+  Atom,
 } from "lucide-react";
 import {
   Sidebar,
@@ -403,7 +404,7 @@ export function AppSidebar() {
                       state === "collapsed" ? "justify-start pl-4" : "justify-start pl-2"
                     }`}
                   >
-                    <Zap className="mr-2" />
+                    <Atom className="mr-2" />
                     {state !== "collapsed" && <span>Automação</span>}
                   </Link>
                 </SidebarMenuButton>
