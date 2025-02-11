@@ -1,11 +1,10 @@
+// app/dashboard/page.tsx
 "use client";
 
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect, useRef } from "react";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { format } from "date-fns";
-import { ptBR } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -18,7 +17,7 @@ import {
 import { loadStripe } from "@stripe/stripe-js";
 import { EmbeddedCheckoutProvider, EmbeddedCheckout } from "@stripe/react-stripe-js";
 
-// Componentes auxiliares (por exemplo, Card) – veja o código fornecido anteriormente.
+// Componente auxiliar: Card
 type CardProps = {
   title: string;
   description: string;
@@ -70,12 +69,33 @@ const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!
 export default function DashboardHome() {
   const { data: session } = useSession();
   const router = useRouter();
-
-  // Obter primeiro nome do usuário (ou "Usuário" se não houver nome)
-  const userName = session?.user?.name?.split(" ")[0] ?? "Usuário";
-
-  // Estados para o diálogo do Checkout
+  const subscriptionSectionRef = useRef<HTMLDivElement>(null);
   const [checkoutDialogOpen, setCheckoutDialogOpen] = useState(false);
+  const [isSubscribed, setIsSubscribed] = useState(false);
+
+  // Busca os dados da assinatura do usuário
+  useEffect(() => {
+    fetch("/api/user/subscription")
+      .then((res) => res.json())
+      .then((data) => {
+        // Considera o usuário assinante se houver uma assinatura e seu status for "ACTIVE"
+        setIsSubscribed(data.subscription && data.subscription.status === "ACTIVE");
+      })
+      .catch((err) => {
+        console.error("Erro ao buscar dados da assinatura:", err);
+        setIsSubscribed(false);
+      });
+  }, []);
+
+  // Handler para clique nos cards
+  const handleCardClick = useCallback(() => {
+    if (!isSubscribed && subscriptionSectionRef.current) {
+      subscriptionSectionRef.current.scrollIntoView({ behavior: "smooth" });
+    } else {
+      // Se o usuário estiver assinando, prossiga para a funcionalidade do card
+      console.log("Usuário assinante – prosseguir com a ação do card");
+    }
+  }, [isSubscribed]);
 
   // Função para buscar o clientSecret da Checkout Session
   const fetchClientSecret = useCallback(() => {
@@ -87,6 +107,9 @@ export default function DashboardHome() {
   }, []);
 
   const checkoutOptions = { fetchClientSecret };
+
+  // Obter primeiro nome do usuário (ou "Usuário" se não houver nome)
+  const userName = session?.user?.name?.split(" ")[0] ?? "Usuário";
 
   return (
     <div className="space-y-8">
@@ -127,6 +150,7 @@ export default function DashboardHome() {
         </div>
       </section>
 
+      {/* Seção "Comece aqui" */}
       <section>
         <h2 className="text-xl font-semibold mb-4">Comece aqui</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -149,6 +173,7 @@ export default function DashboardHome() {
         </div>
       </section>
 
+      {/* Seção com um único card */}
       <section>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Card
@@ -161,12 +186,12 @@ export default function DashboardHome() {
       </section>
 
       {/* Seção de assinatura com o botão que abre o Checkout */}
-      <section>
+      <section ref={subscriptionSectionRef}>
         <h2 className="text-xl font-semibold mb-4">Assine Agora</h2>
         <p className="mb-4">
           Assine agora e decole na automatização das redes sociais.
         </p>
-        <Button variant="primary" onClick={() => setCheckoutDialogOpen(true)}>
+        <Button variant="default" onClick={() => setCheckoutDialogOpen(true)}>
           Assine agora
         </Button>
       </section>

@@ -1,4 +1,4 @@
-// app\(checkout)\payment-confirmation\page.tsx
+// app/(checkout)/payment-confirmation/page.tsx
 "use client";
 
 import { useEffect, useState } from "react";
@@ -15,13 +15,25 @@ export default function PaymentConfirmationPage() {
     const sessionId = searchParams.get("session_id");
 
     if (sessionId) {
+      console.log("Buscando sessão com session_id:", sessionId);
       fetch(`/api/checkout-sessions?session_id=${sessionId}`, {
         method: "GET",
       })
-        .then((res) => res.json())
+        .then(async (res) => {
+          // Tenta ler o corpo da resposta como texto
+          const text = await res.text();
+          // Log para debug
+          console.log("Resposta bruta da API:", text);
+          // Se houver texto, tenta converter para JSON; caso contrário, retorna um objeto vazio
+          return text ? JSON.parse(text) : {};
+        })
         .then((data) => {
+          console.log("Dados recebidos da API:", data);
           setStatus(data.status);
           setCustomerEmail(data.customer_email);
+        })
+        .catch((err) => {
+          console.error("Erro ao buscar dados da sessão:", err);
         });
     }
   }, []);

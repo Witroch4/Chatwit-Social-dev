@@ -1,30 +1,43 @@
 // app/api/checkout-sessions/route.ts
 import Stripe from "stripe";
 import { NextResponse } from "next/server";
+import { auth } from "@/auth"; // Certifique-se de que seu arquivo auth.ts exporta { auth, ... }
 
-// Instancia o Stripe usando a nova API version (exemplo para 2025)
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2025-01-27.acacia",
 });
 
 export async function POST(request: Request) {
   try {
-    const session = await stripe.checkout.sessions.create({
+    // Obtém a sessão do usuário usando NextAuth (NextAuth v5)
+    const session = await auth();
+    if (!session?.user?.id) {
+      return NextResponse.json(
+        { error: "Unauthorized or missing user id" },
+        { status: 401 }
+      );
+    }
+    const userId = session.user.id;
+
+    // Cria a sessão do Checkout com a metadata dentro de subscription_data
+    const stripeSession = await stripe.checkout.sessions.create({
       ui_mode: "embedded",
       line_items: [
         {
-          // Utilize o Price ID definido no .env ou o fornecido diretamente
           price: process.env.STRIPE_PRICE_ID || "price_1QoCnpEKzzlTPseQKVlbztRv",
           quantity: 1,
         },
       ],
       mode: "subscription",
-      // A URL de retorno deve incluir o placeholder {CHECKOUT_SESSION_ID}
+      subscription_data: {
+        metadata: { userId },
+      },
       return_url: `${request.headers.get("origin")}/payment-confirmation?session_id={CHECKOUT_SESSION_ID}`,
     });
 
-    return NextResponse.json({ clientSecret: session.client_secret });
+    return NextResponse.json({ clientSecret: stripeSession.client_secret });
   } catch (err: any) {
+    console.error("Erro ao criar sessão de checkout:", err.message);
     return NextResponse.json(err.message, { status: err.statusCode || 500 });
   }
 }

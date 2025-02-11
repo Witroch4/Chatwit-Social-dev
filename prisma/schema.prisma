@@ -15,19 +15,31 @@ enum UserRole {
   ADMIN
 }
 
+enum SubscriptionStatus {
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  UNPAID
+  INCOMPLETE
+  INCOMPLETE_EXPIRED
+}
+
 model User {
-  id                     String      @id @default(cuid())
+  id                     String          @id @default(cuid())
   name                   String?
-  email                  String      @unique
+  email                  String          @unique
   emailVerified          DateTime?
   image                  String?
-  role                   UserRole    @default(DEFAULT)
+  role                   UserRole        @default(DEFAULT)
   password               String?
-  isTwoFactorAuthEnabled Boolean     @default(false)
+  isTwoFactorAuthEnabled Boolean         @default(false)
   twoFactorAuthVerified  DateTime?
   accounts               Account[]
-  createdAt              DateTime    @default(now())
-  updatedAt              DateTime    @updatedAt
+  createdAt              DateTime        @default(now())
+  updatedAt              DateTime        @updatedAt
+
+  // Relação com assinaturas (histórico ou assinatura atual)
+  subscriptions          Subscription[]
 
   // Relação com Automacoes
   automacoes             Automacao[]
@@ -124,4 +136,19 @@ model Pasta {
 
   // Relação com Automacoes
   automacoes Automacao[]
+}
+
+model Subscription {
+  id                    String               @id @default(cuid())
+  userId                String
+  user                  User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  stripeSubscriptionId  String               @unique
+  stripeCustomerId      String
+  status                SubscriptionStatus
+  startDate             DateTime
+  currentPeriodEnd      DateTime?            // Data do final do período atual
+  cancelAtPeriodEnd     Boolean              @default(false)
+  canceledAt            DateTime?            // Data do cancelamento (se houver)
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
 }
