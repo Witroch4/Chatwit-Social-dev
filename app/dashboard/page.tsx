@@ -72,13 +72,17 @@ export default function DashboardHome() {
   const subscriptionSectionRef = useRef<HTMLDivElement>(null);
   const [checkoutDialogOpen, setCheckoutDialogOpen] = useState(false);
   const [isSubscribed, setIsSubscribed] = useState(false);
+  // Estado para armazenar os dados completos da assinatura para debug
+  const [subscriptionData, setSubscriptionData] = useState<any>(null);
 
   // Busca os dados da assinatura do usuário
   useEffect(() => {
     fetch("/api/user/subscription")
       .then((res) => res.json())
       .then((data) => {
-        // Considera o usuário assinante se houver uma assinatura e seu status for "ACTIVE"
+        // Salva os dados completos da assinatura para fins de debug
+        setSubscriptionData(data.subscription);
+        // O usuário é considerado assinante se houver uma assinatura e seu status for "ACTIVE"
         setIsSubscribed(data.subscription && data.subscription.status === "ACTIVE");
       })
       .catch((err) => {
@@ -92,7 +96,7 @@ export default function DashboardHome() {
     if (!isSubscribed && subscriptionSectionRef.current) {
       subscriptionSectionRef.current.scrollIntoView({ behavior: "smooth" });
     } else {
-      // Se o usuário estiver assinando, prossiga para a funcionalidade do card
+      // Se o usuário já estiver assinando, prossiga para a funcionalidade do card
       console.log("Usuário assinante – prosseguir com a ação do card");
     }
   }, [isSubscribed]);
@@ -185,16 +189,18 @@ export default function DashboardHome() {
         </div>
       </section>
 
-      {/* Seção de assinatura com o botão que abre o Checkout */}
-      <section ref={subscriptionSectionRef}>
-        <h2 className="text-xl font-semibold mb-4">Assine Agora</h2>
-        <p className="mb-4">
-          Assine agora e decole na automatização das redes sociais.
-        </p>
-        <Button variant="default" onClick={() => setCheckoutDialogOpen(true)}>
-          Assine agora
-        </Button>
-      </section>
+      {/* Seção de assinatura (exibida somente se o usuário NÃO tiver assinatura ativa) */}
+      {!isSubscribed && (
+        <section ref={subscriptionSectionRef}>
+          <h2 className="text-xl font-semibold mb-4">Assine Agora</h2>
+          <p className="mb-4">
+            Assine agora e decole na automatização das redes sociais.
+          </p>
+          <Button variant="default" onClick={() => setCheckoutDialogOpen(true)}>
+            Assine agora
+          </Button>
+        </section>
+      )}
 
       {/* Diálogo com o Embedded Checkout */}
       <Dialog open={checkoutDialogOpen} onOpenChange={setCheckoutDialogOpen}>
@@ -213,6 +219,23 @@ export default function DashboardHome() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/*
+        =========================
+        DEBUG: Informações da Assinatura do Usuário
+        =========================
+        Essa seção exibe todas as informações da assinatura salvas no banco de dados para fins didáticos.
+        Após confirmar que os dados estão sendo exibidos corretamente, você pode removê-la.
+      */}
+      <section className="border-t border-gray-300 pt-4 mt-4">
+        <h2 className="text-xl font-bold mb-2">DEBUG: Dados da Assinatura</h2>
+        <pre className="text-sm bg-gray-100 p-4 rounded">
+          {JSON.stringify(subscriptionData, null, 2)}
+        </pre>
+        {/* =========================
+             Fim da seção DEBUG
+             ========================= */}
+      </section>
     </div>
   );
 }
