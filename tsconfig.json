@@ -6,7 +6,6 @@
       "esnext"
     ],
     "allowJs": true,
-    "allowImportingTsExtensions": true,
     "skipLibCheck": true,
     "strict": true,
     "noEmit": false,
@@ -37,7 +36,7 @@
     "pages/_meta.js",
     "theme.config.jsx",
     "types/**/*.d.ts",
-    "bootstrap.ts"
+    "worker/**/*"
 , "lib/scheduler.ts.old"  ],
   "exclude": [
     "node_modules"

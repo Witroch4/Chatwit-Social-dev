@@ -6,7 +6,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 
 interface PostTypeSelectorProps {
   tipoPostagem: string[];
-  setTipoPostagem: (types: string[]) => void;
+  setTipoPostagem: React.Dispatch<React.SetStateAction<string[]>>; // Atualizado para aceitar callback
 }
 
 const postTypes = ["Aleatório", "Diario", "Post Normal", "Reels", "Stories"];

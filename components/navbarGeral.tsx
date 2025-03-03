@@ -10,7 +10,8 @@ import Link from 'next/link';
 
 const NavbarGeral = () => {
   const { data: session } = useSession();
-  const pathname = usePathname();
+  const pathname = usePathname() ?? "";
+
 
   // Verifica se a rota atual é /dashboard ou começa com /dashboard/
   const isDashboardRoute = pathname === "/dashboard" || pathname.startsWith("/dashboard/");

@@ -1,4 +1,5 @@
 // components/agendamento/MediaUploader.tsx
+// components/agendamento/MediaUploader.tsx
 "use client";
 
 import React from "react";
@@ -6,7 +7,7 @@ import FileUpload, { UploadedFile } from "@/components/custom/FileUpload";
 
 interface MediaUploaderProps {
   uploadedFiles: UploadedFile[];
-  setUploadedFiles: (files: UploadedFile[]) => void;
+  setUploadedFiles: React.Dispatch<React.SetStateAction<UploadedFile[]>>;
 }
 
 const MediaUploader: React.FC<MediaUploaderProps> = ({ uploadedFiles, setUploadedFiles }) => {
@@ -19,3 +20,4 @@ const MediaUploader: React.FC<MediaUploaderProps> = ({ uploadedFiles, setUploade
 };
 
 export default MediaUploader;
+

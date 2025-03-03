@@ -2,14 +2,17 @@
 	"name": "chatwit-social",
 	"version": "0.2.0",
 	"private": true,
+	"overrides": {
+		"@auth/core": "0.37.4"
+	},
 	"scripts": {
-		"start:bull-board": "ts-node -r tsconfig-paths/register -r dotenv/config bull-board-server.ts",
+		"build:workers": "tsc --project tsconfig.worker.json && tsc-alias --project tsconfig.worker.json",
+		"build": "next build && npm run build:workers",
+		"start:worker": "ts-node -r tsconfig-paths/register worker/instagram-webhook.worker.ts",
+		"worker": "ts-node -r tsconfig-paths/register worker/agendamento.worker.ts",
 		"server": "node server.js",
 		"dev": "node server.js",
 		"devv": "next dev",
-		"worker": "ts-node -r tsconfig-paths/register worker/agendamento.worker.ts",
-		"start:worker": "ts-node -r tsconfig-paths/register worker/instagram-webhook.worker.ts",
-		"build": "next build",
 		"start": "next start",
 		"db:clear": "prisma migrate reset -f",
 		"db:push": "prisma db push --force-reset --accept-data-loss",
@@ -121,6 +124,7 @@
 		"prisma": "^6.0.1",
 		"tailwindcss": "^3.4.1",
 		"ts-node": "^10.9.2",
+		"tsc-alias": "^1.8.10",
 		"tsconfig-paths": "^4.2.0",
 		"typescript": "^5"
 	}

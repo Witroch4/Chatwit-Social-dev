@@ -1,12 +1,11 @@
-// app/auth/instagram/disconnect/route.ts
-import { prisma } from "@/lib/prisma"
-import { auth, update } from "@/auth" // <-- IMPORTANTE: trazer a função 'update'
-import { NextResponse } from "next/server"
+import { prisma } from "@/lib/prisma";
+import { auth, update } from "@/auth"; // <-- IMPORTANTE: trazer a função 'update'
+import { NextResponse } from "next/server";
 
 export async function POST() {
-  const session = await auth()
+  const session = await auth();
   if (!session?.user?.id) {
-    return NextResponse.json({ error: "Não autenticado" }, { status: 401 })
+    return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
   }
 
   // 1. Remove do banco a conta do Instagram
@@ -15,22 +14,18 @@ export async function POST() {
       userId: session.user.id,
       provider: "instagram",
     },
-  })
+  });
 
-  // 2. Força a atualização do token JWT, setando instagramAccessToken e providerAccountId como nulos
+  // 2. Força a atualização do token JWT, setando instagramAccessToken e providerAccountId como undefined
   //    Isso fará com que o callback 'jwt' capture esse estado e limpe o token
   await update({
-    trigger: "update",
     user: {
-      // Podemos manter ou não o isTwoFactorEnabled,
-      // mas se você não quiser mexer nisso, basta deixá-lo ou usar `session?.user?.isTwoFactorEnabled`.
       isTwoFactorEnabled: session?.user?.isTwoFactorEnabled ?? false,
-
-      instagramAccessToken: null,
-      providerAccountId: null,
+      instagramAccessToken: undefined,
+      providerAccountId: undefined,
     },
-  })
+  });
 
   // 3. Retorna sucesso
-  return NextResponse.json({ success: true })
+  return NextResponse.json({ success: true });
 }

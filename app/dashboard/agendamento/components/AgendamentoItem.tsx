@@ -1,5 +1,3 @@
-// components/agendamento/AgendamentoItem.tsx
-
 "use client";
 
 import React, { useState } from "react";
@@ -9,19 +7,13 @@ import { Button } from "@/components/ui/button";
 import EditAgendamentoDialog from "./EditAgendamentoDialog";
 import axios from "axios";
 import { useToast } from "@/hooks/use-toast";
-
-interface Agendamento {
-  id: string;
-  Data: string;
-  Descrição: string;
-  // Adicione outros campos conforme necessário
-}
+import { Agendamento } from "@/types/agendamento"; // Importa o tipo completo
 
 interface AgendamentoItemProps {
   agendamento: Agendamento;
   onExcluir: (id: string) => void;
   refetch: () => void;
-  userID: string; // Adicionar userID para autenticação
+  userID: string;
 }
 
 const AgendamentoItem: React.FC<AgendamentoItemProps> = ({ agendamento, onExcluir, refetch, userID }) => {
@@ -42,7 +34,7 @@ const AgendamentoItem: React.FC<AgendamentoItemProps> = ({ agendamento, onExclui
     try {
       const response = await axios.delete(`/api/agendar/delete/${agendamento.id}`, {
         headers: {
-          "user-id": userID, // Enviar userID nos headers
+          "user-id": userID,
         },
       });
 
@@ -76,25 +68,14 @@ const AgendamentoItem: React.FC<AgendamentoItemProps> = ({ agendamento, onExclui
         {format(new Date(agendamento.Data), "HH:mm")}
       </p>
       <p className="text-gray-600">{agendamento.Descrição}</p>
-      {/* Botões para editar ou excluir */}
       <div className="mt-2 flex space-x-2">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setIsEditOpen(true)}
-        >
+        <Button variant="outline" size="sm" onClick={() => setIsEditOpen(true)}>
           Editar
         </Button>
-        <Button
-          variant="destructive"
-          size="sm"
-          onClick={handleExcluir}
-        >
+        <Button variant="destructive" size="sm" onClick={handleExcluir}>
           Excluir
         </Button>
       </div>
-
-      {/* Diálogo de Edição */}
       {isEditOpen && (
         <EditAgendamentoDialog
           agendamento={agendamento}

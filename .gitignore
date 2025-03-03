@@ -30,7 +30,8 @@ yarn-error.log*
 .env
 # vercel
 .vercel
-
+docker-compose.yml
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+prod.env

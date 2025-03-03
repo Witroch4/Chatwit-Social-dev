@@ -1,11 +1,7 @@
-// app/api/agendar/update/[id]/route.ts
-
+//app\api\agendar\update\[id]\route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import axios from 'axios';
-import dotenv from 'dotenv';
 import { scheduleAgendamentoBullMQ, cancelAgendamentoBullMQ } from '@/lib/scheduler-bullmq';
-
-dotenv.config();
 
 /**
  * PATCH em /api/agendar/update/[id]
@@ -14,10 +10,12 @@ dotenv.config();
  */
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+  context: { params: Promise<{ id: string }> }
+): Promise<NextResponse> {
   try {
-    const rowId = params.id; // ID do Baserow, ex.: "123"
+    // Aguarda a resolução dos parâmetros dinâmicos
+    const { id: rowId } = await context.params;
+
     const {
       Data,
       Descrição,
@@ -33,18 +31,27 @@ export async function PATCH(
     } = await request.json();
 
     if (!userID) {
-      return NextResponse.json({ error: 'userID é obrigatório.' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'userID é obrigatório.' },
+        { status: 400 }
+      );
     }
 
     if (!rowId) {
-      return NextResponse.json({ error: 'rowId é obrigatório na URL.' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'rowId é obrigatório na URL.' },
+        { status: 400 }
+      );
     }
 
     const BASEROW_TOKEN = process.env.BASEROW_TOKEN;
     const BASEROW_TABLE_ID = process.env.BASEROW_TABLE_ID;
 
     if (!BASEROW_TOKEN || !BASEROW_TABLE_ID) {
-      return NextResponse.json({ error: 'Configuração do servidor incorreta.' }, { status: 500 });
+      return NextResponse.json(
+        { error: 'Configuração do servidor incorreta.' },
+        { status: 500 }
+      );
     }
 
     // 1) Atualiza no Baserow
@@ -78,18 +85,19 @@ export async function PATCH(
     console.log('[Update] Resposta do Baserow:', response.data);
 
     // 2) Cancela o job antigo e re-agenda
-    //    Para garantir que não haja jobs "fantasmas" rodando em paralelo
     await cancelAgendamentoBullMQ(rowId);
-
     await scheduleAgendamentoBullMQ({
-      id: response.data.id,     // ID numérico do Baserow
-      Data: response.data.Data, // Nova data
+      id: response.data.id,
+      Data: response.data.Data,
       userID: response.data.userID,
     });
 
     return NextResponse.json(response.data, { status: 200 });
   } catch (error: any) {
     console.error('[Update] Erro ao atualizar agendamento:', error.message);
-    return NextResponse.json({ error: 'Erro ao atualizar agendamento.' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Erro ao atualizar agendamento.' },
+      { status: 500 }
+    );
   }
 }

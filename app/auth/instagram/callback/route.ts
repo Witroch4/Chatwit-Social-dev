@@ -1,4 +1,3 @@
-//app/auth/instagram/callback/route.ts
 import { NextResponse } from 'next/server';
 import { auth, update } from "@/auth"; // Funções de autenticação
 import { prisma } from "@/lib/prisma";
@@ -92,13 +91,12 @@ export async function GET(request: Request) {
     console.log(`Usuário logado (ID interno): ${userId}`);
 
     // 5. Obter user_id (a conta business = "1784...") via IG Graph
-    //    https://graph.instagram.com/me?fields=id,username,media_count,account_type,user_id
     const meUrl = `https://graph.instagram.com/me?fields=id,username,media_count,account_type,user_id&access_token=${finalToken}`;
     const meResp = await fetch(meUrl);
     if (!meResp.ok) {
       const errorText = await meResp.text();
       console.error('Erro ao buscar /me:', errorText);
-      // podemos continuar, mas não teremos o user_id
+      // Podemos continuar, mas não teremos o user_id
     }
 
     let igBusinessId: string | null = null;
@@ -107,7 +105,7 @@ export async function GET(request: Request) {
         id: string;
         username: string;
         account_type: string;
-        user_id?: string; // o "1784..."
+        user_id?: string;
       };
       console.log('meData:', meData);
 
@@ -134,7 +132,6 @@ export async function GET(request: Request) {
           expires_at: expiresAt,
           token_type: longTokenData.token_type,
           scope: "instagram_business_basic,instagram_business_manage_messages,instagram_business_manage_comments,instagram_business_content_publish",
-          // se quisermos salvar o "1784..." no mesmo registro, também podemos:
           igUserId: igBusinessId || undefined,
         },
       });
@@ -145,7 +142,7 @@ export async function GET(request: Request) {
           userId,
           provider: "instagram",
           type: "oauth",
-          providerAccountId: shortTokenData.user_id, // ID app-scoped
+          providerAccountId: shortTokenData.user_id,
           access_token: finalToken,
           expires_at: expiresAt,
           token_type: longTokenData.token_type,
@@ -158,7 +155,6 @@ export async function GET(request: Request) {
 
     // 7. Atualizar o token JWT (opcional)
     await update({
-      trigger: 'update',
       user: {
         instagramAccessToken: finalToken,
         providerAccountId: shortTokenData.user_id,

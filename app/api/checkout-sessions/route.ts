@@ -1,15 +1,23 @@
 // app/api/checkout-sessions/route.ts
 import Stripe from "stripe";
 import { NextResponse } from "next/server";
-import { auth } from "@/auth"; // Certifique-se de que seu arquivo auth.ts exporta { auth, ... }
+import { auth } from "@/auth";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: "2025-01-27.acacia",
-});
+// Função auxiliar para criar a instância do Stripe somente quando necessário
+function getStripeInstance() {
+  const secretKey = process.env.STRIPE_SECRET_KEY;
+  if (!secretKey) {
+    throw new Error("Missing STRIPE_SECRET_KEY environment variable.");
+  }
+  return new Stripe(secretKey, { apiVersion: "2025-01-27.acacia" });
+}
 
 export async function POST(request: Request) {
   try {
-    // Obtém a sessão do usuário usando NextAuth (NextAuth v5)
+    // Instancia o Stripe só no momento da requisição
+    const stripe = getStripeInstance();
+
+    // Obtém a sessão do usuário usando NextAuth
     const session = await auth();
     if (!session?.user?.id) {
       return NextResponse.json(
@@ -43,20 +51,23 @@ export async function POST(request: Request) {
 }
 
 export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url);
-  const session_id = searchParams.get("session_id");
-
-  if (!session_id) {
-    return NextResponse.json({ error: "Missing session_id" }, { status: 400 });
-  }
-
   try {
+    const stripe = getStripeInstance();
+
+    const { searchParams } = new URL(request.url);
+    const session_id = searchParams.get("session_id");
+
+    if (!session_id) {
+      return NextResponse.json({ error: "Missing session_id" }, { status: 400 });
+    }
+
     const session = await stripe.checkout.sessions.retrieve(session_id);
     return NextResponse.json({
       status: session.status,
       customer_email: session.customer_details?.email,
     });
   } catch (err: any) {
+    console.error("Erro ao recuperar sessão de checkout:", err.message);
     return NextResponse.json(err.message, { status: err.statusCode || 500 });
   }
 }

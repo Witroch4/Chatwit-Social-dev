@@ -6,9 +6,9 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 const redisConnection = new IORedis({
-  host: process.env.REDIS_HOST || '127.0.0.1',
-  port: parseInt(process.env.REDIS_PORT || '6379', 10),
-  password: process.env.REDIS_PASSWORD || undefined,
+  host: process.env.REDIS_HOST || '188.245.200.61',
+  port: parseInt(process.env.REDIS_PORT || '6380', 10),
+  password: process.env.REDIS_PASSWORD || 'WIt2357111317',
   maxRetriesPerRequest: null,
   enableReadyCheck: false,
   connectTimeout: 10000, // Aumenta o timeout para 10 segundos

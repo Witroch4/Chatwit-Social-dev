@@ -1,4 +1,4 @@
-import Navbar from "@/components/site/navbar";
+
 import { HandCoins, Twitch, Video, Youtube } from "lucide-react";
 
 

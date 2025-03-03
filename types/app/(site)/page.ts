@@ -1,8 +1,9 @@
 // File: C:\Users\wital\OneDrive\01_Importantes_Negocios\WITALO_DEV\NextWit\faceApp\app\(site)\page.tsx
-import * as entry from '../../../../app/(site)/page.js'
+import * as entry from '../../../app/(site)/page'
 import type { ResolvingMetadata, ResolvingViewport } from 'next/dist/lib/metadata/types/metadata-interface.js'
 
-type TEntry = typeof import('../../../../app/(site)/page.js')
+type TEntry = typeof import('../../../app/(site)/page')
+
 
 // Check that the entry is a valid entry
 checkFields<Diff<{
@@ -16,12 +17,12 @@ checkFields<Diff<{
   preferredRegion?: 'auto' | 'global' | 'home' | string | string[]
   runtime?: 'nodejs' | 'experimental-edge' | 'edge'
   maxDuration?: number
-  
+
   metadata?: any
   generateMetadata?: Function
   viewport?: any
   generateViewport?: Function
-  
+
 }, TEntry, ''>>()
 
 // Check the prop type of the entry function

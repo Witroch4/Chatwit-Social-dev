@@ -1,5 +1,3 @@
-// components/agendamento/AgendamentoForm.tsx
-
 "use client";
 
 import React from "react";
@@ -17,14 +15,14 @@ import AgendarFooter from "./AgendarFooter";
 import { UploadedFile } from "@/components/custom/FileUpload";
 
 interface AgendamentoFormProps {
-  dateTime: Date;
-  setDateTime: (dateTime: Date | undefined) => void;
+  dateTime: Date | undefined;
+  setDateTime: React.Dispatch<React.SetStateAction<Date | undefined>>;
   tipoPostagem: string[];
-  setTipoPostagem: (tipo: string[]) => void;
+  setTipoPostagem: React.Dispatch<React.SetStateAction<string[]>>;
   legenda: string;
   setLegenda: (legenda: string) => void;
   uploadedFiles: UploadedFile[];
-  setUploadedFiles: (files: UploadedFile[]) => void;
+  setUploadedFiles: React.Dispatch<React.SetStateAction<UploadedFile[]>>;
   handleAgendar: () => void;
   uploading: boolean;
   setDrawerOpen: (open: boolean) => void;
@@ -56,8 +54,10 @@ const AgendamentoForm: React.FC<AgendamentoFormProps> = ({
         {/* Coluna 1: Data e Hora */}
         <div className="w-full sm:w-1/3 flex flex-col space-y-4">
           <DateTimePicker
-            date={dateTime}
-            setDate={setDateTime}
+            date={dateTime ?? new Date()}
+            setDate={(d: Date | undefined) => {
+              if (d !== undefined) setDateTime(d);
+            }}
           />
         </div>
 

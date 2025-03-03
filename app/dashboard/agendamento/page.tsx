@@ -1,13 +1,9 @@
-// app\dashboard\agendamento\page.tsx
-
 "use client";
 
 import React, { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
-import Link from "next/link";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { MoveRight } from "lucide-react";
 import axios from "axios";
 
 import { Button } from "@/components/ui/button";
@@ -34,7 +30,7 @@ const AgendamentoDePostagens: React.FC = () => {
   const IGtoken = session?.user?.instagramAccessToken;
 
   // Estado combinado para data e hora
-  const [dateTime, setDateTime] = useState<Date>(new Date());
+  const [dateTime, setDateTime] = useState<Date | undefined>(new Date());
   const [tipoPostagem, setTipoPostagem] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
   const [legenda, setLegenda] = useState<string>("");
@@ -171,6 +167,15 @@ const AgendamentoDePostagens: React.FC = () => {
     }
   };
 
+  // Função que adapta o setter para aceitar SetStateAction completo
+  const handleSetDateTime: React.Dispatch<React.SetStateAction<Date | undefined>> = (value) => {
+    if (typeof value === "function") {
+      setDateTime(value);
+    } else if (value !== undefined) {
+      setDateTime(value);
+    }
+  };
+
   // Redirecionamento ou alerta se não estiver autenticado
   useEffect(() => {
     if (status === "loading") return; // Não faça nada enquanto estiver carregando
@@ -192,7 +197,7 @@ const AgendamentoDePostagens: React.FC = () => {
         <DrawerContent className="fixed bottom-0 left-0 right-0 h-3/4 bg-white rounded-t-xl shadow-lg overflow-visible">
           <AgendamentoForm
             dateTime={dateTime}
-            setDateTime={setDateTime}
+            setDateTime={handleSetDateTime}
             tipoPostagem={tipoPostagem}
             setTipoPostagem={setTipoPostagem}
             legenda={legenda}
@@ -232,9 +237,6 @@ const AgendamentoDePostagens: React.FC = () => {
           />
         )}
       </section>
-
-      {/* Exemplo de outro conteúdo na página, se necessário */}
-
     </main>
   );
 };

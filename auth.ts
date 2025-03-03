@@ -33,9 +33,10 @@ export const {
 
       if (user.email) {
         console.log("Requisição Prisma: Buscando usuário por email durante sign-in");
-        const registeredUser = await findUserbyEmail(user?.email);
+        const registeredUser = await findUserbyEmail(user.email);
         if (!registeredUser?.emailVerified) return false;
       }
+
 
       return true;
     },
@@ -65,7 +66,11 @@ export const {
 
         // Requisição para verificar se a autenticação de dois fatores está habilitada
         console.log("Requisição Prisma: Buscando status de autenticação de dois fatores");
+        if (!user.id) {
+          throw new Error("User id não definido");
+        }
         const isTwoFactorEnabled = await isTwoFactorAutenticationEnabled(user.id);
+
         token.isTwoFactorEnabled = isTwoFactorEnabled;
 
         // Requisição para buscar a conta do Instagram

@@ -40,7 +40,7 @@ export default auth(async (req) => {
   // Lista de rotas do dashboard que exigem assinatura ativa
   const subscriptionProtectedPaths = [
     "/dashboard/agendamento",
-    "/dashboard/calendario", // ajuste conforme sua URL (sem acentos)
+    "/dashboard/calendario", // sem acentos
     "/dashboard/automacao",
     "/dashboard/chatwit",
   ];
@@ -50,8 +50,12 @@ export default auth(async (req) => {
   ) {
     // Constrói a URL para a API de assinatura
     const subscriptionApiUrl = new URL("/api/user/subscription", req.url).toString();
-    // Realiza a requisição para obter as informações de assinatura
-    const response = await fetch(subscriptionApiUrl, { cache: "no-store" });
+    // Repasse os cookies da requisição original para a chamada fetch
+    const cookie = req.headers.get("cookie") || "";
+    const response = await fetch(subscriptionApiUrl, {
+      headers: { cookie },
+      cache: "no-store",
+    });
     const json = await response.json();
     const subscription = json.subscription;
     console.log("Middleware - Subscription info:", subscription);

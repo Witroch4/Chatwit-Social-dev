@@ -1,5 +1,3 @@
-// prisma/schema.prisma
-
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
@@ -38,7 +36,7 @@ model User {
   createdAt              DateTime        @default(now())
   updatedAt              DateTime        @updatedAt
 
-  // Relação com assinaturas (histórico ou assinatura atual)
+  // Relação com assinaturas
   subscriptions          Subscription[]
 
   // Relação com Automacoes
@@ -97,18 +95,21 @@ model ResetPasswordToken {
   @@unique([email, token])
 }
 
+/**
+ * Automacao
+ * - Fica igual ao que você já tinha, exceto que removemos “customerEmail” se não for mais necessário.
+ */
 model Automacao {
   id                     String   @id @default(cuid())
   userId                 String
   user                   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  // Pasta - opcional
   folderId               String?
   folder                 Pasta?   @relation(fields: [folderId], references: [id])
 
   selectedMediaId        String?
   anyMediaSelected       Boolean  @default(false)
-  selectedOptionPalavra  String
+  anyword                Boolean  @default(false)  // NOVO: dispara com qualquer palavra se true
   palavrasChave          String?
   fraseBoasVindas        String?
   quickReplyTexto        String?
@@ -117,13 +118,59 @@ model Automacao {
   legendaBotaoEtapa3     String?
   responderPublico       Boolean  @default(false)
   pedirEmailPro          Boolean  @default(false)
+  emailPrompt            String?
   pedirParaSeguirPro     Boolean  @default(false)
+  followPrompt           String?  // NOVO: texto pré‑preenchido para pedir para seguir
   contatoSemClique       Boolean  @default(false)
+  noClickPrompt          String?  // NOVO: texto pré‑preenchido para caso não cliquem no link
+  publicReply            String?  // JSON string das respostas públicas
   buttonPayload          String   @unique
-  publicReply            String?
-  live                   Boolean  @default(true)  // <--- Campo novo
+  live                   Boolean  @default(true)
   createdAt              DateTime @default(now())
   updatedAt              DateTime @updatedAt
+
+  leadsAutomacao         LeadAutomacao[]
+}
+
+
+
+/**
+ * Lead
+ * - Agora somente guarda dados *gerais* do lead (e.g. e-mail, whatsapp).
+ * - Fica com igSenderId como PK.
+ * - Remove campos automacaoId, linkSent, waitingForEmail etc.
+ */
+model Lead {
+  igSenderId  String   @id
+  email       String?
+  whatsapp    String?
+  seguidor    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relação com LeadAutomacao
+  automacoesLead LeadAutomacao[]
+}
+
+/**
+ * Tabela intermediária para 'Lead' participar de várias 'Automacao'.
+ * Armazena status *por automação*, como linkSent, waitingForEmail, etc.
+ */
+model LeadAutomacao {
+  id             String   @id @default(cuid())
+  leadIgSenderId String
+  automacaoId    String
+  linkSent       Boolean  @default(false)
+  waitingForEmail Boolean @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  // Relações
+  lead      Lead      @relation(fields: [leadIgSenderId], references: [igSenderId], onDelete: Cascade)
+  automacao Automacao @relation(fields: [automacaoId], references: [id], onDelete: Cascade)
+
+  // Garante que não haja duplicado de (Lead, Automacao)
+  @@unique([leadIgSenderId, automacaoId])
 }
 
 model Pasta {
@@ -134,7 +181,6 @@ model Pasta {
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
-  // Relação com Automacoes
   automacoes Automacao[]
 }
 
@@ -146,9 +192,9 @@ model Subscription {
   stripeCustomerId      String
   status                SubscriptionStatus
   startDate             DateTime
-  currentPeriodEnd      DateTime?            // Data do final do período atual
+  currentPeriodEnd      DateTime?
   cancelAtPeriodEnd     Boolean              @default(false)
-  canceledAt            DateTime?            // Data do cancelamento (se houver)
+  canceledAt            DateTime?
   createdAt             DateTime             @default(now())
   updatedAt             DateTime             @updatedAt
 }

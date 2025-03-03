@@ -1,12 +1,10 @@
-// app/dashboard/automacao/guiado-facil/[id]/page.tsx
-
+//app\dashboard\automacao\guiado-facil\[id]\page.tsx
 "use client";
 
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useEffect, useState } from "react";
 
-// Imports de componentes que você já usa
 import LoadingState from "../../components/WIT-EQ/LoadingState";
 import UnauthenticatedState from "../../components/WIT-EQ/UnauthenticatedState";
 import ErrorState from "../../components/WIT-EQ/ErrorState";
@@ -16,13 +14,12 @@ import PreviewPhoneMockup from "../../components/PreviewPhoneMockup";
 import ToggleActions from "../../components/WIT-EQ/ToggleActions";
 
 import { useToast } from "@/hooks/use-toast";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import {
   Tooltip,
   TooltipContent,
@@ -30,7 +27,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 
-// Tipagens para IG
+// Tipagens para dados do Instagram
 interface InstagramUserData {
   id: string;
   username: string;
@@ -49,7 +46,7 @@ export interface InstagramMediaItem {
   comments_count?: number;
 }
 
-// Tipagem do que vem do BD (Automacao)
+// Atualize a tipagem para incluir o novo campo emailPrompt
 interface AutomacaoDB {
   id: string;
   selectedMediaId: string | null;
@@ -63,116 +60,109 @@ interface AutomacaoDB {
   legendaBotaoEtapa3: string | null;
   responderPublico: boolean;
   pedirEmailPro: boolean;
+  emailPrompt: string | null;
+  // NOVOS para os recursos PRO:
   pedirParaSeguirPro: boolean;
+  followPrompt: string | null;
   contatoSemClique: boolean;
+  noClickPrompt: string | null;
   publicReply: string | null; // JSON string
-  live: boolean; // Novo campo
-  // etc...
+  live: boolean;
 }
 
 export default function GuiadoFacilEditPage() {
+  const { id } = useParams() as { id: string };
   const { data: session, status } = useSession();
-  const { id } = useParams();
   const { toast } = useToast();
+  const router = useRouter();
 
-  // ========== NOVO: Estado de edição ou bloqueado ==========
+  // Estado para controle de edição
   const [isEditing, setIsEditing] = useState(false);
 
-  // Estados de loading e erro para carregamento da automação
+  // Estados para carregamento/erro da automação
   const [loadingAuto, setLoadingAuto] = useState(true);
   const [autoError, setAutoError] = useState<string | null>(null);
 
-  // ========== Estados do seu formulário (passo 1, 2, 3, 4 etc.) ==========
+  // Estados do formulário
   const [instagramUser, setInstagramUser] = useState<InstagramUserData | null>(null);
   const [instagramMedia, setInstagramMedia] = useState<InstagramMediaItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   // Etapa 1: Seleção de Post
-  const [selectedOptionPostagem, setSelectedOptionPostagem] = useState<"especifico" | "qualquer">(
-    "especifico"
-  );
+  const [selectedOptionPostagem, setSelectedOptionPostagem] = useState<"especifico" | "qualquer">("especifico");
   const [selectedPost, setSelectedPost] = useState<InstagramMediaItem | null>(null);
-
-  // Novo: Guardar o selectedMediaId que veio do BD,
-  // para podermos tentar associar com instagramMedia quando ele carregar
   const [selectedMediaIdLocal, setSelectedMediaIdLocal] = useState<string | null>(null);
 
   // Etapa 1: Palavra/Expressão
-  const [selectedOptionPalavra, setSelectedOptionPalavra] = useState<"especifica" | "qualquer">(
-    "qualquer"
-  );
+  const [selectedOptionPalavra, setSelectedOptionPalavra] = useState<"especifica" | "qualquer">("qualquer");
   const [inputPalavra, setInputPalavra] = useState("");
 
-  // Etapa 2
+  // Etapa 2: DM de Boas-Vindas
   const [dmWelcomeMessage, setDmWelcomeMessage] = useState("");
   const [dmQuickReply, setDmQuickReply] = useState("");
 
-  // Etapa 3
+  // Etapa 3: DM com Link
   const [dmSecondMessage, setDmSecondMessage] = useState("");
   const [dmLink, setDmLink] = useState("");
   const [dmButtonLabel, setDmButtonLabel] = useState("");
 
-  // Etapa 4
+  // Etapa 4: Outros recursos
   const [switchResponderComentario, setSwitchResponderComentario] = useState(false);
   const [publicReply1, setPublicReply1] = useState("");
   const [publicReply2, setPublicReply2] = useState("");
   const [publicReply3, setPublicReply3] = useState("");
 
-  // Checkboxes PRO
-  const [checkboxPedirEmail, setCheckboxPedirEmail] = useState(false);
-  const [checkboxPedirParaSeguir, setCheckboxPedirParaSeguir] = useState(false);
-  const [checkboxEntrarEmContato, setCheckboxEntrarEmContato] = useState(false);
+  // Switch para Pedir email PRO
+  const [switchPedirEmail, setSwitchPedirEmail] = useState(false);
+  const [emailPrompt, setEmailPrompt] = useState(
+    "✨ Pronto! Antes de compartilhar o link, quero que você saiba que eu guardo o melhor conteúdo só para os meus inscritos! 🤗💖\n\nQuer receber as melhores novidades? 🥳💌 Adicione seu email abaixo e fique por dentro de tudo! Não perca essa chance! 🚀👇"
+  );
 
-  // Novo: Estado para controlar o live
+  // Switch para Pedir para Seguir PRO
+  const [switchPedirParaSeguir, setSwitchPedirParaSeguir] = useState(false);
+  const [followPrompt, setFollowPrompt] = useState(
+    "Você está quase lá! 🚀 Este link é exclusivo para meus seguidores ✨ Me segue agora e eu te envio o link para você aproveitar tudo! 🎉"
+  );
+
+  // Switch para Entrar em Contato caso não cliquem no link
+  const [switchEntrarEmContato, setSwitchEntrarEmContato] = useState(false);
+  const [noClickPrompt, setNoClickPrompt] = useState(
+    "🔥 Quer saber mais? Então não esquece de clicar no link aqui embaixo! ⬇️✨ Tenho certeza de que você vai amar! ❤️😍🚀"
+  );
+
+  // Estado para controlar se a automação está ativa (live)
   const [isLive, setIsLive] = useState(true);
 
-  // Preview
+  // Estado de Preview
   const [openDialog, setOpenDialog] = useState(false);
   const [toggleValue, setToggleValue] = useState<"publicar" | "comentarios" | "dm">("publicar");
   const [commentContent, setCommentContent] = useState("");
 
-  // Access Token
   const accessToken = session?.user?.instagramAccessToken;
 
-  // ----------------------------------------------------------------------
-  // 1) Carrega a automação do BD pelo ID
-  // ----------------------------------------------------------------------
+  // 1) Carrega a automação do BD
   useEffect(() => {
-    if (!id) return;
-    if (!session?.user?.id) return;
-
+    if (!id || !session?.user?.id) return;
     async function fetchAutomacao() {
       try {
         setLoadingAuto(true);
         setAutoError(null);
-
-        const res = await fetch(`/api/automacao/${id}`, {
-          method: "GET",
-        });
+        const res = await fetch(`/api/automacao/${id}`, { method: "GET" });
         if (!res.ok) {
           const errData = await res.json();
           throw new Error(errData.error || "Falha ao buscar automação");
         }
-
         const data = (await res.json()) as AutomacaoDB;
-
-        // Preenche os estados do formulário
         setSelectedOptionPostagem(data.anyMediaSelected ? "qualquer" : "especifico");
-
-        // Guardar no estado local
         setSelectedMediaIdLocal(data.selectedMediaId);
-
         setSelectedOptionPalavra(data.selectedOptionPalavra as "especifica" | "qualquer");
         setInputPalavra(data.palavrasChave || "");
-
         setDmWelcomeMessage(data.fraseBoasVindas || "");
         setDmQuickReply(data.quickReplyTexto || "");
-
         setDmSecondMessage(data.mensagemEtapa3 || "");
         setDmLink(data.linkEtapa3 || "");
         setDmButtonLabel(data.legendaBotaoEtapa3 || "");
-
         setSwitchResponderComentario(data.responderPublico);
         if (data.publicReply) {
           try {
@@ -182,12 +172,12 @@ export default function GuiadoFacilEditPage() {
             setPublicReply3(arr[2] || "");
           } catch {}
         }
-
-        setCheckboxPedirEmail(data.pedirEmailPro);
-        setCheckboxPedirParaSeguir(data.pedirParaSeguirPro);
-        setCheckboxEntrarEmContato(data.contatoSemClique);
-
-        // Definir o estado de live conforme o que veio do banco
+        setSwitchPedirEmail(data.pedirEmailPro);
+        setEmailPrompt(data.emailPrompt || emailPrompt);
+        setSwitchPedirParaSeguir(data.pedirParaSeguirPro);
+        setFollowPrompt(data.followPrompt || followPrompt);
+        setSwitchEntrarEmContato(data.contatoSemClique);
+        setNoClickPrompt(data.noClickPrompt || noClickPrompt);
         setIsLive(data.live);
       } catch (err: any) {
         setAutoError(err.message);
@@ -195,25 +185,21 @@ export default function GuiadoFacilEditPage() {
         setLoadingAuto(false);
       }
     }
-
     fetchAutomacao();
   }, [id, session]);
 
-  // ----------------------------------------------------------------------
-  // 2) Carrega dados do Instagram (se necessário)
-  // ----------------------------------------------------------------------
+  // 2) Carrega dados do Instagram
   useEffect(() => {
     const fetchInstagramData = async () => {
       setLoading(true);
       if (status === "authenticated" && accessToken) {
         try {
-          // 1) Dados do usuário
           const userRes = await fetch(
             `https://graph.instagram.com/me?fields=id,username,media_count,profile_picture_url&access_token=${accessToken}`
           );
           if (!userRes.ok) {
             const errorText = await userRes.text();
-            console.error("Erro ao buscar dados do Instagram (usuário):", errorText);
+            console.error("Erro ao buscar usuário:", errorText);
             setError("Não foi possível obter os dados do Instagram do usuário.");
             setLoading(false);
             return;
@@ -221,13 +207,12 @@ export default function GuiadoFacilEditPage() {
           const userData: InstagramUserData = await userRes.json();
           setInstagramUser(userData);
 
-          // 2) Dados das mídias
           const mediaRes = await fetch(
             `https://graph.instagram.com/me/media?fields=id,caption,media_url,media_type,thumbnail_url,media_product_type,like_count,comments_count&access_token=${accessToken}`
           );
           if (!mediaRes.ok) {
             const errorText = await mediaRes.text();
-            console.error("Erro ao buscar mídias do Instagram:", errorText);
+            console.error("Erro ao buscar mídias:", errorText);
             setError("Não foi possível obter as mídias do Instagram.");
             setLoading(false);
             return;
@@ -236,65 +221,33 @@ export default function GuiadoFacilEditPage() {
           setInstagramMedia(mediaData.data || []);
           setLoading(false);
         } catch (err) {
-          console.error("Erro ao conectar-se à API do Instagram:", err);
+          console.error("Erro na API do Instagram:", err);
           setError("Erro ao conectar-se à API do Instagram.");
           setLoading(false);
         }
-      } else if (status === "authenticated") {
-        // Usuário autenticado, mas sem accessToken
-        setLoading(false);
       } else {
-        // Não autenticado
         setLoading(false);
       }
     };
     fetchInstagramData();
   }, [status, accessToken]);
 
-  // ----------------------------------------------------------------------
-  // [NOVO] 2.1) Quando já temos "instagramMedia" e "selectedMediaIdLocal"
-  // -------------------------------------------------------------
+  // 2.1) Associa o post salvo (se existir) com as mídias do Instagram
   useEffect(() => {
-    if (!selectedMediaIdLocal) return;
-    if (selectedOptionPostagem !== "especifico") return;
-    if (instagramMedia.length === 0) return;
-
-    // Tenta achar a mídia correspondente
+    if (!selectedMediaIdLocal || selectedOptionPostagem !== "especifico" || instagramMedia.length === 0) return;
     const found = instagramMedia.find((m) => m.id === selectedMediaIdLocal);
     if (found) {
       setSelectedPost(found);
     } else {
-      // Se não achar, você pode forçar "qualquer"
-      // ou deixar como "específico" sem post (vazio)
-      console.warn("Mídia salva no BD não encontrada nas últimas do Instagram.");
+      console.warn("Post salvo no BD não encontrado nas mídias recentes.");
     }
   }, [selectedMediaIdLocal, selectedOptionPostagem, instagramMedia]);
 
-  // ----------------------------------------------------------------------
-  // 3) Exibir estados de carregamento e erro
-  // ----------------------------------------------------------------------
-  if (status === "loading") {
-    return <LoadingState />;
-  }
-  if (status === "unauthenticated") {
-    return <UnauthenticatedState />;
-  }
-  if (loadingAuto) {
-    return <LoadingState />;
-  }
-  if (autoError) {
-    return <ErrorState error={autoError} />;
-  }
-  if (loading) {
-    return <LoadingState />;
-  }
-  if (error) {
-    return <ErrorState error={error} />;
-  }
+  if (status === "loading" || loadingAuto || loading) return <LoadingState />;
+  if (status === "unauthenticated") return <UnauthenticatedState />;
+  if (autoError) return <ErrorState error={autoError} />;
+  if (error) return <ErrorState error={error} />;
 
-  // ----------------------------------------------------------------------
-  // 4) Lógica de validar e salvar (se precisar)
-  // ----------------------------------------------------------------------
   function validarEtapas(): boolean {
     if (selectedOptionPostagem === "especifico" && !selectedPost) {
       toast({
@@ -312,18 +265,14 @@ export default function GuiadoFacilEditPage() {
       });
       return false;
     }
-
-    // Etapa 2
     if (dmWelcomeMessage.trim() === "" || dmQuickReply.trim() === "") {
       toast({
         title: "Erro",
-        description: "Preencha a DM de boas-vindas e o texto do Quick Reply.",
+        description: "Preencha a DM de boas-vindas e o Quick Reply.",
         variant: "destructive",
       });
       return false;
     }
-
-    // Etapa 3
     if (dmSecondMessage.trim() === "" || dmLink.trim() === "" || dmButtonLabel.trim() === "") {
       toast({
         title: "Erro",
@@ -332,14 +281,8 @@ export default function GuiadoFacilEditPage() {
       });
       return false;
     }
-
-    // Etapa 4: se estiver ON, validar as frases
     if (switchResponderComentario) {
-      if (
-        publicReply1.trim() === "" ||
-        publicReply2.trim() === "" ||
-        publicReply3.trim() === ""
-      ) {
+      if (publicReply1.trim() === "" || publicReply2.trim() === "" || publicReply3.trim() === "") {
         toast({
           title: "Erro",
           description: "Preencha as 3 opções de respostas públicas antes de ativar.",
@@ -353,54 +296,44 @@ export default function GuiadoFacilEditPage() {
 
   async function handleAtivarAutomacao() {
     if (!validarEtapas()) return;
-
     try {
       const publicReplyArray = [publicReply1, publicReply2, publicReply3];
       const publicReplyJson = switchResponderComentario ? JSON.stringify(publicReplyArray) : null;
 
       const payload = {
         // Etapa 1
-        selectedMediaId:
-          selectedOptionPostagem === "especifico" ? selectedPost?.id || null : null,
+        selectedMediaId: selectedOptionPostagem === "especifico" ? selectedPost?.id || null : null,
         anyMediaSelected: selectedOptionPostagem === "qualquer",
-
-        selectedOptionPalavra,
+        selectedOptionPalavra: selectedOptionPalavra,
         palavrasChave: selectedOptionPalavra === "especifica" ? inputPalavra : null,
-
         // Etapa 2
         fraseBoasVindas: dmWelcomeMessage,
         quickReplyTexto: dmQuickReply,
-
         // Etapa 3
         mensagemEtapa3: dmSecondMessage,
         linkEtapa3: dmLink,
         legendaBotaoEtapa3: dmButtonLabel,
-
         // Etapa 4
         responderPublico: switchResponderComentario,
-        pedirEmailPro: checkboxPedirEmail,
-        pedirParaSeguirPro: checkboxPedirParaSeguir,
-        contatoSemClique: checkboxEntrarEmContato,
+        pedirEmailPro: switchPedirEmail,
+        emailPrompt: switchPedirEmail ? emailPrompt : null,
+        pedirParaSeguirPro: switchPedirParaSeguir,
+        followPrompt: switchPedirParaSeguir ? followPrompt : null,
+        contatoSemClique: switchEntrarEmContato,
+        noClickPrompt: switchEntrarEmContato ? noClickPrompt : null,
         publicReply: publicReplyJson,
-
-        // Novo: Incluir o estado de live
         live: isLive,
       };
 
       const res = await fetch(`/api/automacao/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "updateAll",
-          data: payload,
-        }),
+        body: JSON.stringify({ action: "updateAll", data: payload }),
       });
-
       if (!res.ok) {
         const errData = await res.json();
         throw new Error(errData.error || "Erro ao salvar automação.");
       }
-
       toast({
         title: "Sucesso",
         description: "Automação atualizada com sucesso!",
@@ -410,65 +343,43 @@ export default function GuiadoFacilEditPage() {
       console.error("Erro ao salvar automação:", error.message);
       toast({
         title: "Falha",
-        description: "Falha ao salvar automação: " + error.message,
+        description: "Erro ao salvar automação: " + error.message,
         variant: "destructive",
       });
     }
   }
 
-  // Controlar botões Editar/Pausar & Cancelar/Salvar
   async function handleClickEdit() {
-    if (isEditing) {
-      // Cancelar
-      setIsEditing(false);
-    } else {
-      // Editar
-      setIsEditing(true);
-    }
+    setIsEditing((prev) => !prev);
   }
 
   async function handleClickPauseOrSalvar() {
     if (isEditing) {
-      // Modo edição => Salvar
       await handleAtivarAutomacao();
       setIsEditing(false);
     } else {
-      // Modo bloqueado => Pausar ou Ativar
       try {
-        // Inverter o estado de live
         const newLiveStatus = !isLive;
-
-        const payload = {
-          live: newLiveStatus,
-        };
-
         const res = await fetch(`/api/automacao/${id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            action: "updateAll",
-            data: payload,
-          }),
+          body: JSON.stringify({ action: "updateAll", data: { live: newLiveStatus } }),
         });
-
         if (!res.ok) {
           const errData = await res.json();
-          throw new Error(errData.error || "Erro ao atualizar status da automação.");
+          throw new Error(errData.error || "Erro ao atualizar status.");
         }
-
-        // Atualizar o estado local
         setIsLive(newLiveStatus);
-
         toast({
           title: "Sucesso",
           description: `Automação ${newLiveStatus ? "ativada" : "pausada"} com sucesso!`,
           variant: "default",
         });
       } catch (error: any) {
-        console.error("Erro ao atualizar status da automação:", error.message);
+        console.error("Erro ao atualizar status:", error.message);
         toast({
           title: "Falha",
-          description: "Falha ao atualizar status da automação: " + error.message,
+          description: "Erro ao atualizar status: " + error.message,
           variant: "destructive",
         });
       }
@@ -478,9 +389,6 @@ export default function GuiadoFacilEditPage() {
   const editButtonLabel = isEditing ? "Cancelar" : "Editar";
   const pauseButtonLabel = isEditing ? "Salvar" : isLive ? "Pausar" : "Ativar";
 
-  // ----------------------------------------------------------------------
-  // 5) Render final
-  // ----------------------------------------------------------------------
   const ultimasPostagens = instagramMedia.slice(0, 4);
 
   return (
@@ -494,9 +402,7 @@ export default function GuiadoFacilEditPage() {
         gap: "20px",
       }}
     >
-      {/* ======================================================
-          COLUNA ESQUERDA - FORMULÁRIO
-      ======================================================= */}
+      {/* COLUNA ESQUERDA – FORMULÁRIO */}
       <div
         style={{
           flex: 1,
@@ -519,25 +425,19 @@ export default function GuiadoFacilEditPage() {
           disabled={!isEditing}
           className={!isEditing ? "cursor-not-allowed" : ""}
           onSelectPost={() => {
-            // Selecione manualmente um post
-            if (selectedPost) {
-              setCommentContent(selectedPost.caption || "");
-            }
+            if (selectedPost) setCommentContent(selectedPost.caption || "");
           }}
         />
 
         <PalavraExpressaoSelection
           selectedOptionPalavra={selectedOptionPalavra}
-          setSelectedOptionPalavra={setSelectedOptionPalavra}
+          setSelectedOptionPalavra={(val) => setSelectedOptionPalavra(val as "especifica" | "qualquer")}
           inputPalavra={inputPalavra}
           setInputPalavra={(val) => {
             setInputPalavra(val);
             setCommentContent(val);
-            if (val.trim() !== "") {
-              setToggleValue("comentarios");
-            } else {
-              setToggleValue("publicar");
-            }
+            if (val.trim() !== "") setToggleValue("comentarios");
+            else setToggleValue("publicar");
           }}
           disabled={!isEditing}
           className={!isEditing ? "cursor-not-allowed" : ""}
@@ -548,9 +448,7 @@ export default function GuiadoFacilEditPage() {
         {/* Etapa 2 */}
         <div style={{ width: "100%" }}>
           <h3 className="text-lg font-semibold">Etapa 2</h3>
-          <p className="text-sm text-muted-foreground mb-2">
-            (Inicialmente, eles receberão uma DM de boas-vindas)
-          </p>
+          <p className="text-sm text-muted-foreground mb-2">(Inicialmente, eles receberão uma DM de boas-vindas)</p>
           <div className="mt-4">
             <label className="text-sm font-semibold" htmlFor="dmWelcomeMessage">
               Mensagem de boas-vindas
@@ -564,7 +462,6 @@ export default function GuiadoFacilEditPage() {
               readOnly={!isEditing}
             />
           </div>
-
           <div className="mt-4">
             <label className="text-sm font-semibold" htmlFor="dmQuickReply">
               Quick Reply (ex.: "Me envie o link")
@@ -585,10 +482,7 @@ export default function GuiadoFacilEditPage() {
         {/* Etapa 3 */}
         <div style={{ width: "100%" }}>
           <h3 className="text-lg font-semibold">Etapa 3</h3>
-          <p className="text-sm text-muted-foreground mb-2">
-            (Logo depois, a DM com o link será enviada)
-          </p>
-
+          <p className="text-sm text-muted-foreground mb-2">(Logo depois, a DM com o link será enviada)</p>
           <div className="mt-4">
             <label className="text-sm font-semibold" htmlFor="dmSecondMessage">
               Escreva uma mensagem
@@ -602,7 +496,6 @@ export default function GuiadoFacilEditPage() {
               readOnly={!isEditing}
             />
           </div>
-
           <div className="mt-4">
             <label className="text-sm font-semibold" htmlFor="dmLink">
               Adicionar um link
@@ -616,7 +509,6 @@ export default function GuiadoFacilEditPage() {
               disabled={!isEditing}
             />
           </div>
-
           <div className="mt-4">
             <label className="text-sm font-semibold" htmlFor="dmButtonLabel">
               Adicione legenda ao botão
@@ -637,10 +529,7 @@ export default function GuiadoFacilEditPage() {
         {/* Etapa 4 */}
         <div style={{ width: "100%" }}>
           <h3 className="text-lg font-semibold">Etapa 4</h3>
-          <p className="text-sm text-muted-foreground mb-4">
-            (Outros recursos para automatizar)
-          </p>
-
+          <p className="text-sm text-muted-foreground mb-4">(Outros recursos para automatizar)</p>
           <TooltipProvider>
             <div className="flex items-center space-x-2 mb-2">
               <Tooltip>
@@ -659,15 +548,11 @@ export default function GuiadoFacilEditPage() {
                   </div>
                 </TooltipTrigger>
                 <TooltipContent>
-                  <p>
-                    Escolha 3 opções de respostas públicas que vamos mandar 1 delas aleatoriamente
-                    em cada comentário 😊
-                  </p>
+                  <p>Defina 3 respostas públicas que serão escolhidas aleatoriamente.</p>
                 </TooltipContent>
               </Tooltip>
             </div>
           </TooltipProvider>
-
           {switchResponderComentario && (
             <div className="space-y-2 mb-4 mt-2">
               <Input
@@ -694,56 +579,85 @@ export default function GuiadoFacilEditPage() {
             </div>
           )}
 
+          {/* Switch para Pedir email PRO */}
           <div className="flex items-center space-x-2 mb-2">
-            <Checkbox
-              id="checkboxPedirEmail"
-              checked={checkboxPedirEmail}
-              onCheckedChange={(checked) => setCheckboxPedirEmail(Boolean(checked))}
+            <Switch
+              id="switchPedirEmail"
+              checked={switchPedirEmail}
+              onCheckedChange={(checked) => setSwitchPedirEmail(checked)}
               disabled={!isEditing}
               className={!isEditing ? "cursor-not-allowed" : ""}
             />
-            <label
-              htmlFor="checkboxPedirEmail"
-              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed"
-            >
+            <Label htmlFor="switchPedirEmail" className="text-sm font-medium">
               Pedir email <span className="text-xs text-muted-foreground">PRO</span>
-            </label>
+            </Label>
           </div>
+          {switchPedirEmail && (
+            <div className="mb-4">
+              <Textarea
+                id="emailPrompt"
+                value={emailPrompt}
+                onChange={(e) => setEmailPrompt(e.target.value)}
+                placeholder="Digite sua mensagem para solicitação de email"
+                className={`mt-2 ${!isEditing ? "cursor-not-allowed" : ""}`}
+                disabled={!isEditing}
+              />
+            </div>
+          )}
 
+          {/* Switch para Pedir para Seguir PRO */}
           <div className="flex items-center space-x-2 mb-2">
-            <Checkbox
-              id="checkboxPedirParaSeguir"
-              checked={checkboxPedirParaSeguir}
-              onCheckedChange={(checked) => setCheckboxPedirParaSeguir(Boolean(checked))}
+            <Switch
+              id="switchPedirParaSeguir"
+              checked={switchPedirParaSeguir}
+              onCheckedChange={(checked) => setSwitchPedirParaSeguir(checked)}
               disabled={!isEditing}
               className={!isEditing ? "cursor-not-allowed" : ""}
             />
-            <label
-              htmlFor="checkboxPedirParaSeguir"
-              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed"
-            >
-              Pedir para seguir antes de enviar o link{" "}
-              <span className="text-xs text-muted-foreground">PRO</span>
-            </label>
+            <Label htmlFor="switchPedirParaSeguir" className="text-sm font-medium">
+              Pedir para seguir antes de enviar o link <span className="text-xs text-muted-foreground">PRO</span>
+            </Label>
           </div>
+          {switchPedirParaSeguir && (
+            <div className="mb-4">
+              <Textarea
+                id="followPrompt"
+                value={followPrompt}
+                onChange={(e) => setFollowPrompt(e.target.value)}
+                placeholder="Você está quase lá! 🚀 Este link é exclusivo para meus seguidores..."
+                className={`mt-2 ${!isEditing ? "cursor-not-allowed" : ""}`}
+                disabled={!isEditing}
+              />
+            </div>
+          )}
 
+          {/* Switch para Entrar em Contato caso não cliquem no link */}
           <div className="flex items-center space-x-2 mb-2">
-            <Checkbox
-              id="checkboxEntrarEmContato"
-              checked={checkboxEntrarEmContato}
-              onCheckedChange={(checked) => setCheckboxEntrarEmContato(Boolean(checked))}
+            <Switch
+              id="switchEntrarEmContato"
+              checked={switchEntrarEmContato}
+              onCheckedChange={(checked) => setSwitchEntrarEmContato(checked)}
               disabled={!isEditing}
               className={!isEditing ? "cursor-not-allowed" : ""}
             />
-            <label
-              htmlFor="checkboxEntrarEmContato"
-              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed"
-            >
+            <Label htmlFor="switchEntrarEmContato" className="text-sm font-medium">
               Entrar em contato caso não cliquem no link
-            </label>
+            </Label>
           </div>
+          {switchEntrarEmContato && (
+            <div className="mb-4">
+              <Textarea
+                id="noClickPrompt"
+                value={noClickPrompt}
+                onChange={(e) => setNoClickPrompt(e.target.value)}
+                placeholder="🔥 Quer saber mais? Então não esquece de clicar no link aqui embaixo! ⬇️✨ Tenho certeza de que você vai amar! ❤️😍🚀"
+                className={`mt-2 ${!isEditing ? "cursor-not-allowed" : ""}`}
+                disabled={!isEditing}
+              />
+            </div>
+          )}
 
-          {/* Novo: Switch para controlar o live */}
+          {/* Switch para controlar o status live */}
           <div className="flex items-center space-x-2 mb-4 mt-4">
             <Switch
               id="switchLive"
@@ -760,38 +674,20 @@ export default function GuiadoFacilEditPage() {
 
         {/* Botões Editar/Pausar ou Cancelar/Salvar */}
         <div style={{ marginTop: "20px", width: "100%" }}>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleClickEdit}
-            style={{ marginRight: "10px" }}
-          >
-            {editButtonLabel}
+          <Button variant="outline" size="sm" onClick={handleClickEdit} style={{ marginRight: "10px" }}>
+            {isEditing ? "Cancelar" : "Editar"}
           </Button>
-
           <Button variant="outline" size="sm" onClick={handleClickPauseOrSalvar}>
-            {pauseButtonLabel}
+            {isEditing ? "Salvar" : isLive ? "Pausar" : "Ativar"}
           </Button>
         </div>
       </div>
 
-      {/* ======================================================
-          COLUNA DIREITA - PREVIEW E BOTÕES SUPERIORES
-      ======================================================= */}
-      <div
-        style={{
-          flex: 1,
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-        }}
-      >
-        {/* Título do Preview */}
+      {/* COLUNA DIREITA – PREVIEW */}
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center" }}>
         <div style={{ width: "100%", marginBottom: "10px" }}>
           <span style={{ fontWeight: "bold", fontSize: "16px" }}>Preview</span>
         </div>
-
-        {/* Componente de Preview */}
         <PreviewPhoneMockup
           selectedPost={selectedPost}
           instagramUser={instagramUser}
@@ -805,8 +701,6 @@ export default function GuiadoFacilEditPage() {
           responderPublico={switchResponderComentario}
           publicReply1={publicReply1}
         />
-
-        {/* Toggle entre as ações do preview */}
         <ToggleActions toggleValue={toggleValue} setToggleValue={setToggleValue} />
       </div>
     </div>

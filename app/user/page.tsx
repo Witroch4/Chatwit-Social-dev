@@ -4,9 +4,15 @@
 import { useSession } from "next-auth/react";
 import { useEffect, useState } from "react";
 
+interface InstagramData {
+  id: string;
+  username: string;
+  media_count: number;
+}
+
 const UserPage = () => {
   const { data: session, status } = useSession();
-  const [instagramData, setInstagramData] = useState<{ media_count?: number } | null>(null);
+  const [instagramData, setInstagramData] = useState<InstagramData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -31,8 +37,6 @@ const UserPage = () => {
         } finally {
           setLoading(false);
         }
-      } else if (status === "authenticated") {
-        setLoading(false);
       } else {
         setLoading(false);
       }
@@ -42,12 +46,12 @@ const UserPage = () => {
   }, [session, status]);
 
   if (status === "loading") {
-    return <div style={styles.container}>Carregando sessão...</div>;
+    return <div style={styles}>Carregando sessão...</div>;
   }
 
   if (status === "unauthenticated") {
     return (
-      <div style={styles.container}>
+      <div style={styles}>
         <h1>Usuário Não Autenticado</h1>
         <p>Por favor, faça login para ver suas informações.</p>
       </div>
@@ -55,11 +59,18 @@ const UserPage = () => {
   }
 
   return (
-    <div style={styles.container}>
+    <div style={styles}>
       <h1>Informações do Usuário</h1>
-      <p><strong>Nome:</strong> {session.user.name || "Sem nome"}</p>
-      <p><strong>Token do Instagram:</strong> {session.user.instagramAccessToken || "Token do Instagram não disponível."}</p>
-      <p><strong>Role:</strong> {session.user.role} </p>
+      <p>
+        <strong>Nome:</strong> {session!.user.name || "Sem nome"}
+      </p>
+      <p>
+        <strong>Token do Instagram:</strong>{" "}
+        {session!.user.instagramAccessToken || "Token do Instagram não disponível."}
+      </p>
+      <p>
+        <strong>Role:</strong> {session!.user.role}
+      </p>
 
       {loading ? (
         <p>Carregando dados do Instagram...</p>
@@ -68,9 +79,15 @@ const UserPage = () => {
       ) : instagramData ? (
         <div>
           <h2>Dados do Instagram:</h2>
-          <p><strong>ID:</strong> {instagramData.id}</p>
-          <p><strong>Username:</strong> {instagramData.username}</p>
-          <p><strong>Quantidade de Postagens:</strong> {instagramData.media_count}</p>
+          <p>
+            <strong>ID:</strong> {instagramData.id}
+          </p>
+          <p>
+            <strong>Username:</strong> {instagramData.username}
+          </p>
+          <p>
+            <strong>Quantidade de Postagens:</strong> {instagramData.media_count}
+          </p>
         </div>
       ) : (
         <p>Instagram não conectado ou dados não disponíveis.</p>
@@ -79,15 +96,13 @@ const UserPage = () => {
   );
 };
 
-const styles = {
-  container: {
-    padding: "2rem",
-    fontFamily: "Arial, sans-serif",
-    lineHeight: "1.6",
-    maxWidth: "600px",
-    margin: "0 auto",
-    textAlign: "left",
-  },
+const styles: React.CSSProperties = {
+  padding: "2rem",
+  fontFamily: "Arial, sans-serif",
+  lineHeight: "1.6",
+  maxWidth: "600px",
+  margin: "0 auto",
+  textAlign: "left",
 };
 
 export default UserPage;

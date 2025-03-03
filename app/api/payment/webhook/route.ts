@@ -4,14 +4,19 @@ import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { prisma } from "@/lib/prisma"; // Certifique-se de que essa importação esteja correta
 
-// Instancia o Stripe com sua chave secreta e a versão da API desejada
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+// Usa uma chave dummy se STRIPE_SECRET_KEY não estiver definida
+const stripeSecretKey = process.env.STRIPE_SECRET_KEY || "dummy_stripe_secret";
+if (stripeSecretKey === "dummy_stripe_secret") {
+  console.warn("WARNING: Using dummy Stripe secret key. Make sure to set STRIPE_SECRET_KEY in production!");
+}
+
+const stripe = new Stripe(stripeSecretKey, {
   apiVersion: "2025-01-27.acacia",
 });
 
-// Configure o runtime conforme necessário (edge ou nodejs)
+// Altere o runtime para "nodejs" para evitar problemas com APIs do Node.js no Edge Runtime
 export const config = {
-  runtime: "edge",
+  runtime: "nodejs",
 };
 
 export async function POST(request: Request) {
@@ -34,7 +39,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: `Webhook Error: ${err.message}` }, { status: 400 });
   }
 
-  // Log para debug: imprime o tipo do evento e os dados do objeto
   console.log("Evento recebido:", event.type);
   console.log("Dados do evento:", JSON.stringify(event.data.object));
 

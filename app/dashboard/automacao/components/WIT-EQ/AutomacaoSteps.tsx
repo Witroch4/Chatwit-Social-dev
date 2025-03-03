@@ -1,4 +1,4 @@
-//app/dashboard/automacao/components/WIT-EQ/AutomacaoSteps.tsx
+// app/dashboard/automacao/components/WIT-EQ/AutomacaoSteps.tsx
 
 "use client";
 
@@ -21,7 +21,6 @@ export interface InstagramMediaItem {
   media_type?: string;
   thumbnail_url?: string;
   media_product_type?: string;
-
   like_count?: number;
   comments_count?: number;
 }
@@ -47,10 +46,11 @@ export default function AutomacaoSteps({
   // Controla a etapa atual
   const [step, setStep] = useState(1);
 
+  // Estado para definir se uma postagem específica foi selecionada ou se é "qualquer"
+  const [selectedOptionPostagem, setSelectedOptionPostagem] = useState<"especifico" | "qualquer">("especifico");
+
   // --------------- ETAPA 1 --------------- //
-  const [selectedOptionPalavra, setSelectedOptionPalavra] = useState<
-    "especifica" | "qualquer"
-  >("especifica");
+  const [selectedOptionPalavra, setSelectedOptionPalavra] = useState<"especifica" | "qualquer">("especifica");
   const [palavrasChave, setPalavrasChave] = useState("");
 
   // --------------- ETAPA 2 --------------- //
@@ -85,7 +85,7 @@ export default function AutomacaoSteps({
     contatoSemClique: false,
   });
 
-// --------------------------------------------
+  // --------------------------------------------
   // FUNÇÃO PRINCIPAL PARA SALVAR AUTOMACAO
   // --------------------------------------------
   async function salvarAutomacao() {
@@ -167,8 +167,7 @@ export default function AutomacaoSteps({
         );
 
       case 4:
-        // Na Etapa 4, você decide se há obrigatoriedades ou não.
-        // Neste exemplo, vamos permitir que prossiga livremente.
+        // Na Etapa 4, permite prosseguir livremente
         return true;
 
       default:
@@ -411,12 +410,11 @@ export default function AutomacaoSteps({
           instagramUser={instagramUser}
           toggleValue={toggleValue}
           commentContent={commentContent}
-          fraseBoasVindas={fraseBoasVindas}
-          quickReplyTexto={quickReplyTexto}
-          mensagemEtapa3={mensagemEtapa3}
-          linkEtapa3={linkEtapa3}
-          legendaBotaoEtapa3={legendaBotaoEtapa3}
-          step={step} // Passando a prop 'step'
+          dmWelcomeMessage={fraseBoasVindas}
+          dmQuickReply={quickReplyTexto}
+          dmSecondMessage={mensagemEtapa3}
+          dmLink={linkEtapa3}
+          dmButtonLabel={legendaBotaoEtapa3}
         />
 
         {/* Botões para alternar manualmente o toggleValue */}

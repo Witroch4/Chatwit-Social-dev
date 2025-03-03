@@ -1,19 +1,12 @@
 // components/agendamento/AgendamentosList.tsx
-
 "use client";
 
 import React from "react";
 import AgendamentoItem from "./AgendamentoItem";
-
-interface Agendamento {
-  id: string;
-  Data: string;
-  Descrição: string;
-  // Adicione outros campos conforme necessário
-}
+import { Agendamento } from "@/types/agendamento";
 
 interface AgendamentosListProps {
-  agendamentos: Agendamento[];
+  agendamentos: Partial<Agendamento>[]; // Permite objetos parciais
   refetch: () => void;
   userID: string;
 }
@@ -24,8 +17,8 @@ const AgendamentosList: React.FC<AgendamentosListProps> = ({ agendamentos, refet
       {agendamentos.map((agendamento) => (
         <AgendamentoItem
           key={agendamento.id}
-          agendamento={agendamento}
-          onExcluir={() => {}} // Remover ou ajustar conforme a lógica
+          agendamento={agendamento as Agendamento} // ou ajuste dentro do AgendamentoItem para lidar com parciais
+          onExcluir={() => {}}
           refetch={refetch}
           userID={userID}
         />
@@ -35,3 +28,4 @@ const AgendamentosList: React.FC<AgendamentosListProps> = ({ agendamentos, refet
 };
 
 export default AgendamentosList;
+
