@@ -29,10 +29,15 @@ interface Agendamento {
 
 const CalendarioPage: React.FC = () => {
   const { data: session, status } = useSession();
-  const userID = session?.user?.id;
-  const { agendamentos, loading, error, refetch } = useAgendamentos(userID);
-  const { toast } = useToast();
   const router = useRouter();
+  const { toast } = useToast();
+
+  // Pega userID e igUserId da sessão
+  const userID = session?.user?.id;
+  const igUserId = session?.user?.providerAccountId;
+
+  // Carrega agendamentos usando o hook, agora filtrando pelos dois campos
+  const { agendamentos, loading, error, refetch } = useAgendamentos(userID, igUserId);
 
   // Estado para o dia selecionado e para controlar o diálogo
   const [selectedDay, setSelectedDay] = useState<Date | null>(null);
@@ -88,6 +93,7 @@ const CalendarioPage: React.FC = () => {
     <main className="p-4 sm:p-10 space-y-4">
       <h1 className="text-2xl font-bold">Calendário de Agendamentos</h1>
 
+      {/* Exibe loading enquanto busca */}
       {loading && (
         <div className="flex justify-center items-center">
           <DotLottieReact
@@ -102,6 +108,7 @@ const CalendarioPage: React.FC = () => {
 
       {error && <p className="text-red-500">{error}</p>}
 
+      {/* Se não estiver loading, renderiza o componente de calendário */}
       {!loading && (
         <Calendar
           mode="single"
@@ -110,7 +117,8 @@ const CalendarioPage: React.FC = () => {
           locale={ptBR}
           /*
             Utilizando os modificadores para marcar (ex.: sublinhar) os dias
-            que possuem algum agendamento. Essa funcionalidade depende da implementação
+            que possuem algum agendamento.
+            Essa funcionalidade depende da implementação
             do seu componente Calendar (baseado em react-day-picker, por exemplo).
           */
           modifiers={{
@@ -147,7 +155,9 @@ const CalendarioPage: React.FC = () => {
                   <p className="font-semibold">
                     {format(new Date(ag.Data), "HH:mm:ss")}
                   </p>
-                  <p className="text-sm text-muted-foreground">{ag.Descrição}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {ag.Descrição}
+                  </p>
                 </div>
                 <div className="flex gap-2">
                   <Button size="sm" onClick={() => handleEdit(ag.id)}>
