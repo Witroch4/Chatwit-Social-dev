@@ -127,7 +127,6 @@ async function handleCommentChange(value: any, igUserId: string) {
     // Se automacao.contatoSemClique = true => Agenda job p/ 1h depois
     if (automacao.contatoSemClique) {
       // Precisamos criar/atualizar Lead + LeadAutomacao
-      // "senderId" é from.id do comentário
       const senderId = from.id;
       // Cria Lead se não existir
       let lead = await prisma.lead.findUnique({ where: { igSenderId: senderId } });
@@ -179,11 +178,10 @@ async function handleCommentChange(value: any, igUserId: string) {
 
 /**
  * 2) Trata Mensagens (DM) e Postbacks.
- *    - Se postback => checa se automacao pede para seguir (pedirParaSeguirPro); se sim, faz checkIfUserFollows.
- *    - Se não estiver seguindo, manda msg e botão "Estou seguindo". Re-loop até seguir.
+ *    - Se postback => checa se automacao pede para seguir (pedirParaSeguirPro); se sim, procede direto (pois assumimos o usuário segue).
  *    - Se pedirEmailPro, checa email. Se não tem => waitingForEmail. Se tem => envia link.
  *    - Se for texto => se waitingForEmail, salva e-mail e envia link.
- *    - Se clicou no quickReply => cancela job "contatoSemClique".
+ *    - Se clicou no quickReply => cancela job "contatoSemClique" (se implementar).
  */
 async function handleMessageEvent(msgEvt: any, igUserId: string) {
   try {
@@ -242,22 +240,11 @@ async function handleMessageEvent(msgEvt: any, igUserId: string) {
 
       // Se houver job agendado, você pode cancelar aqui (ex: followUpQueue.remove(la.followUpJobId))
 
-      // 1.1) Se a automação pede para seguir (pedirParaSeguirPro)
+      // 1.1) Se a automação pede para seguir (pedirParaSeguirPro),
+      // vamos simplesmente continuar assumindo que o usuário segue
       if (automacao.pedirParaSeguirPro) {
-        const isFollowing = await checkIfUserFollows(senderId, igUserId, accessToken);
-        if (!isFollowing) {
-          // Envia mensagem pedindo para seguir com botão "Estou seguindo"
-          await sendFollowRequestMessage({
-            igUserId,
-            accessToken,
-            recipientId: senderId,
-            followPrompt: automacao.followPrompt ||
-              "Você está quase lá! 🚀 Este link é exclusivo para meus seguidores. Me segue e clique em 'Estou seguindo'!",
-            buttonPayload: automacao.buttonPayload,
-          });
-          console.log("[handleMessageEvent] Pedindo para seguir...");
-          return;
-        }
+        console.log("[handleMessageEvent] Supondo que o usuário segue a conta (FORÇANDO TRUE).");
+        // Aqui, em vez de checar, pulamos direto para próxima lógica
       }
 
       // 1.2) Se a automação pede email
@@ -321,20 +308,10 @@ async function handleMessageEvent(msgEvt: any, igUserId: string) {
           where: { id: la.automacaoId },
         });
         if (!automacao) continue;
-        // Se a automação pedir para seguir, checa novamente
+
+        // Caso a automação peça para seguir, iremos ignorar a checagem e seguir
         if (automacao.pedirParaSeguirPro) {
-          const isFollowing = await checkIfUserFollows(lead.igSenderId, igUserId, accessToken);
-          if (!isFollowing) {
-            await sendFollowRequestMessage({
-              igUserId,
-              accessToken,
-              recipientId: lead.igSenderId,
-              followPrompt: automacao.followPrompt ||
-                "Você está quase lá! 🚀 Este link é exclusivo para meus seguidores. Me segue e clique em 'Estou seguindo'!",
-              buttonPayload: automacao.buttonPayload,
-            });
-            continue; // Aguarda que o usuário siga
-          }
+          console.log("[handleMessageEvent] (Email Flow) Supondo que o usuário segue a conta (FORÇANDO TRUE).");
         }
         // Envia o link da automação
         await sendLinkForAutomacao(updatedLead, automacao, accessToken, igUserId);
@@ -353,20 +330,17 @@ async function handleMessageEvent(msgEvt: any, igUserId: string) {
   }
 }
 
-
 /**
  * Verifica se o user (senderId) segue a conta (igUserId).
- * Na prática, você deve implementar a verificação real pela API do IG ou outro método.
- * Aqui está simulado (50% chance).
+ * Agora, sempre vamos retornar true para forçar a continuidade da automação.
  */
 async function checkIfUserFollows(
   senderId: string,
   igUserId: string,
   accessToken: string
 ): Promise<boolean> {
-  console.log(`[checkIfUserFollows] Simulando se user ${senderId} segue ${igUserId}.`);
-  // Retorne true ou false de acordo com a verificação real.
-  return Math.random() < 0.5 ? true : false; // 50% de chance para simular
+  console.log(`[checkIfUserFollows] Forçando TRUE para ${senderId} seguir a conta ${igUserId}.`);
+  return true;
 }
 
 /**

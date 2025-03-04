@@ -1,3 +1,4 @@
+//app\dashboard\agendamento\page.tsx
 "use client";
 
 import React, { useEffect, useState } from "react";
@@ -26,7 +27,10 @@ import { DotLottieReact } from "@lottiefiles/dotlottie-react";
 const AgendamentoDePostagens: React.FC = () => {
   const { data: session, status } = useSession();
   const router = useRouter();
+
+  // userID e igUserId do usuário logado
   const userID = session?.user?.id;
+  const igUserId = session?.user?.providerAccountId;
   const IGtoken = session?.user?.instagramAccessToken;
 
   // Estado combinado para data e hora
@@ -40,8 +44,11 @@ const AgendamentoDePostagens: React.FC = () => {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const { toast } = useToast();
 
-  // Hook para buscar agendamentos
-  const { agendamentos, loading, error, refetch } = useAgendamentos(userID);
+  // Hook para buscar agendamentos (recebe userID e igUserId)
+  const { agendamentos, loading, error, refetch } = useAgendamentos(
+    userID,
+    igUserId
+  );
 
   // Função para lidar com o agendamento
   const handleAgendar = async () => {
@@ -97,6 +104,7 @@ const AgendamentoDePostagens: React.FC = () => {
 
       const isoDate = dateTime.toISOString();
 
+      // Inclui o campo igUserId com o valor de providerAccountId da sessão
       const newRow = {
         Data: isoDate,
         Descrição: legenda,
@@ -110,6 +118,7 @@ const AgendamentoDePostagens: React.FC = () => {
         Randomizar: tipos.Aleatorio,
         IGtoken: IGtoken,
         userID: userID,
+        igUserId: igUserId, // enviando para a API
       };
 
       const response = await axios.post("/api/agendar", newRow, {
@@ -140,13 +149,13 @@ const AgendamentoDePostagens: React.FC = () => {
         });
 
         // Limpar o formulário após o sucesso
-        setDateTime(new Date()); // Reset para a data e hora atual
+        setDateTime(new Date());
         setTipoPostagem([]);
         setLegenda("");
         setUploadedFiles([]);
-        setDrawerOpen(false); // Fechar o Drawer após o agendamento
+        setDrawerOpen(false);
 
-        refetch(); // Refazer a busca dos agendamentos
+        refetch();
       } else {
         toast({
           title: "Erro ao Agendar",
@@ -168,13 +177,14 @@ const AgendamentoDePostagens: React.FC = () => {
   };
 
   // Função que adapta o setter para aceitar SetStateAction completo
-  const handleSetDateTime: React.Dispatch<React.SetStateAction<Date | undefined>> = (value) => {
-    if (typeof value === "function") {
-      setDateTime(value);
-    } else if (value !== undefined) {
-      setDateTime(value);
-    }
-  };
+  const handleSetDateTime: React.Dispatch<React.SetStateAction<Date | undefined>> =
+    (value) => {
+      if (typeof value === "function") {
+        setDateTime(value);
+      } else if (value !== undefined) {
+        setDateTime(value);
+      }
+    };
 
   // Redirecionamento ou alerta se não estiver autenticado
   useEffect(() => {
@@ -193,7 +203,7 @@ const AgendamentoDePostagens: React.FC = () => {
         <DrawerTrigger asChild>
           <Button variant="outline">Novo Agendamento</Button>
         </DrawerTrigger>
-        {/* Alteração: Trocar 'overflow-hidden' para 'overflow-visible' */}
+        {/* Ajuste no overflow */}
         <DrawerContent className="fixed bottom-0 left-0 right-0 h-3/4 bg-white rounded-t-xl shadow-lg overflow-visible">
           <AgendamentoForm
             dateTime={dateTime}
@@ -214,27 +224,34 @@ const AgendamentoDePostagens: React.FC = () => {
       {/* Listagem de Agendamentos */}
       <section>
         <h2 className="text-xl font-semibold mb-4">Seus Agendamentos</h2>
-        {loading && (
-          <div className="flex justify-center items-center">
-            <DotLottieReact
-              src="/animations/loading.lottie" // Referência via URL
-              autoplay
-              loop={true}
-              style={{ width: 150, height: 150 }}
-              aria-label="Carregando agendamentos"
-            />
-          </div>
-        )}
-        {error && <p className="text-red-500">{error}</p>}
-        {!loading && agendamentos.length === 0 && (
-          <p>Nenhum agendamento encontrado.</p>
-        )}
-        {!loading && agendamentos.length > 0 && (
-          <AgendamentosList
-            agendamentos={agendamentos}
-            refetch={refetch}
-            userID={userID || ""}
-          />
+        {status === "loading" && <p>Carregando sessão...</p>}
+        {!session && <p>Você precisa estar logado para ver os agendamentos.</p>}
+
+        {session && (
+          <>
+            {loading && (
+              <div className="flex justify-center items-center">
+                <DotLottieReact
+                  src="/animations/loading.lottie"
+                  autoplay
+                  loop={true}
+                  style={{ width: 150, height: 150 }}
+                  aria-label="Carregando agendamentos"
+                />
+              </div>
+            )}
+            {error && <p className="text-red-500">{error}</p>}
+            {!loading && agendamentos.length === 0 && (
+              <p>Nenhum agendamento encontrado.</p>
+            )}
+            {!loading && agendamentos.length > 0 && (
+              <AgendamentosList
+                agendamentos={agendamentos}
+                refetch={refetch}
+                userID={userID || ""}
+              />
+            )}
+          </>
         )}
       </section>
     </main>
