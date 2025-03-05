@@ -31,6 +31,12 @@ export default auth(async (req) => {
   if (isLoggedIn && nextUrl.pathname === "/") {
     // Verificar se o usuário tem uma conta do Instagram conectada
     try {
+      // Garantir que temos o ID do usuário antes de fazer a requisição
+      if (!req.auth?.user?.id) {
+        console.log('ID do usuário não disponível, redirecionando para /dashboard');
+        return NextResponse.redirect(new URL("/dashboard", req.url));
+      }
+
       const subscriptionApiUrl = new URL("/api/auth/instagram/accounts", req.url).toString();
       const cookie = req.headers.get("cookie") || "";
       const response = await fetch(subscriptionApiUrl, {

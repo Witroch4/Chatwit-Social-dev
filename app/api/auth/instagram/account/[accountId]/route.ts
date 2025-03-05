@@ -36,9 +36,6 @@ export async function GET(
         id: true,
         providerAccountId: true,
         access_token: true,
-        igUsername: true,
-        igUserId: true,
-        isMain: true,
         createdAt: true,
         updatedAt: true
       }
@@ -56,9 +53,9 @@ export async function GET(
       id: account.id,
       providerAccountId: account.providerAccountId,
       access_token: account.access_token,
-      igUsername: account.igUsername || "Instagram",
-      igUserId: account.igUserId || account.providerAccountId,
-      isMain: account.isMain || false,
+      igUsername: "Instagram",
+      igUserId: account.providerAccountId,
+      isMain: false,
       createdAt: account.createdAt,
       updatedAt: account.updatedAt
     };

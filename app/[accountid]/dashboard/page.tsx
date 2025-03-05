@@ -90,7 +90,7 @@ export default function AccountDashboardPage() {
         const response = await fetch(`/api/auth/instagram/account/${accountId}`);
         if (response.ok) {
           const data = await response.json();
-          setAccount(data.account);
+          setAccount(data); // Corrigido: a API retorna diretamente o objeto account, não dentro de data.account
         } else {
           // Se a conta não existir ou não pertencer ao usuário, redirecionar para o dashboard
           router.push('/dashboard');
