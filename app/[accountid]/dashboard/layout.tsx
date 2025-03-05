@@ -24,6 +24,15 @@ async function validateAccount(userId: string, accountId: string) {
         userId: userId,
         provider: "instagram",
       },
+      select: {
+        id: true,
+        userId: true,
+        provider: true,
+        providerAccountId: true,
+        access_token: true,
+        createdAt: true,
+        updatedAt: true
+      }
     });
 
     return !!account; // Retorna true se a conta existir e pertencer ao usuário
@@ -57,7 +66,8 @@ export default async function AccountIdLayout({
 
   // Se a conta não existir ou não pertencer ao usuário, redirecionar para o dashboard
   if (!isValidAccount) {
-    redirect("/dashboard");
+    // Redirecionar para uma página que existe
+    redirect("/");
   }
 
   return (
