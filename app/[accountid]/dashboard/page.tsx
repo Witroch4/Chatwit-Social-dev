@@ -1,5 +1,5 @@
 // app/[accountid]/dashboard/page.tsx
-"use client";
+'use client'
 
 import React, { useState, useCallback, useEffect, useRef } from "react";
 import { useSession } from "next-auth/react";
@@ -16,7 +16,6 @@ import {
 } from "@/components/ui/dialog";
 import { loadStripe } from "@stripe/stripe-js";
 import { EmbeddedCheckoutProvider, EmbeddedCheckout } from "@stripe/react-stripe-js";
-import { Metadata } from "next";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
@@ -70,21 +69,23 @@ function Card({ title, description, tag, popular, ia }: CardProps) {
 // Configuração do Stripe
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
 
-export const metadata: Metadata = {
-  title: "Dashboard da Conta",
-  description: "Gerencie sua conta do Instagram",
-};
+// Removida a exportação de metadata, pois não é permitida em componentes cliente
 
 export default function AccountDashboardPage() {
   const { data: session } = useSession();
   const router = useRouter();
   const params = useParams();
-  const accountId = params.accountid as string;
+  const accountId = params?.accountid as string; // Adicionado o operador de optional chaining
   const [account, setAccount] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function fetchAccountInfo() {
+      if (!accountId) {
+        router.push('/dashboard');
+        return;
+      }
+
       try {
         const response = await fetch(`/api/auth/instagram/account/${accountId}`);
         if (response.ok) {
@@ -104,6 +105,9 @@ export default function AccountDashboardPage() {
 
     if (accountId) {
       fetchAccountInfo();
+    } else {
+      setLoading(false);
+      router.push('/dashboard');
     }
   }, [accountId, router]);
 

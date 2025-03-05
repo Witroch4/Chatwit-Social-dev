@@ -1,5 +1,4 @@
-// app/dashboard/layout.tsx
-"use client";
+// app/[accountid]/dashboard/layout.tsx
 
 import React from "react";
 import { redirect } from "next/navigation";
@@ -8,6 +7,12 @@ import { prisma } from "@/lib/prisma";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import ConditionalSidebar from "@/components/conditional-sidebar";
 import { AppHeader } from "@/components/app-header";
+import { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "Dashboard da Conta",
+  description: "Gerencie sua conta do Instagram",
+};
 
 // Função para validar a conta do Instagram
 async function validateAccount(userId: string, accountId: string) {
