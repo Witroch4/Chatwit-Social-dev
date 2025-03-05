@@ -3,10 +3,9 @@
 
 import React from "react";
 import { redirect } from "next/navigation";
-import { getServerSession } from "next-auth";
-import authConfig from "@/auth.config";
+import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { SidebarProvider } from "@/components/providers/sidebar-provider";
+import { SidebarProvider } from "@/components/ui/sidebar";
 import ConditionalSidebar from "@/components/conditional-sidebar";
 import { AppHeader } from "@/components/app-header";
 
@@ -36,8 +35,8 @@ export default async function AccountIdLayout({
   children: React.ReactNode;
   params: { accountid: string };
 }) {
-  // Usar getServerSession em vez de auth()
-  const session = await getServerSession(authConfig);
+  // Usar auth() diretamente
+  const session = await auth();
 
   // Se o usuário não estiver autenticado, redirecionar para login
   if (!session || !session.user) {

@@ -17,8 +17,7 @@ import {
 import { loadStripe } from "@stripe/stripe-js";
 import { EmbeddedCheckoutProvider, EmbeddedCheckout } from "@stripe/react-stripe-js";
 import { Metadata } from "next";
-import { getServerSession } from "next-auth";
-import authConfig from "@/auth.config";
+import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 
@@ -76,43 +75,48 @@ export const metadata: Metadata = {
   description: "Gerencie sua conta do Instagram",
 };
 
-async function getAccountInfo(accountId: string) {
-  try {
-    const account = await prisma.account.findUnique({
-      where: {
-        id: accountId,
-      },
-      select: {
-        id: true,
-        providerAccountId: true,
-        igUsername: true,
-        isMain: true,
-      },
-    });
+export default function AccountDashboardPage() {
+  const { data: session } = useSession();
+  const router = useRouter();
+  const params = useParams();
+  const accountId = params.accountid as string;
+  const [account, setAccount] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
-    return account;
-  } catch (error) {
-    console.error("Erro ao buscar informações da conta:", error);
-    return null;
+  useEffect(() => {
+    async function fetchAccountInfo() {
+      try {
+        const response = await fetch(`/api/auth/instagram/account/${accountId}`);
+        if (response.ok) {
+          const data = await response.json();
+          setAccount(data.account);
+        } else {
+          // Se a conta não existir ou não pertencer ao usuário, redirecionar para o dashboard
+          router.push('/dashboard');
+        }
+      } catch (error) {
+        console.error("Erro ao buscar informações da conta:", error);
+        router.push('/dashboard');
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    if (accountId) {
+      fetchAccountInfo();
+    }
+  }, [accountId, router]);
+
+  if (loading) {
+    return (
+      <div className="p-6 flex justify-center items-center h-full">
+        <p>Carregando informações da conta...</p>
+      </div>
+    );
   }
-}
-
-export default async function AccountDashboardPage({
-  params,
-}: {
-  params: { accountid: string };
-}) {
-  const session = await getServerSession(authConfig);
-
-  if (!session?.user) {
-    redirect("/auth/login");
-  }
-
-  const accountId = params.accountid;
-  const account = await getAccountInfo(accountId);
 
   if (!account) {
-    redirect("/dashboard");
+    return null; // O redirecionamento já foi tratado no useEffect
   }
 
   return (
