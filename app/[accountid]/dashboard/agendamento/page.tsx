@@ -14,8 +14,8 @@ import {
   DrawerContent,
 } from "@/components/ui/drawer";
 
-import AgendamentoForm from "@/app/dashboard/agendamento/components/AgendamentoForm";
-import AgendamentosList from "@/app/dashboard/agendamento/components/AgendamentosList";
+import AgendamentoForm from "@/app/[accountid]/dashboard/agendamento/components/AgendamentoForm";
+import AgendamentosList from "@/app/[accountid]/dashboard/agendamento/components/AgendamentosList";
 
 import { UploadedFile } from "@/components/custom/FileUpload";
 import { useToast } from "@/hooks/use-toast";

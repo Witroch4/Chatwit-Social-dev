@@ -14,6 +14,8 @@ import {
   MessageCircle,
   HelpCircle,
   Atom,
+  Plus,
+  Check,
 } from "lucide-react";
 import {
   Sidebar,
@@ -32,6 +34,8 @@ import {
   DropdownMenu,
   DropdownMenuTrigger,
   DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import {
   Collapsible,
@@ -41,11 +45,27 @@ import {
 import { DotLottieReact } from "@lottiefiles/dotlottie-react";
 import { useTheme } from "next-themes";
 import Image from "next/image";
+import { useEffect, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { Badge } from "@/components/ui/badge";
+
+interface InstagramAccount {
+  id: string;
+  provider: string;
+  name: string;
+  providerAccountId: string;
+  connected: boolean;
+  isMain?: boolean;
+}
 
 export function AppSidebar() {
   const { data: session, status } = useSession();
   const { state } = useSidebar(); // Hook para saber se a sidebar está "collapsed" ou "open"
   const { toggleSidebar } = useSidebar();
+  const [connectedAccounts, setConnectedAccounts] = useState<InstagramAccount[]>([]);
+  const [activeAccountId, setActiveAccountId] = useState<string | null>(null);
+  const pathname = usePathname();
+  const router = useRouter();
 
   const isLoading = status === "loading";
 
@@ -61,14 +81,127 @@ export function AppSidebar() {
       ? "/animations/logodarckInstagram.lottie"
       : "/animations/logolightInstagram.lottie";
 
-  // Função para desconectar o Instagram
-  async function handleInstagramLogout() {
+  // Efeito para detectar a conta ativa com base na URL
+  useEffect(() => {
+    if (pathname) {
+      const match = pathname.match(/\/dashboard\/([^\/]+)/);
+      if (match && match[1]) {
+        setActiveAccountId(match[1]);
+      } else {
+        setActiveAccountId(null);
+      }
+    }
+  }, [pathname]);
+
+  // Efeito para carregar contas conectadas
+  useEffect(() => {
+    if (session?.user?.id) {
+      // Buscar todas as contas conectadas
+      const fetchAccounts = async () => {
+        try {
+          const response = await fetch('/api/auth/instagram/accounts');
+
+          if (response.ok) {
+            const data = await response.json();
+            if (data.accounts && Array.isArray(data.accounts)) {
+              setConnectedAccounts(data.accounts.map((account: any) => ({
+                id: account.id,
+                provider: "instagram",
+                name: account.igUsername || "Instagram",
+                providerAccountId: account.providerAccountId,
+                connected: true,
+                isMain: account.isMain
+              })));
+            }
+          } else {
+            console.error("Erro ao buscar contas conectadas");
+            // Se houver erro, mas tiver uma conta na sessão, mostrar pelo menos essa
+            if (session?.user?.instagramAccessToken && session?.user?.providerAccountId) {
+              setConnectedAccounts([
+                {
+                  id: session.user.providerAccountId,
+                  provider: "instagram",
+                  name: "Instagram Principal",
+                  providerAccountId: session.user.providerAccountId,
+                  connected: true,
+                  isMain: true
+                }
+              ]);
+            } else {
+              // Não há contas conectadas
+              setConnectedAccounts([]);
+            }
+          }
+        } catch (error) {
+          console.error("Erro ao buscar contas do Instagram:", error);
+          // Fallback para a conta na sessão
+          if (session?.user?.instagramAccessToken && session?.user?.providerAccountId) {
+            setConnectedAccounts([
+              {
+                id: session.user.providerAccountId,
+                provider: "instagram",
+                name: "Instagram Principal",
+                providerAccountId: session.user.providerAccountId,
+                connected: true,
+                isMain: true
+              }
+            ]);
+          } else {
+            setConnectedAccounts([]);
+          }
+        }
+      };
+
+      fetchAccounts();
+    }
+  }, [session]);
+
+  // Função para navegar para o dashboard de uma conta específica
+  function navigateToAccount(accountId: string) {
+    router.push(`/${accountId}/dashboard`);
+  }
+
+  // Função para desconectar uma conta específica do Instagram
+  async function handleDisconnectAccount(accountId: string) {
     try {
-      const res = await fetch("/auth/instagram/disconnect", {
+      const res = await fetch("/api/auth/instagram/disconnect", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
+        body: JSON.stringify({ accountId }),
+      });
+
+      if (res.ok) {
+        // Atualizar a lista de contas conectadas
+        setConnectedAccounts(prevAccounts =>
+          prevAccounts.filter(account => account.id !== accountId)
+        );
+
+        // Se a conta desconectada for a ativa, redirecionar para o dashboard principal
+        if (activeAccountId === accountId) {
+          router.push('/dashboard');
+        }
+      } else {
+        const errorData = await res.json();
+        console.error("Falha ao desconectar conta:", errorData);
+        alert("Falha ao desconectar conta. Tente novamente mais tarde.");
+      }
+    } catch (error) {
+      console.error("Erro ao desconectar conta:", error);
+      alert("Ocorreu um erro ao tentar desconectar a conta.");
+    }
+  }
+
+  // Função para desconectar o Instagram (mantida para compatibilidade)
+  async function handleInstagramLogout() {
+    try {
+      const res = await fetch("/api/auth/instagram/disconnect", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        // Sem especificar accountId, a API desconectará a conta principal
       });
 
       if (res.ok) {
@@ -84,6 +217,7 @@ export function AppSidebar() {
       alert("Ocorreu um erro ao tentar desconectar do Instagram.");
     }
   }
+
   // Carregamento Inicial
   if (isLoading) {
     return (
@@ -114,9 +248,108 @@ export function AppSidebar() {
     );
   }
 
+  // Encontrar a conta ativa
+  const activeAccount = connectedAccounts.find(account => account.id === activeAccountId);
+
   return (
     <Sidebar collapsible="icon" side="left" variant="sidebar">
       <SidebarContent>
+        {/* Seletor de Contas */}
+        <div className="p-4">
+          <DropdownMenu>
+            <DropdownMenuTrigger className="w-full">
+              <div className="flex items-center justify-between p-2 bg-accent/50 rounded-md hover:bg-accent transition-colors">
+                <div className="flex items-center gap-2">
+                  {activeAccount ? (
+                    <>
+                      <div className="h-8 w-8 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white text-xs font-bold">
+                        {activeAccount.name && activeAccount.name.startsWith('@')
+                          ? activeAccount.name.substring(1, 2).toUpperCase()
+                          : 'I'}
+                      </div>
+                      <div className="flex flex-col items-start">
+                        <span className="text-sm font-medium truncate max-w-[150px]">
+                          {activeAccount.name}
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          {activeAccount.isMain ? 'Conta Principal' : 'Conta Conectada'}
+                        </span>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="h-8 w-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white text-xs font-bold">
+                        <User2 className="h-4 w-4" />
+                      </div>
+                      <div className="flex flex-col items-start">
+                        <span className="text-sm font-medium">Dashboard Principal</span>
+                        <span className="text-xs text-muted-foreground">
+                          {connectedAccounts.length} conta(s) conectada(s)
+                        </span>
+                      </div>
+                    </>
+                  )}
+                </div>
+                <ChevronDown className="h-4 w-4 text-muted-foreground" />
+              </div>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-[250px]">
+              {/* Link para o dashboard principal */}
+              <DropdownMenuItem
+                className="flex items-center gap-2 cursor-pointer"
+                onClick={() => router.push('/dashboard')}
+              >
+                <div className="h-6 w-6 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white text-xs font-bold">
+                  <User2 className="h-3 w-3" />
+                </div>
+                <span>Dashboard Principal</span>
+                {!activeAccountId && <Check className="ml-auto h-4 w-4" />}
+              </DropdownMenuItem>
+
+              {connectedAccounts.length > 0 && (
+                <>
+                  <DropdownMenuSeparator />
+                  <div className="px-2 py-1 text-xs text-muted-foreground">
+                    Contas Conectadas
+                  </div>
+
+                  {connectedAccounts.map((account) => (
+                    <DropdownMenuItem
+                      key={account.id}
+                      className="flex items-center gap-2 cursor-pointer"
+                      onClick={() => navigateToAccount(account.id)}
+                    >
+                      <div className="h-6 w-6 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white text-xs font-bold">
+                        {account.name && account.name.startsWith('@')
+                          ? account.name.substring(1, 2).toUpperCase()
+                          : 'I'}
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-sm">{account.name}</span>
+                        {account.isMain && (
+                          <Badge variant="outline" className="text-[10px] py-0 h-4">
+                            Principal
+                          </Badge>
+                        )}
+                      </div>
+                      {activeAccountId === account.id && <Check className="ml-auto h-4 w-4" />}
+                    </DropdownMenuItem>
+                  ))}
+                </>
+              )}
+
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                className="flex items-center gap-2 cursor-pointer text-primary"
+                onClick={() => router.push('/registro/redesocial')}
+              >
+                <Plus className="h-4 w-4" />
+                <span>Adicionar nova conta</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+
         {/* Grupo Social Login */}
         <Collapsible defaultOpen={false} className="group/collapsible">
           <SidebarGroup>
@@ -165,10 +398,78 @@ export function AppSidebar() {
             <CollapsibleContent>
               <SidebarGroupContent>
                 <div className="p-4">
+                  {/* Lista de contas conectadas */}
+                  {connectedAccounts.length > 0 && (
+                    <div className="mb-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <h3 className="text-sm font-medium">Contas conectadas</h3>
+                        <Link href="/registro/redesocial" className="text-xs text-primary hover:underline">
+                          Gerenciar
+                        </Link>
+                      </div>
+                      <div className="space-y-2">
+                        {connectedAccounts.map((account) => (
+                          <div
+                            key={account.id}
+                            className={`flex items-center justify-between p-2 rounded-md hover:bg-accent transition-colors cursor-pointer ${
+                              activeAccountId === account.id ? 'bg-accent' : 'bg-accent/50'
+                            }`}
+                            onClick={() => navigateToAccount(account.id)}
+                          >
+                            <div className="flex items-center gap-2">
+                              <div className="h-6 w-6 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white text-xs font-bold">
+                                {account.name && account.name.startsWith('@')
+                                  ? account.name.substring(1, 2).toUpperCase()
+                                  : 'I'}
+                              </div>
+                              <div className="flex flex-col">
+                                <span className="text-sm truncate max-w-[120px]">{account.name}</span>
+                                {account.isMain && (
+                                  <Badge variant="outline" className="text-[10px] py-0 h-4">
+                                    Principal
+                                  </Badge>
+                                )}
+                              </div>
+                            </div>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDisconnectAccount(account.id);
+                              }}
+                              className="text-xs text-red-500 hover:text-red-600"
+                              aria-label="Desconectar conta"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-log-out">
+                                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                                <polyline points="16 17 21 12 16 7"></polyline>
+                                <line x1="21" y1="12" x2="9" y2="12"></line>
+                              </svg>
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Botão para adicionar nova conta */}
+                  <SidebarMenu>
+                    <SidebarMenuItem>
+                      <SidebarMenuButton asChild>
+                        <Link
+                          href="/registro/redesocial"
+                          className="flex items-center gap-2 text-primary"
+                        >
+                          <Plus className="w-4 h-4" />
+                          <span>Adicionar nova conta</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  </SidebarMenu>
+
                   {/* Se não está conectado, mostra botão de login do Instagram */}
                   {!isInstagramConnected && (
                     <>
-                      <p className="text-lg font-bold mb-2">
+                      <p className="text-lg font-bold mb-2 mt-4">
                         Para continuar, faça login com sua rede social e
                         autorize o acesso.
                       </p>
@@ -205,14 +506,6 @@ export function AppSidebar() {
                       <p className="text-center mt-2">
                         Instagram conectado e pronto para chamadas API.
                       </p>
-                       {/* Botão de Sair do Instagram */}
-                       <button
-                        onClick={handleInstagramLogout}
-                        className="mt-4 flex items-center gap-2 px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 transition"
-                      >
-                        <Instagram className="w-5 h-5" />
-                        <span>Sair do Instagram</span>
-                      </button>
                     </div>
                   )}
                 </div>

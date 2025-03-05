@@ -1,31 +1,188 @@
-import { prisma } from "@/lib/prisma";
-import { auth, update } from "@/auth"; // <-- IMPORTANTE: trazer a função 'update'
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { auth, update } from "@/auth";
+import prisma from "@/lib/prisma";
 
-export async function POST() {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
+export async function POST(req: NextRequest) {
+  try {
+    const session = await auth();
+
+    if (!session || !session.user || !session.user.id) {
+      return NextResponse.json(
+        { error: "Não autorizado. Faça login para continuar." },
+        { status: 401 }
+      );
+    }
+
+    const body = await req.json();
+    const { accountId } = body;
+
+    // Se não foi fornecido um ID de conta específico, desconectar a conta principal
+    if (!accountId) {
+      // Buscar a conta principal do Instagram
+      const mainAccount = await prisma.account.findFirst({
+        where: {
+          userId: session.user.id,
+          provider: "instagram",
+          isMain: true
+        },
+      });
+
+      if (!mainAccount) {
+        return NextResponse.json(
+          { error: "Nenhuma conta principal do Instagram encontrada" },
+          { status: 404 }
+        );
+      }
+
+      // Excluir a conta principal
+      await prisma.account.delete({
+        where: {
+          id: mainAccount.id,
+        },
+      });
+
+      // Verificar se há outras contas do Instagram
+      const otherAccounts = await prisma.account.findMany({
+        where: {
+          userId: session.user.id,
+          provider: "instagram",
+        },
+        orderBy: {
+          createdAt: 'asc'
+        },
+        take: 1
+      });
+
+      // Se houver outra conta, torná-la a principal
+      if (otherAccounts.length > 0) {
+        const newMainAccount = otherAccounts[0];
+
+        await prisma.account.update({
+          where: {
+            id: newMainAccount.id
+          },
+          data: {
+            isMain: true
+          }
+        });
+
+        // Atualizar a sessão com os dados da nova conta principal
+        await update({
+          user: {
+            instagramAccessToken: newMainAccount.access_token || null,
+            providerAccountId: newMainAccount.providerAccountId || null,
+          }
+        });
+
+        return NextResponse.json({
+          success: true,
+          message: "Conta principal desconectada. Uma nova conta principal foi definida.",
+          newMainAccountId: newMainAccount.id
+        });
+      } else {
+        // Se não houver outras contas, limpar os dados da sessão
+        await update({
+          user: {
+            instagramAccessToken: null,
+            providerAccountId: null,
+          }
+        });
+
+        return NextResponse.json({
+          success: true,
+          message: "Conta principal desconectada. Não há mais contas conectadas."
+        });
+      }
+    }
+
+    // Verificar se a conta específica pertence ao usuário
+    const account = await prisma.account.findFirst({
+      where: {
+        id: accountId,
+        userId: session.user.id,
+        provider: "instagram",
+      },
+    });
+
+    if (!account) {
+      return NextResponse.json(
+        { error: "Conta não encontrada ou não pertence ao usuário" },
+        { status: 404 }
+      );
+    }
+
+    // Verificar se é a conta principal
+    const isMainAccount = account.isMain;
+
+    // Excluir a conta
+    await prisma.account.delete({
+      where: {
+        id: accountId,
+      },
+    });
+
+    // Se era a conta principal, precisamos atualizar a sessão e possivelmente definir uma nova conta principal
+    if (isMainAccount) {
+      // Verificar se há outras contas do Instagram
+      const otherAccounts = await prisma.account.findMany({
+        where: {
+          userId: session.user.id,
+          provider: "instagram",
+        },
+        orderBy: {
+          createdAt: 'asc'
+        },
+        take: 1
+      });
+
+      // Se houver outra conta, torná-la a principal
+      if (otherAccounts.length > 0) {
+        const newMainAccount = otherAccounts[0];
+
+        await prisma.account.update({
+          where: {
+            id: newMainAccount.id
+          },
+          data: {
+            isMain: true
+          }
+        });
+
+        // Atualizar a sessão com os dados da nova conta principal
+        await update({
+          user: {
+            instagramAccessToken: newMainAccount.access_token || null,
+            providerAccountId: newMainAccount.providerAccountId || null,
+          }
+        });
+
+        return NextResponse.json({
+          success: true,
+          message: "Conta desconectada. Uma nova conta principal foi definida.",
+          newMainAccountId: newMainAccount.id
+        });
+      } else {
+        // Se não houver outras contas, limpar os dados da sessão
+        await update({
+          user: {
+            instagramAccessToken: null,
+            providerAccountId: null,
+          }
+        });
+      }
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: isMainAccount
+        ? "Conta principal desconectada."
+        : "Conta secundária desconectada."
+    });
+  } catch (error) {
+    console.error("Erro ao desconectar conta do Instagram:", error);
+    return NextResponse.json(
+      { error: "Ocorreu um erro ao desconectar a conta do Instagram" },
+      { status: 500 }
+    );
   }
-
-  // 1. Remove do banco a conta do Instagram
-  await prisma.account.deleteMany({
-    where: {
-      userId: session.user.id,
-      provider: "instagram",
-    },
-  });
-
-  // 2. Força a atualização do token JWT, setando instagramAccessToken e providerAccountId como undefined
-  //    Isso fará com que o callback 'jwt' capture esse estado e limpe o token
-  await update({
-    user: {
-      isTwoFactorEnabled: session?.user?.isTwoFactorEnabled ?? false,
-      instagramAccessToken: undefined,
-      providerAccountId: undefined,
-    },
-  });
-
-  // 3. Retorna sucesso
-  return NextResponse.json({ success: true });
 }

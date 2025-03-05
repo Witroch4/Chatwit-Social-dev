@@ -18,7 +18,7 @@ import { DotLottieReact } from "@lottiefiles/dotlottie-react";
 import useAgendamentos from "@/hooks/useAgendamentos";
 import { useToast } from "@/hooks/use-toast";
 import axios from "axios";
-import { useRouter } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
 
 interface Agendamento {
   id: string;
@@ -31,6 +31,7 @@ const CalendarioPage: React.FC = () => {
   const { data: session, status } = useSession();
   const router = useRouter();
   const { toast } = useToast();
+  const params = useParams();
 
   // Pega userID e igUserId da sessão
   const userID = session?.user?.id;
@@ -85,8 +86,8 @@ const CalendarioPage: React.FC = () => {
   };
 
   // Função para editar um agendamento (navega para a página de edição)
-  const handleEdit = (agendamentoId: string) => {
-    router.push(`/dashboard/agendamento/editar/${agendamentoId}`);
+  const handleEditarAgendamento = (agendamentoId: string) => {
+    router.push(`/${params.accountid}/dashboard/agendamento/editar/${agendamentoId}`);
   };
 
   return (
@@ -160,7 +161,7 @@ const CalendarioPage: React.FC = () => {
                   </p>
                 </div>
                 <div className="flex gap-2">
-                  <Button size="sm" onClick={() => handleEdit(ag.id)}>
+                  <Button size="sm" onClick={() => handleEditarAgendamento(ag.id)}>
                     Editar
                   </Button>
                   <Button

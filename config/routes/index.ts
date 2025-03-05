@@ -21,6 +21,11 @@ export const configRoutes: ConfigRoutes = {
     "/example/multi-step-form/campaign",
     "/dashboard",
     "/dashboard/*",
+    "/registro/redesocial",
+    "/registro/redesocial/*",
+    // Rotas dinâmicas para contas do Instagram
+    "/:accountid/dashboard",
+    "/:accountid/dashboard/*",
     // "/example/web-site-builder/campaign-hot-page",
   ],
   adminRoutes: [

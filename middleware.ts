@@ -19,14 +19,48 @@ export default auth(async (req) => {
   console.log(`Auth: ${isAuthRoute}`);
   console.log(`Admin: ${isAdminRoute}`);
 
+  // Verificar se é uma rota dinâmica de conta
+  const isAccountRoute = nextUrl.pathname.match(/^\/[^\/]+\/dashboard/);
+
   // Redireciona para a página de login se tentar acessar uma rota protegida sem estar autenticado
-  if (isProtectedRoute && !isLoggedIn) {
+  if ((isProtectedRoute || isAccountRoute) && !isLoggedIn) {
     return NextResponse.redirect(new URL("/auth/login", req.url));
   }
 
   // Redireciona usuários logados da home para o dashboard
   if (isLoggedIn && nextUrl.pathname === "/") {
-    return NextResponse.redirect(new URL("/dashboard", req.url));
+    // Verificar se o usuário tem uma conta do Instagram conectada
+    try {
+      const subscriptionApiUrl = new URL("/api/auth/instagram/accounts", req.url).toString();
+      const cookie = req.headers.get("cookie") || "";
+      const response = await fetch(subscriptionApiUrl, {
+        headers: { cookie },
+        cache: "no-store",
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const accounts = data.accounts || [];
+
+        if (Array.isArray(accounts) && accounts.length > 0) {
+          // Usuário tem pelo menos uma conta do Instagram, redirecionar para a rota dinâmica
+          const mainAccount = accounts.find(account => account.isMain === true) || accounts[0];
+          console.log(`Redirecionando para /${mainAccount.id}/dashboard`);
+          return NextResponse.redirect(new URL(`/${mainAccount.id}/dashboard`, req.url));
+        } else {
+          // Usuário não tem conta do Instagram, redirecionar para a página de registro de rede social
+          console.log('Nenhuma conta encontrada, redirecionando para /registro/redesocial');
+          return NextResponse.redirect(new URL("/registro/redesocial", req.url));
+        }
+      } else {
+        // Erro ao verificar contas, redirecionar para o dashboard padrão
+        console.log('Erro ao verificar contas, redirecionando para /dashboard');
+        return NextResponse.redirect(new URL("/dashboard", req.url));
+      }
+    } catch (error) {
+      console.error('Erro ao verificar contas do Instagram:', error);
+      return NextResponse.redirect(new URL("/dashboard", req.url));
+    }
   }
 
   // Verifica se a rota é admin e se o usuário possui a role "ADMIN"

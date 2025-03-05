@@ -62,6 +62,8 @@ model Account {
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
   igUserId          String?
+  igUsername        String?  // Nome de usuário do Instagram
+  isMain            Boolean  @default(false) // Indica se é a conta principal
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -97,7 +99,7 @@ model ResetPasswordToken {
 
 /**
  * Automacao
- * - Fica igual ao que você já tinha, exceto que removemos “customerEmail” se não for mais necessário.
+ * - Fica igual ao que você já tinha, exceto que removemos "customerEmail" se não for mais necessário.
  */
 model Automacao {
   id                     String   @id @default(cuid())
@@ -131,8 +133,6 @@ model Automacao {
 
   leadsAutomacao         LeadAutomacao[]
 }
-
-
 
 /**
  * Lead

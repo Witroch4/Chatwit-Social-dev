@@ -5,7 +5,7 @@ import "./globals.css";
 import { ThemeProvider } from "@/components/providers/theme-provider";
 import { cn } from "@/lib/utils";
 import { SessionProvider } from "next-auth/react";
-import NavbarGeral from "@/components/navbarGeral";
+import { AppHeader } from "@/components/app-header";
 import { Toaster } from "@/components/ui/toaster"; // Ajuste o caminho conforme necessário
 
 const inter = Inter({ subsets: ["latin"] });
@@ -27,11 +27,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             enableSystem
             disableTransitionOnChange
           >
-            {/* Navbar Geral no topo; some nas rotas /dashboard */}
-            <NavbarGeral />
+            {/* Header global que se adapta a diferentes rotas */}
+            <AppHeader />
 
             {/* Container principal */}
-            <main className="min-h-screen p-4 md:p-8">{children}</main>
+            <main className="min-h-screen p-4 md:p-8 pt-20">{children}</main>
             <Toaster />
           </ThemeProvider>
         </SessionProvider>

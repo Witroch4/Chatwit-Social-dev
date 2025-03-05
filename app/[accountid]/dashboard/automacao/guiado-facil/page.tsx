@@ -26,6 +26,7 @@ import PreviewPhoneMockup from "../components/PreviewPhoneMockup";
 import ToggleActions from "../components/WIT-EQ/ToggleActions";
 
 import { useToast } from "@/hooks/use-toast";
+import { useParams } from "next/navigation";
 
 export interface InstagramUserData {
   id: string;
@@ -49,6 +50,7 @@ export default function UserPage() {
   const { data: session, status } = useSession();
   const { toast } = useToast();
   const router = useRouter();
+  const params = useParams();
 
   // Estados para palavras
   const [selectedOptionPalavra, setSelectedOptionPalavra] = useState<"especifica" | "qualquer">("qualquer");
@@ -245,12 +247,8 @@ export default function UserPage() {
       }
       const data = await res.json();
       console.log("Automação salva:", data);
-      toast({
-        title: "Sucesso",
-        description: "Automação configurada e salva com sucesso!",
-        variant: "default",
-      });
-      router.push(`/dashboard/automacao/guiado-facil/${data.id}`);
+      toast.success("Automação criada com sucesso!");
+      router.push(`/${params.accountid}/dashboard/automacao/guiado-facil/${data.id}`);
     } catch (error: any) {
       console.error("Erro ao salvar automação:", error.message);
       toast({

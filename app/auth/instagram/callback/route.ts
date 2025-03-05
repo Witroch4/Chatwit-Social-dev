@@ -161,8 +161,33 @@ export async function GET(request: Request) {
       },
     });
 
-    // 8. Redirecionar para /dashboard
-    return NextResponse.redirect(`${process.env.NEXTAUTH_URL}/dashboard`);
+    // 8. Verificar se é a primeira conta do Instagram do usuário
+    // Se for a primeira conta, redirecionar para a rota dinâmica
+    // Se não for, redirecionar para a página de registro de rede social
+    if (existingAccount) {
+      // Já tem uma conta, redirecionar para a rota dinâmica com o ID da conta
+      console.log(`Redirecionando para /${existingAccount.id}/dashboard`);
+      return NextResponse.redirect(`${process.env.NEXTAUTH_URL}/${existingAccount.id}/dashboard`);
+    } else {
+      // Buscar a conta recém-criada
+      const newAccount = await prisma.account.findFirst({
+        where: {
+          userId,
+          provider: "instagram",
+          providerAccountId: shortTokenData.user_id,
+        },
+      });
+
+      if (newAccount) {
+        // Redirecionar para a rota dinâmica com o ID da nova conta
+        console.log(`Redirecionando para /${newAccount.id}/dashboard`);
+        return NextResponse.redirect(`${process.env.NEXTAUTH_URL}/${newAccount.id}/dashboard`);
+      } else {
+        // Algo deu errado, redirecionar para a página de registro de rede social
+        console.log('Nenhuma conta encontrada, redirecionando para /registro/redesocial');
+        return NextResponse.redirect(`${process.env.NEXTAUTH_URL}/registro/redesocial`);
+      }
+    }
 
   } catch (err) {
     console.error('Erro no callback do Instagram:', err);

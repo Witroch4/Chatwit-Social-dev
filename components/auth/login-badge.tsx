@@ -6,7 +6,7 @@ import React from "react";
 import { Button } from "@/components/ui/button";
 import type { User } from "next-auth";
 import Link from "next/link";
-import { CircleUser, LogOut } from "lucide-react";
+import { CircleUser, LogOut, Instagram } from "lucide-react";
 import { LineMdCogLoop } from "../icons";
 import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
 import dynamic from "next/dynamic"; // Importação dinâmica
@@ -53,6 +53,10 @@ const LoginBadge = ({ user }: Props) => {
         <Link href="/auth/settings" className="hover:underline flex items-center gap-2">
           <LineMdCogLoop className="mr-2" />
           Perfil
+        </Link>
+        <Link href="/contas" className="hover:underline flex items-center gap-2">
+          <Instagram className="mr-2 h-5 w-5" />
+          Minhas Contas
         </Link>
         <Link href="/cobranca" className="hover:underline flex items-center gap-2">
           <div className="w-6 h-6">
