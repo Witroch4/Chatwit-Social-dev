@@ -33,17 +33,26 @@ export async function POST(
     }
     console.log("[Agendar] Usando accountid da URL:", accountid);
 
-    // Validação dos campos obrigatórios
-    const camposObrigatorios = { Data: body.Data, midia: body.midia };
-    const camposFaltando = Object.entries(camposObrigatorios)
-      .filter(([_, value]) => !value)
-      .map(([key]) => key);
-    if (camposFaltando.length > 0) {
-      return NextResponse.json(
-        { error: `Campos obrigatórios faltando: ${camposFaltando.join(", ")}`, camposFaltando },
-        { status: 400 }
-      );
-    }
+// Validação dos campos obrigatórios
+const camposObrigatorios = { Data: body.Data, midia: body.midia };
+const camposFaltando = Object.entries(camposObrigatorios)
+  .filter(([_, value]) => !value)
+  .map(([key]) => key);
+if (camposFaltando.length > 0) {
+  return NextResponse.json(
+    { error: `Campos obrigatórios faltando: ${camposFaltando.join(", ")}`, camposFaltando },
+    { status: 400 }
+  );
+}
+
+// Valida se pelo menos um tipo de post está selecionado
+if (!(body.Stories || body.Reels || body.PostNormal)) {
+  return NextResponse.json(
+    { error: "Selecione pelo menos um tipo de post (Stories, Reels ou Post Normal)" },
+    { status: 400 }
+  );
+}
+
 
     // Valida se pelo menos um tipo de post está selecionado
     const tiposPost = [body.Stories, body.Reels, body.PostNormal];

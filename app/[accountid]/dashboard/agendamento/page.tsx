@@ -165,14 +165,17 @@ const AgendamentoDePostagens: React.FC = () => {
     } catch (error: any) {
       setUploading(false);
       console.error("Erro ao agendar a postagem:", error);
+      const errorMsg =
+        error.response?.data?.error ||
+        error.response?.data?.details ||
+        "Ocorreu um erro ao agendar a postagem.";
       toast({
         title: "Erro ao Agendar",
-        description:
-          error.response?.data?.message ||
-          "Ocorreu um erro ao agendar a postagem.",
+        description: errorMsg,
         variant: "destructive",
       });
     }
+
   };
 
   // Função que adapta o setter para aceitar SetStateAction completo
