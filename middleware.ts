@@ -51,8 +51,8 @@ export default auth(async (req) => {
         if (Array.isArray(accounts) && accounts.length > 0) {
           // Usuário tem pelo menos uma conta do Instagram, redirecionar para a rota dinâmica
           const mainAccount = accounts.find(account => account.isMain === true) || accounts[0];
-          console.log(`Redirecionando para /${mainAccount.id}/dashboard`);
-          return NextResponse.redirect(new URL(`/${mainAccount.id}/dashboard`, req.url));
+          console.log(`Redirecionando para /${mainAccount.providerAccountId}/dashboard`);
+          return NextResponse.redirect(new URL(`/${mainAccount.providerAccountId}/dashboard`, req.url));
         } else {
           // Usuário não tem conta do Instagram, redirecionar para a página de registro de rede social
           console.log('Nenhuma conta encontrada, redirecionando para /registro/redesocial');

@@ -14,8 +14,13 @@ interface InstagramAccount {
   isMain?: boolean;
 }
 
+interface DashboardParams {
+  accountId: string;
+  [key: string]: string | string[];
+}
+
 export default function AccountDashboardPage() {
-  const params = useParams();
+  const params = useParams() as DashboardParams;
   const accountId = params.accountId as string;
   const [account, setAccount] = useState<InstagramAccount | null>(null);
   const [isLoading, setIsLoading] = useState(true);

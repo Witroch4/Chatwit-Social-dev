@@ -1,7 +1,8 @@
+//app\auth\instagram\callback\route.ts
 import { NextResponse } from 'next/server';
-import { auth, update } from "@/auth"; // Funções de autenticação
+import { auth, update } from "@/auth";
 import { prisma } from "@/lib/prisma";
-
+export const runtime = "nodejs";
 export async function GET(request: Request) {
   try {
     // 1. Obter 'code' da query
@@ -90,17 +91,18 @@ export async function GET(request: Request) {
     const userId = session.user.id;
     console.log(`Usuário logado (ID interno): ${userId}`);
 
-    // 5. Obter user_id (a conta business = "1784...") via IG Graph
+    // 5. Buscar dados da conta IG (/me)
     const meUrl = `https://graph.instagram.com/me?fields=id,username,media_count,account_type,user_id&access_token=${finalToken}`;
     const meResp = await fetch(meUrl);
+
+    let igBusinessId: string | null = null;
+    let username: string | null = null;
+
     if (!meResp.ok) {
       const errorText = await meResp.text();
       console.error('Erro ao buscar /me:', errorText);
-      // Podemos continuar, mas não teremos o user_id
-    }
-
-    let igBusinessId: string | null = null;
-    if (meResp.ok) {
+      // Podemos continuar, mas não teremos o user_id business (se for business)
+    } else {
       const meData = await meResp.json() as {
         id: string;
         username: string;
@@ -109,35 +111,61 @@ export async function GET(request: Request) {
       };
       console.log('meData:', meData);
 
+      username = meData.username || null;
+
       if (meData.user_id) {
         igBusinessId = meData.user_id;
         console.log(`Conta BUSINESS ID (user_id) = ${igBusinessId}`);
       }
     }
 
-    // 6. Criar/atualizar a conta "instagram" (app-scoped user ID)
-    const existingAccount = await prisma.account.findFirst({
+    // 6. Verificar se já existe uma conta com o mesmo providerAccountId
+    const existingAccountWithSameId = await prisma.account.findFirst({
+      where: {
+        providerAccountId: shortTokenData.user_id,
+        provider: "instagram",
+      },
+    });
+
+    // Vamos saber quantas contas IG esse usuário já tem:
+    const userIgAccounts = await prisma.account.findMany({
       where: {
         userId,
         provider: "instagram",
       },
     });
 
-    if (existingAccount) {
-      await prisma.account.update({
-        where: { id: existingAccount.id },
+    let accountToUse;
+
+    if (existingAccountWithSameId) {
+      // Se a conta já existe para esse providerAccountId, atualizamos
+      // Verificar se pertence ao mesmo usuário
+      if (existingAccountWithSameId.userId !== userId) {
+        console.log('Esta conta do Instagram já está conectada a outro usuário.');
+        return NextResponse.redirect(
+          `${process.env.NEXTAUTH_URL}/registro/redesocial?error=account_already_connected`
+        );
+      }
+
+      // Atualizar a conta existente
+      accountToUse = await prisma.account.update({
+        where: { id: existingAccountWithSameId.id },
         data: {
-          providerAccountId: shortTokenData.user_id,
           access_token: finalToken,
           expires_at: expiresAt,
           token_type: longTokenData.token_type,
           scope: "instagram_business_basic,instagram_business_manage_messages,instagram_business_manage_comments,instagram_business_content_publish",
-          igUserId: igBusinessId || undefined,
+          igUserId: igBusinessId ?? undefined,
+          igUsername: username ?? undefined,
         },
       });
-      console.log('Conta instagram atualizada.');
+      console.log('Conta Instagram atualizada (mesmo providerAccountId).');
     } else {
-      await prisma.account.create({
+      // 7. Se não existe conta IG com esse providerAccountId, criamos uma nova.
+      // Definir isMain = true somente se for a primeira conta do usuário
+      const isFirstInstagramAccount = userIgAccounts.length === 0;
+
+      const newAccount = await prisma.account.create({
         data: {
           userId,
           provider: "instagram",
@@ -147,13 +175,16 @@ export async function GET(request: Request) {
           expires_at: expiresAt,
           token_type: longTokenData.token_type,
           scope: "instagram_business_basic,instagram_business_manage_messages,instagram_business_manage_comments,instagram_business_content_publish",
-          igUserId: igBusinessId || null,
+          igUserId: igBusinessId,
+          igUsername: username,
+          isMain: isFirstInstagramAccount, // se quiser que só a primeira seja principal
         },
       });
-      console.log('Conta instagram criada.');
+      console.log('Nova conta Instagram criada.');
+      accountToUse = newAccount;
     }
 
-    // 7. Atualizar o token JWT (opcional)
+    // 8. Atualizar o token JWT (para uso imediato, se quiser)
     await update({
       user: {
         instagramAccessToken: finalToken,
@@ -161,32 +192,13 @@ export async function GET(request: Request) {
       },
     });
 
-    // 8. Verificar se é a primeira conta do Instagram do usuário
-    // Se for a primeira conta, redirecionar para a rota dinâmica
-    // Se não for, redirecionar para a página de registro de rede social
-    if (existingAccount) {
-      // Já tem uma conta, redirecionar para a rota dinâmica com o ID da conta
-      console.log(`Redirecionando para /${existingAccount.id}/dashboard`);
-      return NextResponse.redirect(`${process.env.NEXTAUTH_URL}/${existingAccount.id}/dashboard`);
+    // 9. Redirecionar para a rota dinâmica com o providerAccountId
+    if (accountToUse) {
+      console.log(`Redirecionando para /${accountToUse.providerAccountId}/dashboard`);
+      return NextResponse.redirect(`${process.env.NEXTAUTH_URL}/${accountToUse.providerAccountId}/dashboard`);
     } else {
-      // Buscar a conta recém-criada
-      const newAccount = await prisma.account.findFirst({
-        where: {
-          userId,
-          provider: "instagram",
-          providerAccountId: shortTokenData.user_id,
-        },
-      });
-
-      if (newAccount) {
-        // Redirecionar para a rota dinâmica com o ID da nova conta
-        console.log(`Redirecionando para /${newAccount.id}/dashboard`);
-        return NextResponse.redirect(`${process.env.NEXTAUTH_URL}/${newAccount.id}/dashboard`);
-      } else {
-        // Algo deu errado, redirecionar para a página de registro de rede social
-        console.log('Nenhuma conta encontrada, redirecionando para /registro/redesocial');
-        return NextResponse.redirect(`${process.env.NEXTAUTH_URL}/registro/redesocial`);
-      }
+      console.log('Nenhuma conta encontrada, redirecionando para /registro/redesocial');
+      return NextResponse.redirect(`${process.env.NEXTAUTH_URL}/registro/redesocial`);
     }
 
   } catch (err) {

@@ -51,7 +51,7 @@ interface AutomacaoDB {
   id: string;
   selectedMediaId: string | null;
   anyMediaSelected: boolean;
-  selectedOptionPalavra: string; // "especifica" | "qualquer"
+  anyword: boolean;
   palavrasChave: string | null;
   fraseBoasVindas: string | null;
   quickReplyTexto: string | null;
@@ -61,13 +61,25 @@ interface AutomacaoDB {
   responderPublico: boolean;
   pedirEmailPro: boolean;
   emailPrompt: string | null;
-  // NOVOS para os recursos PRO:
   pedirParaSeguirPro: boolean;
   followPrompt: string | null;
   contatoSemClique: boolean;
   noClickPrompt: string | null;
   publicReply: string | null; // JSON string
   live: boolean;
+  accountId: string;
+  userId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface PalavraExpressaoSelectionProps {
+  anyword: boolean;
+  setAnyword: (value: boolean) => void;
+  inputPalavra: string;
+  setInputPalavra: (value: string) => void;
+  disabled?: boolean;
+  className?: string;
 }
 
 export default function GuiadoFacilEditPage() {
@@ -95,7 +107,7 @@ export default function GuiadoFacilEditPage() {
   const [selectedMediaIdLocal, setSelectedMediaIdLocal] = useState<string | null>(null);
 
   // Etapa 1: Palavra/Expressão
-  const [selectedOptionPalavra, setSelectedOptionPalavra] = useState<"especifica" | "qualquer">("qualquer");
+  const [anyword, setAnyword] = useState(true);
   const [inputPalavra, setInputPalavra] = useState("");
 
   // Etapa 2: DM de Boas-Vindas
@@ -109,9 +121,9 @@ export default function GuiadoFacilEditPage() {
 
   // Etapa 4: Outros recursos
   const [switchResponderComentario, setSwitchResponderComentario] = useState(false);
-  const [publicReply1, setPublicReply1] = useState("");
-  const [publicReply2, setPublicReply2] = useState("");
-  const [publicReply3, setPublicReply3] = useState("");
+  const [publicReply1, setPublicReply1] = useState("Obrigado! ❤️ Por favor, veja DMs.");
+  const [publicReply2, setPublicReply2] = useState("Te enviei uma mensagem ✅️  Verificar.");
+  const [publicReply3, setPublicReply3] = useState("Que bom 👍 Verifica as tuas DMs.");
 
   // Switch para Pedir email PRO
   const [switchPedirEmail, setSwitchPedirEmail] = useState(false);
@@ -154,15 +166,23 @@ export default function GuiadoFacilEditPage() {
           throw new Error(errData.error || "Falha ao buscar automação");
         }
         const data = (await res.json()) as AutomacaoDB;
+
+        // Configurações da Etapa 1
         setSelectedOptionPostagem(data.anyMediaSelected ? "qualquer" : "especifico");
         setSelectedMediaIdLocal(data.selectedMediaId);
-        setSelectedOptionPalavra(data.selectedOptionPalavra as "especifica" | "qualquer");
+
+        // Configuração de Palavra/Expressão
+        setAnyword(data.anyword);
         setInputPalavra(data.palavrasChave || "");
+
+        // Configurações das mensagens
         setDmWelcomeMessage(data.fraseBoasVindas || "");
         setDmQuickReply(data.quickReplyTexto || "");
         setDmSecondMessage(data.mensagemEtapa3 || "");
         setDmLink(data.linkEtapa3 || "");
         setDmButtonLabel(data.legendaBotaoEtapa3 || "");
+
+        // Configurações de resposta pública
         setSwitchResponderComentario(data.responderPublico);
         if (data.publicReply) {
           try {
@@ -170,15 +190,22 @@ export default function GuiadoFacilEditPage() {
             setPublicReply1(arr[0] || "");
             setPublicReply2(arr[1] || "");
             setPublicReply3(arr[2] || "");
-          } catch {}
+          } catch (e) {
+            console.error("Erro ao parsear respostas públicas:", e);
+          }
         }
+
+        // Configurações PRO
         setSwitchPedirEmail(data.pedirEmailPro);
         setEmailPrompt(data.emailPrompt || emailPrompt);
         setSwitchPedirParaSeguir(data.pedirParaSeguirPro);
         setFollowPrompt(data.followPrompt || followPrompt);
         setSwitchEntrarEmContato(data.contatoSemClique);
         setNoClickPrompt(data.noClickPrompt || noClickPrompt);
+
+        // Status da automação
         setIsLive(data.live);
+
       } catch (err: any) {
         setAutoError(err.message);
       } finally {
@@ -257,7 +284,7 @@ export default function GuiadoFacilEditPage() {
       });
       return false;
     }
-    if (selectedOptionPalavra === "especifica" && inputPalavra.trim() === "") {
+    if (!anyword && inputPalavra.trim() === "") {
       toast({
         title: "Erro",
         description: "Preencha as palavras-chave ou selecione 'qualquer'.",
@@ -304,8 +331,7 @@ export default function GuiadoFacilEditPage() {
         // Etapa 1
         selectedMediaId: selectedOptionPostagem === "especifico" ? selectedPost?.id || null : null,
         anyMediaSelected: selectedOptionPostagem === "qualquer",
-        selectedOptionPalavra: selectedOptionPalavra,
-        palavrasChave: selectedOptionPalavra === "especifica" ? inputPalavra : null,
+        palavrasChave: !anyword ? inputPalavra : null,
         // Etapa 2
         fraseBoasVindas: dmWelcomeMessage,
         quickReplyTexto: dmQuickReply,
@@ -330,20 +356,24 @@ export default function GuiadoFacilEditPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "updateAll", data: payload }),
       });
+
       if (!res.ok) {
         const errData = await res.json();
-        throw new Error(errData.error || "Erro ao salvar automação.");
+        throw new Error(errData.error || "Erro ao atualizar automação.");
       }
+
       toast({
         title: "Sucesso",
         description: "Automação atualizada com sucesso!",
         variant: "default",
       });
+
+      setIsEditing(false);
     } catch (error: any) {
-      console.error("Erro ao salvar automação:", error.message);
+      console.error("Erro ao atualizar automação:", error.message);
       toast({
         title: "Falha",
-        description: "Erro ao salvar automação: " + error.message,
+        description: "Erro ao atualizar automação: " + error.message,
         variant: "destructive",
       });
     }
@@ -430,8 +460,8 @@ export default function GuiadoFacilEditPage() {
         />
 
         <PalavraExpressaoSelection
-          selectedOptionPalavra={selectedOptionPalavra}
-          setSelectedOptionPalavra={(val) => setSelectedOptionPalavra(val as "especifica" | "qualquer")}
+          anyword={anyword}
+          setAnyword={setAnyword}
           inputPalavra={inputPalavra}
           setInputPalavra={(val) => {
             setInputPalavra(val);
@@ -446,7 +476,7 @@ export default function GuiadoFacilEditPage() {
         <Separator className="my-4 w-full" />
 
         {/* Etapa 2 */}
-        <div style={{ width: "100%" }}>
+        <div style={{ width: "100%" }} className={!isEditing ? "opacity-70" : ""}>
           <h3 className="text-lg font-semibold">Etapa 2</h3>
           <p className="text-sm text-muted-foreground mb-2">(Inicialmente, eles receberão uma DM de boas-vindas)</p>
           <div className="mt-4">
@@ -455,7 +485,7 @@ export default function GuiadoFacilEditPage() {
             </label>
             <Textarea
               id="dmWelcomeMessage"
-              className={`mt-2 ${!isEditing ? "cursor-not-allowed" : ""}`}
+              className={`mt-2 ${!isEditing ? "cursor-not-allowed bg-muted" : ""}`}
               value={dmWelcomeMessage}
               onChange={(e) => setDmWelcomeMessage(e.target.value)}
               onFocus={() => setToggleValue("dm")}
@@ -468,7 +498,7 @@ export default function GuiadoFacilEditPage() {
             </label>
             <Input
               id="dmQuickReply"
-              className={`mt-2 ${!isEditing ? "cursor-not-allowed" : ""}`}
+              className={`mt-2 ${!isEditing ? "cursor-not-allowed bg-muted" : ""}`}
               value={dmQuickReply}
               onChange={(e) => setDmQuickReply(e.target.value)}
               onFocus={() => setToggleValue("dm")}
@@ -480,7 +510,7 @@ export default function GuiadoFacilEditPage() {
         <Separator className="my-4 w-full" />
 
         {/* Etapa 3 */}
-        <div style={{ width: "100%" }}>
+        <div style={{ width: "100%" }} className={!isEditing ? "opacity-70" : ""}>
           <h3 className="text-lg font-semibold">Etapa 3</h3>
           <p className="text-sm text-muted-foreground mb-2">(Logo depois, a DM com o link será enviada)</p>
           <div className="mt-4">
@@ -489,7 +519,7 @@ export default function GuiadoFacilEditPage() {
             </label>
             <Textarea
               id="dmSecondMessage"
-              className={`mt-2 ${!isEditing ? "cursor-not-allowed" : ""}`}
+              className={`mt-2 ${!isEditing ? "cursor-not-allowed bg-muted" : ""}`}
               value={dmSecondMessage}
               onChange={(e) => setDmSecondMessage(e.target.value)}
               onFocus={() => setToggleValue("dm")}
@@ -502,7 +532,7 @@ export default function GuiadoFacilEditPage() {
             </label>
             <Input
               id="dmLink"
-              className={`mt-2 ${!isEditing ? "cursor-not-allowed" : ""}`}
+              className={`mt-2 ${!isEditing ? "cursor-not-allowed bg-muted" : ""}`}
               value={dmLink}
               onChange={(e) => setDmLink(e.target.value)}
               onFocus={() => setToggleValue("dm")}
@@ -515,7 +545,7 @@ export default function GuiadoFacilEditPage() {
             </label>
             <Input
               id="dmButtonLabel"
-              className={`mt-2 ${!isEditing ? "cursor-not-allowed" : ""}`}
+              className={`mt-2 ${!isEditing ? "cursor-not-allowed bg-muted" : ""}`}
               value={dmButtonLabel}
               onChange={(e) => setDmButtonLabel(e.target.value)}
               onFocus={() => setToggleValue("dm")}
@@ -527,7 +557,7 @@ export default function GuiadoFacilEditPage() {
         <Separator className="my-4 w-full" />
 
         {/* Etapa 4 */}
-        <div style={{ width: "100%" }}>
+        <div style={{ width: "100%" }} className={!isEditing ? "opacity-70" : ""}>
           <h3 className="text-lg font-semibold">Etapa 4</h3>
           <p className="text-sm text-muted-foreground mb-4">(Outros recursos para automatizar)</p>
           <TooltipProvider>
@@ -559,21 +589,21 @@ export default function GuiadoFacilEditPage() {
                 value={publicReply1}
                 onChange={(e) => setPublicReply1(e.target.value)}
                 disabled={!isEditing}
-                className={!isEditing ? "cursor-not-allowed" : ""}
+                className={`${!isEditing ? "cursor-not-allowed bg-muted" : ""}`}
                 placeholder="Resposta Pública 1"
               />
               <Input
                 value={publicReply2}
                 onChange={(e) => setPublicReply2(e.target.value)}
                 disabled={!isEditing}
-                className={!isEditing ? "cursor-not-allowed" : ""}
+                className={`${!isEditing ? "cursor-not-allowed bg-muted" : ""}`}
                 placeholder="Resposta Pública 2"
               />
               <Input
                 value={publicReply3}
                 onChange={(e) => setPublicReply3(e.target.value)}
                 disabled={!isEditing}
-                className={!isEditing ? "cursor-not-allowed" : ""}
+                className={`${!isEditing ? "cursor-not-allowed bg-muted" : ""}`}
                 placeholder="Resposta Pública 3"
               />
             </div>

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
+import { useParams } from "next/navigation";
 
 interface Agendamento {
   id: string;
@@ -9,27 +10,25 @@ interface Agendamento {
 }
 
 /**
- * Agora o hook recebe userID e igUserId
+ * Hook para buscar agendamentos usando o accountid da URL
  */
-const useAgendamentos = (
-  userID: string | undefined,
-  igUserId: string | undefined
-) => {
+const useAgendamentos = (userID: string | undefined) => {
+  const params = useParams();
+  const accountid = params?.accountid as string;
+
   const [agendamentos, setAgendamentos] = useState<Agendamento[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
   const fetchAgendamentos = async () => {
-    // Se não existir userID ou igUserId, não faz a busca
-    if (!userID || !igUserId) return;
+    // Se não existir userID ou accountid, não faz a busca
+    if (!userID || !accountid) return;
 
     setLoading(true);
 
     try {
-      // Passamos userID e igUserId via query string
-      const response = await axios.get(
-        `/api/agendar?userID=${userID}&igUserId=${igUserId}`
-      );
+      // Usa a nova rota com o accountid na URL
+      const response = await axios.get(`/api/${accountid}/agendar`);
       console.log("Resposta da API:", response.data);
 
       // O Baserow geralmente retorna { count, next, previous, results: [ ... ] }
@@ -44,13 +43,13 @@ const useAgendamentos = (
     }
   };
 
-  // Faz a busca inicial assim que userID / igUserId forem definidos
+  // Faz a busca inicial assim que userID / accountid forem definidos
   useEffect(() => {
     fetchAgendamentos();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userID, igUserId]);
+  }, [userID, accountid]);
 
-  return { agendamentos, loading, error, refetch: fetchAgendamentos };
+  return { agendamentos, loading, error, refetch: fetchAgendamentos, accountid };
 };
 
 export default useAgendamentos;

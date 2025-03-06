@@ -84,8 +84,9 @@ export function AppSidebar() {
   // Efeito para detectar a conta ativa com base na URL
   useEffect(() => {
     if (pathname) {
-      const match = pathname.match(/\/dashboard\/([^\/]+)/);
+      const match = pathname.match(/\/([^\/]+)\/dashboard/);
       if (match && match[1]) {
+        // Agora estamos armazenando o providerAccountId como activeAccountId
         setActiveAccountId(match[1]);
       } else {
         setActiveAccountId(null);
@@ -157,29 +158,29 @@ export function AppSidebar() {
   }, [session]);
 
   // Função para navegar para o dashboard de uma conta específica
-  function navigateToAccount(accountId: string) {
-    router.push(`/${accountId}/dashboard`);
+  function navigateToAccount(accountId: string, providerAccountId: string) {
+    router.push(`/${providerAccountId}/dashboard`);
   }
 
   // Função para desconectar uma conta específica do Instagram
-  async function handleDisconnectAccount(accountId: string) {
+  async function handleDisconnectAccount(accountId: string, providerAccountId: string) {
     try {
       const res = await fetch("/api/auth/instagram/disconnect", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ accountId }),
+        body: JSON.stringify({ accountId: providerAccountId }),
       });
 
       if (res.ok) {
         // Atualizar a lista de contas conectadas
         setConnectedAccounts(prevAccounts =>
-          prevAccounts.filter(account => account.id !== accountId)
+          prevAccounts.filter(account => account.providerAccountId !== providerAccountId)
         );
 
         // Se a conta desconectada for a ativa, redirecionar para o dashboard principal
-        if (activeAccountId === accountId) {
+        if (activeAccountId === providerAccountId) {
           router.push('/dashboard');
         }
       } else {
@@ -317,7 +318,7 @@ export function AppSidebar() {
                     <DropdownMenuItem
                       key={account.id}
                       className="flex items-center gap-2 cursor-pointer"
-                      onClick={() => navigateToAccount(account.id)}
+                      onClick={() => navigateToAccount(account.id, account.providerAccountId)}
                     >
                       <div className="h-6 w-6 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white text-xs font-bold">
                         {account.name && account.name.startsWith('@')
@@ -332,7 +333,7 @@ export function AppSidebar() {
                           </Badge>
                         )}
                       </div>
-                      {activeAccountId === account.id && <Check className="ml-auto h-4 w-4" />}
+                      {activeAccountId === account.providerAccountId && <Check className="ml-auto h-4 w-4" />}
                     </DropdownMenuItem>
                   ))}
                 </>
@@ -412,9 +413,9 @@ export function AppSidebar() {
                           <div
                             key={account.id}
                             className={`flex items-center justify-between p-2 rounded-md hover:bg-accent transition-colors cursor-pointer ${
-                              activeAccountId === account.id ? 'bg-accent' : 'bg-accent/50'
+                              activeAccountId === account.providerAccountId ? 'bg-accent' : 'bg-accent/50'
                             }`}
-                            onClick={() => navigateToAccount(account.id)}
+                            onClick={() => navigateToAccount(account.id, account.providerAccountId)}
                           >
                             <div className="flex items-center gap-2">
                               <div className="h-6 w-6 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white text-xs font-bold">
@@ -434,7 +435,7 @@ export function AppSidebar() {
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
-                                handleDisconnectAccount(account.id);
+                                handleDisconnectAccount(account.id, account.providerAccountId);
                               }}
                               className="text-xs text-red-500 hover:text-red-600"
                               aria-label="Desconectar conta"
@@ -650,7 +651,7 @@ export function AppSidebar() {
               <SidebarMenuItem>
                 <SidebarMenuButton asChild>
                   <Link
-                    href="/dashboard/agendamento"
+                    href={activeAccountId ? `/${activeAccountId}/dashboard/agendamento` : "/dashboard/agendamento"}
                     className={`flex items-center ${
                       state === "collapsed" ? "justify-start pl-4" : "justify-start pl-2"
                     }`}
@@ -671,7 +672,7 @@ export function AppSidebar() {
               <SidebarMenuItem>
                 <SidebarMenuButton asChild>
                   <Link
-                    href="/dashboard/calendario"
+                    href={activeAccountId ? `/${activeAccountId}/dashboard/calendario` : "/dashboard/calendario"}
                     className={`flex items-center ${
                       state === "collapsed" ? "justify-start pl-4" : "justify-start pl-2"
                     }`}
@@ -692,7 +693,7 @@ export function AppSidebar() {
               <SidebarMenuItem>
                 <SidebarMenuButton asChild>
                   <Link
-                    href="/dashboard/automacao"
+                    href={activeAccountId ? `/${activeAccountId}/dashboard/automacao` : "/dashboard/automacao"}
                     className={`flex items-center ${
                       state === "collapsed" ? "justify-start pl-4" : "justify-start pl-2"
                     }`}

@@ -27,11 +27,16 @@ interface Agendamento {
   // Outros campos se necessário…
 }
 
-const CalendarioPage: React.FC = () => {
+interface CalendarParams {
+  accountid: string;
+  [key: string]: string | string[];
+}
+
+export default function CalendarioPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
   const { toast } = useToast();
-  const params = useParams();
+  const params = useParams() as CalendarParams;
 
   // Pega userID e igUserId da sessão
   const userID = session?.user?.id;
@@ -87,6 +92,7 @@ const CalendarioPage: React.FC = () => {
 
   // Função para editar um agendamento (navega para a página de edição)
   const handleEditarAgendamento = (agendamentoId: string) => {
+    if (!params.accountid) return;
     router.push(`/${params.accountid}/dashboard/agendamento/editar/${agendamentoId}`);
   };
 
@@ -182,6 +188,4 @@ const CalendarioPage: React.FC = () => {
       </Dialog>
     </main>
   );
-};
-
-export default CalendarioPage;
+}

@@ -46,12 +46,14 @@ interface MenuAcoesProps {
   automacao: Automacao
   fetchData: () => void
   pastas: Pasta[]
+  providerAccountId: string
 }
 
 export default function MenuAcoesAutomacao({
   automacao,
   fetchData,
   pastas,
+  providerAccountId,
 }: MenuAcoesProps) {
   // Estado do dropdown
   const [menuOpen, setMenuOpen] = useState(false)
@@ -91,7 +93,7 @@ export default function MenuAcoesAutomacao({
   // Funções de API
   async function handleRename() {
     try {
-      const res = await fetch(`/api/automacao/${automacao.id}`, {
+      const res = await fetch(`/api/automacao/${automacao.id}?providerAccountId=${providerAccountId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -113,10 +115,8 @@ export default function MenuAcoesAutomacao({
 
   async function handleDuplicate() {
     try {
-      const res = await fetch(`/api/automacao/${automacao.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "duplicate" }),
+      const res = await fetch(`/api/automacao/${automacao.id}/duplicate?providerAccountId=${providerAccountId}`, {
+        method: "POST",
       })
       if (!res.ok) {
         const err = await res.json()
@@ -136,10 +136,13 @@ export default function MenuAcoesAutomacao({
     const folderId = selectedFolderId === "root" ? null : selectedFolderId
 
     try {
-      const res = await fetch(`/api/automacao/${automacao.id}`, {
+      const res = await fetch(`/api/automacao/${automacao.id}?providerAccountId=${providerAccountId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "move", folderId: folderId }),
+        body: JSON.stringify({
+          action: "move",
+          folderId: folderId,
+        }),
       })
       if (!res.ok) {
         const err = await res.json()
@@ -155,12 +158,12 @@ export default function MenuAcoesAutomacao({
 
   async function handleDelete() {
     try {
-      const res = await fetch(`/api/automacao/${automacao.id}`, {
+      const res = await fetch(`/api/automacao/${automacao.id}?providerAccountId=${providerAccountId}`, {
         method: "DELETE",
       })
       if (!res.ok) {
         const err = await res.json()
-        throw new Error(err.error || "Falha ao deletar automação")
+        throw new Error(err.error || "Falha ao excluir automação")
       }
       setOpenDelete(false)
       fetchData()

@@ -14,6 +14,16 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: 'Nenhum arquivo enviado.' }, { status: 400 })
     }
 
+    // Validar URL do Baserow
+    const baserowUrl = process.env.BASEROW_UPLOAD_URL;
+    if (!baserowUrl) {
+      console.error('BASEROW_UPLOAD_URL não definida no .env')
+      return NextResponse.json({ message: 'Configuração do servidor incorreta.' }, { status: 500 })
+    }
+
+    // Garantir que a URL começa com https://
+    const uploadUrl = baserowUrl.replace(/^htpps?:\/\//, 'https://')
+
     // Criar novo FormData para enviar ao Baserow
     const uploadFormData = new FormData()
     uploadFormData.append('file', file, file.name)
@@ -21,7 +31,7 @@ export async function POST(request: Request) {
     console.log('Enviando arquivo para o Baserow:', file.name)
 
     // Enviar requisição ao Baserow
-    const response = await axios.post(process.env.BASEROW_UPLOAD_URL as string, uploadFormData, {
+    const response = await axios.post(uploadUrl, uploadFormData, {
       headers: {
         Authorization: `Token ${process.env.BASEROW_TOKEN}`,
         // 'Content-Type': multipart/form-data é definido automaticamente pelo Axios ao enviar FormData
@@ -34,6 +44,9 @@ export async function POST(request: Request) {
     return NextResponse.json(response.data, { status: 200 })
   } catch (error: any) {
     console.error('Erro ao fazer upload:', error.response?.data || error.message)
-    return NextResponse.json({ message: 'Erro ao fazer upload do arquivo.' }, { status: 500 })
+    return NextResponse.json({
+      message: 'Erro ao fazer upload do arquivo.',
+      error: error.message
+    }, { status: 500 })
   }
 }

@@ -12,16 +12,31 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { cn } from "@/lib/utils"
-import { useRouter } from "next/navigation"
+import { useRouter, useParams } from "next/navigation"
+
+interface AutomacaoParams {
+  accountid: string;
+  [key: string]: string | string[];
+}
+
+interface PalavraExpressaoSelectionProps {
+  anyword: boolean;
+  setAnyword: (value: boolean) => void;
+  inputPalavra: string;
+  setInputPalavra: (value: string) => void;
+  disabled?: boolean;
+  className?: string;
+}
 
 export default function NovaAutomacaoDialog() {
   const [open, setOpen] = useState(false)
   const router = useRouter()
+  const params = useParams() as AutomacaoParams
 
-  // Exemplo: Se for criar uma automação “Eu Quero...”
+  // Exemplo: Se for criar uma automação "Eu Quero..."
   function handleCardAutomacaoEuQuero() {
-    // Redireciona para a página de criação/edição
-    router.push("/dashboard/automacao/guiado-facil")
+    // Redireciona para a página de criação/edição usando o accountid da rota
+    router.push(`/${params.accountid}/dashboard/automacao/guiado-facil`)
     setOpen(false)
   }
 
@@ -65,7 +80,7 @@ export default function NovaAutomacaoDialog() {
               </div>
             </div>
 
-            {/* Cards de exemplo “Em desenvolvimento” */}
+            {/* Cards de exemplo "Em desenvolvimento" */}
             <CardEmDesenvolvimento
               titulo="Gere leads dos stories"
               descricao="Use ofertas por tempo limitado nos Stories para converter leads"

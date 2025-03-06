@@ -1,8 +1,10 @@
-// app/api/automacao/[id]/route.ts
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
 import { v4 as uuidv4 } from "uuid";
+
+// Forçar o uso do runtime NodeJS (em vez do Edge)
+export const runtime = "nodejs";
 
 type PatchAction = "rename" | "duplicate" | "move" | "delete" | "updateAll";
 
@@ -13,17 +15,16 @@ interface PatchBody {
   data?: any; // Para o updateAll: { [campo]: valor }
 }
 
-export async function GET(
-  request: Request,
-  context: { params: Promise<{ id: string }> }
-) {
+export async function GET(request: Request, context: any) {
   try {
     const session = await auth();
     if (!session?.user?.id) {
       return NextResponse.json({ error: "Usuário não autenticado." }, { status: 401 });
     }
 
-    const { id: automacaoId } = await context.params;
+    const { params } = context;
+    const { id: automacaoId } = params;
+
     const automacao = await prisma.automacao.findUnique({
       where: { id: automacaoId },
     });
@@ -39,17 +40,15 @@ export async function GET(
   }
 }
 
-export async function PATCH(
-  request: Request,
-  context: { params: Promise<{ id: string }> }
-) {
+export async function PATCH(request: Request, context: any) {
   try {
     const session = await auth();
     if (!session?.user?.id) {
       return NextResponse.json({ error: "Usuário não autenticado." }, { status: 401 });
     }
 
-    const { id: automacaoId } = await context.params;
+    const { params } = context;
+    const { id: automacaoId } = params;
     const body = (await request.json()) as PatchBody;
 
     // Carrega a automação
@@ -60,11 +59,44 @@ export async function PATCH(
       return NextResponse.json({ error: "Automação não encontrada ou sem permissão." }, { status: 404 });
     }
 
-    // Se for o updateAll, remova o campo selectedOptionPalavra se existir e calcule anyword
+    // Se for o updateAll, podemos querer atualizar vários campos de uma vez
     if (body.action === "updateAll" && body.data && typeof body.data === "object") {
+      // 1) Converter "selectedOptionPalavra" -> "anyword"
       if ("selectedOptionPalavra" in body.data) {
         body.data.anyword = body.data.selectedOptionPalavra === "qualquer";
+        if (!body.data.anyword && (!body.data.palavrasChave || body.data.palavrasChave.trim() === "")) {
+          return NextResponse.json(
+            { error: "Palavras-chave são obrigatórias quando não é selecionado 'qualquer'." },
+            { status: 400 }
+          );
+        }
         delete body.data.selectedOptionPalavra;
+      }
+
+      // 2) Se quiser trocar de conta, via "providerAccountId"
+      if ("providerAccountId" in body.data && body.data.providerAccountId) {
+        const providerAccountId = body.data.providerAccountId as string;
+
+        // Buscar a nova conta do usuário
+        const newAccount = await prisma.account.findFirst({
+          where: {
+            userId: session.user.id,
+            provider: "instagram",
+            providerAccountId,
+          },
+        });
+        if (!newAccount) {
+          return NextResponse.json(
+            { error: "Nova conta Instagram não encontrada ou não pertence ao usuário." },
+            { status: 404 }
+          );
+        }
+
+        // No update, passaremos "accountId" = newAccount.id
+        body.data.accountId = newAccount.id;
+
+        // Remover o providerAccountId do "data"
+        delete body.data.providerAccountId;
       }
     }
 
@@ -79,10 +111,12 @@ export async function PATCH(
         });
         return NextResponse.json(renamed, { status: 200 });
       }
+
       case "duplicate": {
         const duplicated = await prisma.automacao.create({
           data: {
             userId: automacao.userId,
+            accountId: automacao.accountId,
             folderId: automacao.folderId,
             selectedMediaId: automacao.selectedMediaId,
             anyMediaSelected: automacao.anyMediaSelected,
@@ -107,6 +141,7 @@ export async function PATCH(
         });
         return NextResponse.json(duplicated, { status: 201 });
       }
+
       case "move": {
         if (body.folderId === undefined) {
           return NextResponse.json({ error: "Informe folderId para mover a automação." }, { status: 400 });
@@ -117,20 +152,22 @@ export async function PATCH(
         });
         return NextResponse.json(moved, { status: 200 });
       }
+
       case "updateAll": {
         if (!body.data || typeof body.data !== "object") {
-          return NextResponse.json({ error: "Nenhum campo para atualizar. body.data ausente ou inválido." }, { status: 400 });
+          return NextResponse.json(
+            { error: "Nenhum campo para atualizar. body.data ausente ou inválido." },
+            { status: 400 }
+          );
         }
-        const updatedData: any = {};
-        for (const key of Object.keys(body.data)) {
-          updatedData[key] = body.data[key];
-        }
+
         const updated = await prisma.automacao.update({
           where: { id: automacaoId },
-          data: updatedData,
+          data: body.data,
         });
         return NextResponse.json(updated, { status: 200 });
       }
+
       default:
         return NextResponse.json({ error: "Ação inválida." }, { status: 400 });
     }
@@ -140,17 +177,16 @@ export async function PATCH(
   }
 }
 
-export async function DELETE(
-  request: Request,
-  context: { params: Promise<{ id: string }> }
-) {
+export async function DELETE(request: Request, context: any) {
   try {
     const session = await auth();
     if (!session?.user?.id) {
       return NextResponse.json({ error: "Usuário não autenticado." }, { status: 401 });
     }
 
-    const { id: automacaoId } = await context.params;
+    const { params } = context;
+    const { id: automacaoId } = params;
+
     const automacao = await prisma.automacao.findUnique({
       where: { id: automacaoId },
     });

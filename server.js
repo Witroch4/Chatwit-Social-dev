@@ -65,7 +65,7 @@ app.prepare().then(() => {
       [
         "http",
         "--region=sa",
-        "--hostname=moving-eagle-bright.ngrok-free.app",
+        "--hostname=wondrous-climbing-mallard.ngrok-free.app",
         "3000",
       ],
       {

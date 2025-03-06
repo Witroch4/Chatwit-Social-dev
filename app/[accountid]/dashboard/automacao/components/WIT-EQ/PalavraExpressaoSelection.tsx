@@ -1,5 +1,3 @@
-// app/dashboard/automacao/components/PalavraExpressaoSelection.tsx
-
 "use client";
 
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -9,22 +7,20 @@ import { Button } from "@/components/ui/button";
 import { useRef } from "react";
 
 interface Props {
-  selectedOptionPalavra: string;
-  setSelectedOptionPalavra: (val: string) => void;
+  anyword: boolean; // true significa "qualquer palavra", false significa "específica"
+  setAnyword: (val: boolean) => void;
   inputPalavra: string;
   setInputPalavra: (val: string) => void;
-
-  // NOVO: Adicionando props para desabilitar o componente
   disabled?: boolean;
   className?: string;
 }
 
 export default function PalavraExpressaoSelection({
-  selectedOptionPalavra,
-  setSelectedOptionPalavra,
+  anyword,
+  setAnyword,
   inputPalavra,
   setInputPalavra,
-  disabled = false, // Valor padrão como false
+  disabled = false,
   className = "",
 }: Props) {
   // Referência para o campo de input, para focar após inserir uma palavra
@@ -35,20 +31,27 @@ export default function PalavraExpressaoSelection({
 
   // Função para lidar com o clique em um exemplo
   const handleExemploClick = (exemplo: string) => {
-    if (disabled) return; // <<< BLOQUEIA A INSERÇÃO SE ESTIVER DESABILITADO
+    if (disabled) return;
     setInputPalavra(exemplo);
-    // Opcional: Focar no campo de input após a inserção
     inputRef.current?.focus();
   };
 
   return (
-    <div className={className} style={{ pointerEvents: disabled ? "none" : "auto", opacity: disabled ? 0.6 : 1 }}>
+    <div
+      className={className}
+      style={{ pointerEvents: disabled ? "none" : "auto", opacity: disabled ? 0.6 : 1 }}
+    >
       <h2 style={{ margin: "20px 0 10px" }}>Palavra ou Expressão</h2>
+
+      {/*
+          RadioGroup: se o valor for "qualquer-palavra", então anyword = true;
+          se for "especifica", anyword = false.
+      */}
       <RadioGroup
-        value={selectedOptionPalavra}
+        value={anyword ? "qualquer-palavra" : "especifica"}
         onValueChange={(v) => {
-          if (disabled) return; // <<< BLOQUEIA A MUDANÇA SE ESTIVER DESABILITADO
-          setSelectedOptionPalavra(v);
+          if (disabled) return;
+          setAnyword(v === "qualquer-palavra");
         }}
         style={{ marginBottom: "10px" }}
       >
@@ -62,7 +65,8 @@ export default function PalavraExpressaoSelection({
         </div>
       </RadioGroup>
 
-      {selectedOptionPalavra === "especifica" && (
+      {/* Exibe o input apenas se não for "qualquer palavra" (anyword === false) */}
+      {!anyword && (
         <div style={{ marginBottom: "20px" }}>
           <Input
             ref={inputRef}
@@ -70,12 +74,12 @@ export default function PalavraExpressaoSelection({
             placeholder="Digite a palavra ou expressão..."
             value={inputPalavra}
             onChange={(e) => {
-              if (disabled) return; // <<< BLOQUEIA A MUDANÇA SE ESTIVER DESABILITADO
+              if (disabled) return;
               setInputPalavra(e.target.value);
             }}
             style={{ marginBottom: "10px", cursor: disabled ? "not-allowed" : "text" }}
             aria-label="Palavra ou Expressão específica"
-            disabled={disabled} // <<< DESABILITA O INPUT
+            disabled={disabled}
           />
           <div style={{ display: "flex", gap: "10px" }}>
             {exemplos.map((exemplo, index) => (
@@ -85,12 +89,12 @@ export default function PalavraExpressaoSelection({
                 size="sm"
                 onClick={() => handleExemploClick(exemplo)}
                 style={{
-                  textTransform: "capitalize", // Deixa a primeira letra maiúscula
-                  cursor: disabled ? "not-allowed" : "pointer", // <<< ALTERAÇÃO DO CURSOR
-                  pointerEvents: disabled ? "none" : "auto", // <<< IMPEDIR CLIQUE
+                  textTransform: "capitalize",
+                  cursor: disabled ? "not-allowed" : "pointer",
+                  pointerEvents: disabled ? "none" : "auto",
                 }}
                 aria-label={`Inserir a palavra ${exemplo}`}
-                disabled={disabled} // <<< DESABILITA O BOTÃO
+                disabled={disabled}
               >
                 {exemplo}
               </Button>

@@ -1,22 +1,23 @@
+//app\auth\instagram\accounts\route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+
+// Forçar ambiente Node
+export const runtime = "nodejs";
 
 export async function GET(request: NextRequest) {
   try {
     const session = await auth();
 
     if (!session?.user) {
-      return NextResponse.json(
-        { error: "Não autorizado" },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
     }
 
     const accounts = await prisma.account.findMany({
       where: {
         userId: session.user.id,
-        provider: "instagram"
+        provider: "instagram",
       },
       select: {
         id: true,
@@ -26,12 +27,11 @@ export async function GET(request: NextRequest) {
         igUserId: true,
         isMain: true,
         createdAt: true,
-        updatedAt: true
-      }
+        updatedAt: true,
+      },
     });
 
-    // Mapear os resultados para garantir que todos os campos necessários estejam presentes
-    const mappedAccounts = accounts.map(account => ({
+    const mappedAccounts = accounts.map((account) => ({
       id: account.id,
       providerAccountId: account.providerAccountId,
       access_token: account.access_token,
@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
       igUserId: account.igUserId || null,
       isMain: account.isMain || false,
       createdAt: account.createdAt,
-      updatedAt: account.updatedAt
+      updatedAt: account.updatedAt,
     }));
 
     return NextResponse.json(mappedAccounts);

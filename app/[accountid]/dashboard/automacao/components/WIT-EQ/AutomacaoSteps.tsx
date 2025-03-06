@@ -1,5 +1,3 @@
-// app/dashboard/automacao/components/WIT-EQ/AutomacaoSteps.tsx
-
 "use client";
 
 import { useState } from "react";
@@ -49,15 +47,15 @@ export default function AutomacaoSteps({
   // Estado para definir se uma postagem específica foi selecionada ou se é "qualquer"
   const [selectedOptionPostagem, setSelectedOptionPostagem] = useState<"especifico" | "qualquer">("especifico");
 
-  // --------------- ETAPA 1 --------------- //
-  const [selectedOptionPalavra, setSelectedOptionPalavra] = useState<"especifica" | "qualquer">("especifica");
+  // Substitui o antigo selectedOptionPalavra (string) por um estado booleano:
+  // anyWord = true  -> "qualquer palavra"
+  // anyWord = false -> "uma palavra ou expressão específica"
+  const [anyWord, setAnyWord] = useState(false);
   const [palavrasChave, setPalavrasChave] = useState("");
 
   // --------------- ETAPA 2 --------------- //
   const [bemVindoTitulo] = useState("Inicialmente, eles receberão uma DM de boas-vindas");
-  const [bemVindoSubtitulo] = useState(
-    "Primeiro, é enviada a DM de abertura, seguida pela mensagem com o link."
-  );
+  const [bemVindoSubtitulo] = useState("Primeiro, é enviada a DM de abertura, seguida pela mensagem com o link.");
 
   // Frase de boas-vindas que aparece no preview
   const [fraseBoasVindas, setFraseBoasVindas] = useState(
@@ -69,11 +67,7 @@ export default function AutomacaoSteps({
 
   // --------------- ETAPA 3 --------------- //
   const [tituloEtapa3] = useState("Logo depois, a DM com o link será enviada");
-
-  // Mensagem + link + legenda do botão
-  const [mensagemEtapa3, setMensagemEtapa3] = useState(
-    "Obrigado por ter respondido segue o nosso link do produto"
-  );
+  const [mensagemEtapa3, setMensagemEtapa3] = useState("Obrigado por ter respondido segue o nosso link do produto");
   const [linkEtapa3, setLinkEtapa3] = useState("https://witdev.com.br");
   const [legendaBotaoEtapa3, setLegendaBotaoEtapa3] = useState("Segue Nosso Site");
 
@@ -85,51 +79,40 @@ export default function AutomacaoSteps({
     contatoSemClique: false,
   });
 
-  // --------------------------------------------
-  // FUNÇÃO PRINCIPAL PARA SALVAR AUTOMACAO
-  // --------------------------------------------
+  // FUNÇÃO PRINCIPAL PARA SALVAR A AUTOMACAO
   async function salvarAutomacao() {
     try {
-      // 1) Montar o objeto payload
       const payload = {
-        // Mídia selecionada ou "qualquer"
+        // Etapa 1
         selectedMediaId: selectedPost?.id || null,
         anyMediaSelected: selectedOptionPostagem === "qualquer",
-
-        // Palavras
-        selectedOptionPalavra, // "especifica" ou "qualquer"
-        palavrasChave,         // ex.: "Preço, Link, Comprar"
-
-        // DM de boas-vindas
+        anyword: anyWord, // envia o boolean diretamente
+        palavrasChave: anyWord ? null : palavrasChave,
+        // Etapa 2
         fraseBoasVindas,
         quickReplyTexto,
-
-        // DM com link
+        // Etapa 3
         mensagemEtapa3,
         linkEtapa3,
         legendaBotaoEtapa3,
-
-        // Outros recursos (checkboxes)
+        // Etapa 4
         responderPublico: outrosRecursos.responderPublico,
         pedirEmailPro: outrosRecursos.pedirEmailPro,
         pedirParaSeguirPro: outrosRecursos.pedirParaSeguirPro,
         contatoSemClique: outrosRecursos.contatoSemClique,
       };
 
-      // 2) Enviar para a rota /api/automacao
       const res = await fetch("/api/automacao", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
 
-      // 3) Verificar se deu erro
       if (!res.ok) {
         const errData = await res.json();
         throw new Error(errData.error || "Erro ao salvar automação.");
       }
 
-      // 4) Se deu certo, mostrar resultado
       const data = await res.json();
       console.log("Automação salva com sucesso:", data);
       alert("Automação configurada e salva!");
@@ -139,7 +122,7 @@ export default function AutomacaoSteps({
     }
   }
 
-  // Exemplo de estado para controlar qual aba do preview está ativa
+  // Estado para controlar a visualização do preview (toggle)
   const [toggleValue, setToggleValue] = useState<ToggleValue>("dm");
   const [commentContent, setCommentContent] = useState("");
 
@@ -147,29 +130,21 @@ export default function AutomacaoSteps({
   const canGoNextStep = (): boolean => {
     switch (step) {
       case 1:
-        // Verificar se Etapa 1 está preenchida
-        if (selectedOptionPalavra === "especifica") {
+        // Se for “uma palavra específica”, exige que o usuário preencha as palavras
+        if (!anyWord) {
           return palavrasChave.trim().length > 0;
         }
-        // Se "qualquer" está selecionado, pode prosseguir
         return true;
-
       case 2:
-        // Verificar se Etapa 2 está preenchida
         return fraseBoasVindas.trim().length > 0 && quickReplyTexto.trim().length > 0;
-
       case 3:
-        // Verificar se Etapa 3 está preenchida
         return (
           mensagemEtapa3.trim().length > 0 &&
           linkEtapa3.trim().length > 0 &&
           legendaBotaoEtapa3.trim().length > 0
         );
-
       case 4:
-        // Na Etapa 4, permite prosseguir livremente
         return true;
-
       default:
         return true;
     }
@@ -184,7 +159,6 @@ export default function AutomacaoSteps({
   };
 
   const handleFinalizar = () => {
-    // Aqui você pode enviar os dados para uma API ou realizar outras ações necessárias
     alert("Automação finalizada!");
   };
 
@@ -201,19 +175,17 @@ export default function AutomacaoSteps({
       <div style={{ padding: 16, border: "1px solid #444", borderRadius: 8, marginBottom: 16 }}>
         <h2>Etapa 1</h2>
         <p>E esse comentário possui:</p>
-
         <label style={{ display: "block", marginBottom: 8 }}>
           <input
             type="radio"
             name="palavraOuQualquer"
             value="especifica"
-            checked={selectedOptionPalavra === "especifica"}
-            onChange={() => setSelectedOptionPalavra("especifica")}
+            checked={!anyWord}
+            onChange={() => setAnyWord(false)}
           />
           &nbsp; Uma palavra ou expressão específica
         </label>
-
-        {selectedOptionPalavra === "especifica" && (
+        { !anyWord && (
           <div style={{ marginLeft: 24, marginBottom: 8 }}>
             <p>Use vírgulas para separar as palavras (por exemplo: Preço, Link, Comprar)</p>
             <input
@@ -225,14 +197,13 @@ export default function AutomacaoSteps({
             />
           </div>
         )}
-
         <label style={{ display: "block", marginTop: 8 }}>
           <input
             type="radio"
             name="palavraOuQualquer"
             value="qualquer"
-            checked={selectedOptionPalavra === "qualquer"}
-            onChange={() => setSelectedOptionPalavra("qualquer")}
+            checked={anyWord}
+            onChange={() => setAnyWord(true)}
           />
           &nbsp; Qualquer palavra
         </label>
@@ -246,7 +217,6 @@ export default function AutomacaoSteps({
         <h2>Etapa 2</h2>
         <h3>{bemVindoTitulo}</h3>
         <p>{bemVindoSubtitulo}</p>
-
         <label style={{ display: "block", margin: "12px 0 4px" }}>
           Frase de boas-vindas
         </label>
@@ -256,7 +226,6 @@ export default function AutomacaoSteps({
           onChange={(e) => setFraseBoasVindas(e.target.value)}
           style={{ width: "100%", padding: "8px", borderRadius: 4, border: "1px solid #ccc" }}
         />
-
         <label style={{ display: "block", margin: "12px 0 4px" }}>
           Quick Reply (ex.: "Me envie o link")
         </label>
@@ -275,7 +244,6 @@ export default function AutomacaoSteps({
       <div style={{ padding: 16, border: "1px solid #444", borderRadius: 8, marginBottom: 16 }}>
         <h2>Etapa 3</h2>
         <h3>{tituloEtapa3}</h3>
-
         <label style={{ display: "block", margin: "12px 0 4px" }}>Escreva uma mensagem</label>
         <textarea
           rows={3}
@@ -284,7 +252,6 @@ export default function AutomacaoSteps({
           value={mensagemEtapa3}
           onChange={(e) => setMensagemEtapa3(e.target.value)}
         />
-
         <label style={{ display: "block", margin: "12px 0 4px" }}>Adicionar um link</label>
         <input
           type="url"
@@ -293,7 +260,6 @@ export default function AutomacaoSteps({
           value={linkEtapa3}
           onChange={(e) => setLinkEtapa3(e.target.value)}
         />
-
         <label style={{ display: "block", margin: "12px 0 4px" }}>
           Adicione legenda ao botão (exemplo: Nosso Produto)
         </label>
@@ -313,7 +279,6 @@ export default function AutomacaoSteps({
       <div style={{ padding: 16, border: "1px solid #444", borderRadius: 8, marginBottom: 16 }}>
         <h2>Etapa 4</h2>
         <p>Outros recursos para automatizar:</p>
-
         <label style={{ display: "block", marginBottom: 8 }}>
           <input
             type="checkbox"
@@ -322,7 +287,6 @@ export default function AutomacaoSteps({
           />
           &nbsp; Responder ao comentário de forma pública
         </label>
-
         <label style={{ display: "block", marginBottom: 8 }}>
           <input
             type="checkbox"
@@ -331,7 +295,6 @@ export default function AutomacaoSteps({
           />
           &nbsp; Pedir email <strong>(PRO)</strong>
         </label>
-
         <label style={{ display: "block", marginBottom: 8 }}>
           <input
             type="checkbox"
@@ -340,7 +303,6 @@ export default function AutomacaoSteps({
           />
           &nbsp; Pedir para seguir antes de enviar o link <strong>(PRO)</strong>
         </label>
-
         <label style={{ display: "block", marginBottom: 8 }}>
           <input
             type="checkbox"
@@ -353,7 +315,6 @@ export default function AutomacaoSteps({
     );
   };
 
-  // --------------- RENDERIZAÇÃO ATUAL --------------- //
   const renderCurrentStep = () => {
     switch (step) {
       case 1:
@@ -374,10 +335,8 @@ export default function AutomacaoSteps({
     }
   };
 
-  // --------------- FUNÇÃO PARA OBTER O CONTEÚDO DO COMMENT --------------- //
   const getCommentContent = () => {
-    // Dependendo da seleção na Etapa 1, retornar palavras-chave ou "qualquer"
-    if (selectedOptionPalavra === "especifica") {
+    if (!anyWord) {
       return palavrasChave;
     } else {
       return "qualquer";
@@ -389,8 +348,6 @@ export default function AutomacaoSteps({
       {/* COLUNA ESQUERDA: FORMULÁRIO DE VÁRIAS ETAPAS */}
       <div style={{ flex: 1 }}>
         {renderCurrentStep()}
-
-        {/* Botão de próximo (ou de finalização, se step > 4) */}
         {step <= 4 ? (
           <Button variant="outline" onClick={handleNext} style={{ marginTop: 8 }}>
             Próximo
@@ -400,6 +357,9 @@ export default function AutomacaoSteps({
             Concluir
           </Button>
         )}
+        <Button variant="outline" onClick={salvarAutomacao} style={{ marginTop: 8 }}>
+          Salvar Automação
+        </Button>
       </div>
 
       {/* COLUNA DIREITA: PREVIEW */}
@@ -409,15 +369,13 @@ export default function AutomacaoSteps({
           selectedPost={selectedPost}
           instagramUser={instagramUser}
           toggleValue={toggleValue}
-          commentContent={commentContent}
+          commentContent={getCommentContent()}
           dmWelcomeMessage={fraseBoasVindas}
           dmQuickReply={quickReplyTexto}
           dmSecondMessage={mensagemEtapa3}
           dmLink={linkEtapa3}
           dmButtonLabel={legendaBotaoEtapa3}
         />
-
-        {/* Botões para alternar manualmente o toggleValue */}
         <div style={{ marginTop: 16, display: "flex", gap: 8 }}>
           <Button variant="outline" onClick={() => setToggleValue("publicar")}>
             Publicar

@@ -51,9 +51,14 @@ export default function UserPage() {
   const { toast } = useToast();
   const router = useRouter();
   const params = useParams();
+  const accountId = params?.accountid as string;
 
-  // Estados para palavras
-  const [selectedOptionPalavra, setSelectedOptionPalavra] = useState<"especifica" | "qualquer">("qualquer");
+  if (!accountId) {
+    return <div>ID da conta não fornecido</div>;
+  }
+
+  // Etapa 1: Palavra/Expressão
+  const [anyword, setAnyword] = useState(true);
   const [inputPalavra, setInputPalavra] = useState("");
 
   // Instagram data
@@ -80,8 +85,6 @@ export default function UserPage() {
   const [dmButtonLabel, setDmButtonLabel] = useState("Segue Nosso Site");
 
   // Etapa 4: Outros Recursos
-
-  // Switch para Responder Publicamente
   const [switchResponderComentario, setSwitchResponderComentario] = useState(false);
   const [publicReply1, setPublicReply1] = useState("Obrigado! ❤️ Por favor, veja DMs.");
   const [publicReply2, setPublicReply2] = useState("Te enviei uma mensagem ✅️  Verificar.");
@@ -93,13 +96,13 @@ export default function UserPage() {
     "✨ Pronto! Antes de compartilhar o link, quero que você saiba que eu guardo o melhor conteúdo só para meus inscritos! 🤗💖\n\nQuer receber as melhores novidades? Adicione seu email abaixo e fique por dentro de tudo! 🚀👇"
   );
 
-  // NOVO: Switch para Pedir para Seguir PRO
+  // Switch para Pedir para Seguir PRO
   const [switchPedirParaSeguir, setSwitchPedirParaSeguir] = useState(false);
   const [followPrompt, setFollowPrompt] = useState(
     "Você está quase lá! 🚀 Este link é exclusivo para meus seguidores ✨ Me segue agora e eu te envio o link para você aproveitar tudo! 🎉"
   );
 
-  // NOVO: Switch para Contato caso não cliquem no link
+  // Switch para Contato caso não cliquem no link
   const [switchEntrarEmContato, setSwitchEntrarEmContato] = useState(false);
   const [noClickPrompt, setNoClickPrompt] = useState(
     "🔥 Quer saber mais? Então não esquece de clicar no link aqui embaixo! ⬇️✨ Tenho certeza de que você vai amar! ❤️😍🚀"
@@ -159,6 +162,7 @@ export default function UserPage() {
   if (error) return <ErrorState error={error} />;
 
   function validarEtapas(): boolean {
+    // Validação da seleção de postagem
     if (selectedOptionPostagem === "especifico" && !selectedPost) {
       toast({
         title: "Erro",
@@ -167,7 +171,10 @@ export default function UserPage() {
       });
       return false;
     }
-    if (selectedOptionPalavra === "especifica" && inputPalavra.trim() === "") {
+
+    // Validação de palavra/expressão:
+    // Se anyword for false (ou seja, "específica"), o input não pode estar vazio
+    if (anyword === false && inputPalavra.trim() === "") {
       toast({
         title: "Erro",
         description: "Preencha as palavras-chave ou selecione 'qualquer'.",
@@ -175,6 +182,7 @@ export default function UserPage() {
       });
       return false;
     }
+
     if (dmWelcomeMessage.trim() === "" || dmQuickReply.trim() === "") {
       toast({
         title: "Erro",
@@ -210,13 +218,13 @@ export default function UserPage() {
       const publicReplyArray = [publicReply1, publicReply2, publicReply3];
       const publicReplyJson = switchResponderComentario ? JSON.stringify(publicReplyArray) : null;
 
+      const isAnyMedia = selectedOptionPostagem === "qualquer";
       const payload = {
         // Etapa 1
-        selectedMediaId: selectedOptionPostagem === "especifico" ? selectedPost?.id || null : null,
-        anyMediaSelected: selectedOptionPostagem === "qualquer",
-        // Mantemos a lógica de palavras para compatibilidade
-        selectedOptionPalavra: selectedOptionPalavra,
-        palavrasChave: selectedOptionPalavra === "especifica" ? inputPalavra : null,
+        selectedMediaId: isAnyMedia ? null : selectedPost?.id || null,
+        anyMediaSelected: isAnyMedia,
+        anyword: anyword,
+        palavrasChave: anyword ? null : inputPalavra,
         // Etapa 2
         fraseBoasVindas: dmWelcomeMessage,
         quickReplyTexto: dmQuickReply,
@@ -236,7 +244,7 @@ export default function UserPage() {
         live: true,
       };
 
-      const res = await fetch("/api/automacao", {
+      const res = await fetch(`/api/automacao?providerAccountId=${accountId}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -247,8 +255,12 @@ export default function UserPage() {
       }
       const data = await res.json();
       console.log("Automação salva:", data);
-      toast.success("Automação criada com sucesso!");
-      router.push(`/${params.accountid}/dashboard/automacao/guiado-facil/${data.id}`);
+      toast({
+        title: "Sucesso",
+        description: "Automação criada com sucesso!",
+        variant: "default",
+      });
+      router.push(`/${accountId}/dashboard/automacao/guiado-facil/${data.id}`);
     } catch (error: any) {
       console.error("Erro ao salvar automação:", error.message);
       toast({
@@ -294,8 +306,8 @@ export default function UserPage() {
         />
 
         <PalavraExpressaoSelection
-          selectedOptionPalavra={selectedOptionPalavra}
-          setSelectedOptionPalavra={(val) => setSelectedOptionPalavra(val as "qualquer" | "especifica")}
+          anyword={anyword}
+          setAnyword={setAnyword}
           inputPalavra={inputPalavra}
           setInputPalavra={(val) => {
             setInputPalavra(val);
@@ -421,7 +433,6 @@ export default function UserPage() {
             </div>
           )}
 
-          {/* Switch para Pedir Email PRO */}
           <div className="flex items-center space-x-2 mb-2">
             <Switch
               id="switchPedirEmail"
@@ -444,7 +455,6 @@ export default function UserPage() {
             </div>
           )}
 
-          {/* Switch para Pedir para Seguir PRO */}
           <div className="flex items-center space-x-2 mb-2">
             <Switch
               id="switchPedirParaSeguir"
@@ -467,7 +477,6 @@ export default function UserPage() {
             </div>
           )}
 
-          {/* Switch para Contato caso não cliquem no link */}
           <div className="flex items-center space-x-2 mb-2">
             <Switch
               id="switchEntrarEmContato"

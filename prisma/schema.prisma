@@ -64,10 +64,12 @@ model Account {
   igUserId          String?
   igUsername        String?  // Nome de usuário do Instagram
   isMain            Boolean  @default(false) // Indica se é a conta principal
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  automacoes        Automacao[]
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
+  @@index([userId])
+  @@index([providerAccountId])
 }
 
 model VerificationToken {
@@ -102,37 +104,46 @@ model ResetPasswordToken {
  * - Fica igual ao que você já tinha, exceto que removemos "customerEmail" se não for mais necessário.
  */
 model Automacao {
-  id                     String   @id @default(cuid())
+  id                     String         @id @default(cuid())
   userId                 String
-  user                   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user                   User           @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  // Relacionamento opcional com Pasta (se existir)
   folderId               String?
-  folder                 Pasta?   @relation(fields: [folderId], references: [id])
+  folder                 Pasta?         @relation(fields: [folderId], references: [id])
+
+  // Relacionamento com conta do Instagram (obrigatório)
+  accountId              String
+  account                Account        @relation(fields: [accountId], references: [id], onDelete: Cascade)
 
   selectedMediaId        String?
-  anyMediaSelected       Boolean  @default(false)
-  anyword                Boolean  @default(false)  // NOVO: dispara com qualquer palavra se true
+  anyMediaSelected       Boolean        @default(false)
+  anyword                Boolean        @default(true)
   palavrasChave          String?
   fraseBoasVindas        String?
   quickReplyTexto        String?
   mensagemEtapa3         String?
   linkEtapa3             String?
   legendaBotaoEtapa3     String?
-  responderPublico       Boolean  @default(false)
-  pedirEmailPro          Boolean  @default(false)
+  responderPublico       Boolean        @default(false)
+  pedirEmailPro          Boolean        @default(false)
   emailPrompt            String?
-  pedirParaSeguirPro     Boolean  @default(false)
-  followPrompt           String?  // NOVO: texto pré‑preenchido para pedir para seguir
-  contatoSemClique       Boolean  @default(false)
-  noClickPrompt          String?  // NOVO: texto pré‑preenchido para caso não cliquem no link
-  publicReply            String?  // JSON string das respostas públicas
-  buttonPayload          String   @unique
-  live                   Boolean  @default(true)
-  createdAt              DateTime @default(now())
-  updatedAt              DateTime @updatedAt
+  pedirParaSeguirPro     Boolean        @default(false)
+  followPrompt           String?
+  contatoSemClique       Boolean        @default(false)
+  noClickPrompt          String?
+  publicReply            String?
+  buttonPayload          String         @unique
+  live                   Boolean        @default(true)
+  createdAt              DateTime       @default(now())
+  updatedAt              DateTime       @updatedAt
 
   leadsAutomacao         LeadAutomacao[]
+
+  @@index([userId])
+  @@index([accountId])
 }
+
 
 /**
  * Lead

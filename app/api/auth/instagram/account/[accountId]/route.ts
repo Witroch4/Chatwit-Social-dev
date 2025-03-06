@@ -2,21 +2,16 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { accountId: string } }
-) {
+export async function GET(request: NextRequest, context: any) {
   try {
     const session = await auth();
 
     if (!session?.user) {
-      return NextResponse.json(
-        { error: "Não autorizado" },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
     }
 
-    const { accountId } = params;
+    const { params } = context; // extrai `params`
+    const { accountId } = params || {};
 
     if (!accountId) {
       return NextResponse.json(
@@ -25,20 +20,13 @@ export async function GET(
       );
     }
 
-    // Buscar a conta do Instagram específica
+    // Buscar a conta...
     const account = await prisma.account.findFirst({
       where: {
-        id: accountId,
+        providerAccountId: accountId,
         userId: session.user.id,
-        provider: "instagram"
+        provider: "instagram",
       },
-      select: {
-        id: true,
-        providerAccountId: true,
-        access_token: true,
-        createdAt: true,
-        updatedAt: true
-      }
     });
 
     if (!account) {
@@ -48,16 +36,16 @@ export async function GET(
       );
     }
 
-    // Mapear os resultados para garantir que todos os campos necessários estejam presentes
+    // Cria a resposta
     const mappedAccount = {
       id: account.id,
       providerAccountId: account.providerAccountId,
       access_token: account.access_token,
-      igUsername: "Instagram",
-      igUserId: account.providerAccountId,
-      isMain: false,
+      igUsername: account.igUsername || "Instagram",
+      igUserId: account.igUserId || account.providerAccountId,
+      isMain: account.isMain || false,
       createdAt: account.createdAt,
-      updatedAt: account.updatedAt
+      updatedAt: account.updatedAt,
     };
 
     return NextResponse.json(mappedAccount);

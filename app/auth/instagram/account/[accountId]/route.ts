@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
-import prisma from "@/lib/prisma";
+import { prisma } from "@/lib/prisma";
 
-export async function GET(
-  req: NextRequest,
-  { params }: { params: { accountId: string } }
-) {
+// Forçar ambiente Node (em vez de Edge)
+export const runtime = "nodejs";
+
+export async function GET(req: NextRequest, context: any) {
   try {
     const session = await auth();
 
@@ -16,7 +16,9 @@ export async function GET(
       );
     }
 
-    const { accountId } = params;
+    // Extrair params do context
+    const { params } = context;
+    const { accountId } = params || {};
 
     if (!accountId) {
       return NextResponse.json(
@@ -25,10 +27,10 @@ export async function GET(
       );
     }
 
-    // Buscar a conta específica
+    // Buscar a conta específica pelo providerAccountId
     const account = await prisma.account.findFirst({
       where: {
-        id: accountId,
+        providerAccountId: accountId,
         userId: session.user.id,
         provider: "instagram",
       },
@@ -51,7 +53,7 @@ export async function GET(
       );
     }
 
-    // Formatar a resposta para incluir informações úteis
+    // Formatar a resposta
     return NextResponse.json({
       account: {
         id: account.id,
@@ -61,8 +63,8 @@ export async function GET(
         isMain: account.isMain || false,
         hasValidToken: !!account.access_token,
         connectedSince: account.createdAt,
-        lastUpdated: account.updatedAt
-      }
+        lastUpdated: account.updatedAt,
+      },
     });
   } catch (error) {
     console.error("Erro ao validar conta do Instagram:", error);

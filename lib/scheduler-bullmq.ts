@@ -19,14 +19,28 @@ export async function scheduleAgendamentoBullMQ(agendamento: {
   // 1) Calcula o delay
   const now = Date.now();
   const targetTime = new Date(agendamento.Data).getTime();
+
+  // Verificar se a data é válida
+  if (isNaN(targetTime)) {
+    console.error(`[BullMQ] Data inválida: ${agendamento.Data}`);
+    throw new Error(`Data inválida para agendamento: ${agendamento.Data}`);
+  }
+
   let delay = targetTime - now;
   if (delay < 0) {
     // Se a data já passou, processa imediatamente
     delay = 0;
   }
 
+  // Garantir que o ID seja uma string válida
+  const agendamentoId = String(agendamento.id || '').trim();
+  if (!agendamentoId) {
+    console.error(`[BullMQ] ID inválido: ${agendamento.id}`);
+    throw new Error(`ID inválido para agendamento: ${agendamento.id}`);
+  }
+
   // 2) Monta o jobId: "ag-job-<rowId>"
-  const jobIdString = `ag-job-${BASEROW_TABLE_ID}-${String(agendamento.id)}`;
+  const jobIdString = `ag-job-${BASEROW_TABLE_ID}-${agendamentoId}`;
   console.log(`[scheduleAgendamentoBullMQ] jobIdString=${jobIdString}`);
 
   // 3) Remove job anterior, se existir
@@ -38,11 +52,20 @@ export async function scheduleAgendamentoBullMQ(agendamento: {
 
   // 4) Cria o novo job
   try {
+    // Garantir que todos os dados são válidos e serializáveis
     const jobData: IAgendamentoJobData = {
       baserowId: jobIdString,
       Data: agendamento.Data,
-      userID: agendamento.userID,
+      userID: agendamento.userID || '',
     };
+
+    // Verificar se há valores NaN ou Infinity nos dados
+    for (const [key, value] of Object.entries(jobData)) {
+      if (typeof value === 'number' && (isNaN(value) || !isFinite(value))) {
+        console.error(`[BullMQ] Valor inválido para ${key}: ${value}`);
+        throw new Error(`Valor inválido para ${key}: ${value}`);
+      }
+    }
 
     const newJob = await agendamentoQueue.add('agendamento', jobData, {
       jobId: jobIdString,
@@ -115,11 +138,25 @@ export async function processarAgendamentosPendentes() {
 
     // Agenda cada item
     for (const agendamento of agendamentos) {
-      await scheduleAgendamentoBullMQ({
-        id: agendamento.id,
-        Data: agendamento.Data,
-        userID: agendamento.userID,
-      });
+      try {
+        // Garantir que os dados necessários estão presentes e válidos
+        const agendamentoData = {
+          id: agendamento.id,
+          Data: agendamento.Data,
+          userID: agendamento.userID || ''
+        };
+
+        // Verificar se os dados são válidos
+        if (!agendamentoData.id || !agendamentoData.Data) {
+          console.error(`[BullMQ] Dados inválidos para agendamento: ${JSON.stringify(agendamentoData)}`);
+          continue; // Pula este agendamento e continua com o próximo
+        }
+
+        await scheduleAgendamentoBullMQ(agendamentoData);
+      } catch (error: any) {
+        console.error(`[BullMQ] Erro ao agendar item ${agendamento.id}:`, error.message || error);
+        // Continua com o próximo agendamento
+      }
     }
 
     console.log('[BullMQ] Processamento de agendamentos pendentes concluído.');

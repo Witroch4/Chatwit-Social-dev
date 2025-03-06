@@ -1,17 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import React, { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 
-export default function CallbackPage() {
+// Subcomponente que contém toda a lógica e o uso de "useSearchParams"
+function CallbackPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [status, setStatus] = useState<"loading" | "success" | "error">("loading");
   const [message, setMessage] = useState<string>("");
-  const [accountId, setAccountId] = useState<string | null>(null);
   const [isMainAccount, setIsMainAccount] = useState<boolean>(false);
 
   useEffect(() => {
@@ -24,11 +24,7 @@ export default function CallbackPage() {
 
     if (error) {
       setStatus("error");
-      setMessage(
-        errorDescription ||
-        errorReason ||
-        "Ocorreu um erro durante a autorização. Por favor, tente novamente."
-      );
+      setMessage(errorDescription || errorReason || "Ocorreu um erro durante a autorização. Tente novamente.");
       return;
     }
 
@@ -94,12 +90,7 @@ export default function CallbackPage() {
               viewBox="0 0 24 24"
               stroke="currentColor"
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M5 13l4 4L19 7"
-              />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
             </svg>
           </div>
           <AlertTitle className="text-center text-xl font-bold text-green-800 dark:text-green-300">
@@ -109,7 +100,10 @@ export default function CallbackPage() {
             {message}
             {isMainAccount && (
               <div className="flex justify-center mt-1">
-                <Badge variant="outline" className="bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-300 border-green-300 dark:border-green-700">
+                <Badge
+                  variant="outline"
+                  className="bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-300 border-green-300 dark:border-green-700"
+                >
                   Conta Principal
                 </Badge>
               </div>
@@ -131,12 +125,7 @@ export default function CallbackPage() {
               viewBox="0 0 24 24"
               stroke="currentColor"
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M6 18L18 6M6 6l12 12"
-              />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
           </div>
           <AlertTitle className="text-center text-xl font-bold text-red-800 dark:text-red-300">
@@ -156,5 +145,14 @@ export default function CallbackPage() {
         </Alert>
       )}
     </div>
+  );
+}
+
+// Componente principal que envolve tudo em <Suspense>
+export default function CallbackPage() {
+  return (
+    <Suspense fallback={<div>Carregando página de callback...</div>}>
+      <CallbackPageInner />
+    </Suspense>
   );
 }

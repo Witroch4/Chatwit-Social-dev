@@ -1,5 +1,3 @@
-// app/[accountid]/dashboard/layout.tsx
-
 import React from "react";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
@@ -14,14 +12,12 @@ export const metadata: Metadata = {
   description: "Gerencie sua conta do Instagram",
 };
 
-// Função para validar a conta do Instagram
-async function validateAccount(userId: string, accountId: string) {
+async function validateAccount(userId: string, providerAccountId: string): Promise<boolean> {
   try {
-    // Verificar se o ID da conta existe e pertence ao usuário
     const account = await prisma.account.findFirst({
       where: {
-        id: accountId,
-        userId: userId,
+        providerAccountId,
+        userId,
         provider: "instagram",
       },
       select: {
@@ -31,11 +27,10 @@ async function validateAccount(userId: string, accountId: string) {
         providerAccountId: true,
         access_token: true,
         createdAt: true,
-        updatedAt: true
-      }
+        updatedAt: true,
+      },
     });
-
-    return !!account; // Retorna true se a conta existir e pertencer ao usuário
+    return !!account;
   } catch (error) {
     console.error("Erro ao validar conta:", error);
     return false;
@@ -47,27 +42,22 @@ export default async function AccountIdLayout({
   params,
 }: {
   children: React.ReactNode;
-  params: { accountid: string };
+  params: any; // Usando any para evitar conflito de tipos com Promise
 }) {
-  // Usar auth() diretamente
-  const session = await auth();
+  // Garante que params seja tratado como Promise
+  const actualParams = await Promise.resolve(params);
+  const { accountid } = actualParams;
 
-  // Se o usuário não estiver autenticado, redirecionar para login
+  // Autenticação
+  const session = await auth();
   if (!session || !session.user) {
     redirect("/auth/login");
   }
 
-  // Verificar se o accountid é um ID válido de conta do Instagram do usuário
-  const accountId = params.accountid;
-  const userId = session.user.id;
-
-  // Validar a conta
-  const isValidAccount = await validateAccount(userId, accountId);
-
-  // Se a conta não existir ou não pertencer ao usuário, redirecionar para o dashboard
+  // Validação da conta
+  const isValidAccount = await validateAccount(session.user.id, accountid);
   if (!isValidAccount) {
-    // Redirecionar para uma página que existe
-    redirect("/");
+    redirect("/dashboard");
   }
 
   return (
@@ -79,9 +69,7 @@ export default async function AccountIdLayout({
         <div className="hidden md:flex h-full w-56 flex-col fixed inset-y-0 z-50">
           <ConditionalSidebar />
         </div>
-        <main className="md:pl-56 pt-[80px] h-full">
-          {children}
-        </main>
+        <main className="md:pl-56 pt-[80px] h-full">{children}</main>
       </div>
     </SidebarProvider>
   );

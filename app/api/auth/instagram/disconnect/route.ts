@@ -25,6 +25,11 @@ export async function POST(request: NextRequest) {
           userId: session.user.id,
           provider: "instagram",
           isMain: true
+        },
+        select: {
+          id: true,
+          providerAccountId: true,
+          isMain: true
         }
       });
 
@@ -42,20 +47,23 @@ export async function POST(request: NextRequest) {
         }
       });
 
-      // Atualizar a sessão para remover o token do Instagram
-      // Isso será feito automaticamente na próxima autenticação
-
       return NextResponse.json({
         success: true,
-        message: "Conta principal do Instagram desconectada com sucesso"
+        message: "Conta principal do Instagram desconectada com sucesso",
+        providerAccountId: mainAccount.providerAccountId
       });
     } else {
-      // Verificar se a conta pertence ao usuário
+      // Verificar se a conta pertence ao usuário usando o providerAccountId
       const account = await prisma.account.findFirst({
         where: {
-          id: accountId,
+          providerAccountId: accountId,
           userId: session.user.id,
           provider: "instagram"
+        },
+        select: {
+          id: true,
+          providerAccountId: true,
+          isMain: true
         }
       });
 
@@ -69,18 +77,14 @@ export async function POST(request: NextRequest) {
       // Excluir a conta específica
       await prisma.account.delete({
         where: {
-          id: accountId
+          id: account.id
         }
       });
 
-      // Se a conta excluída era a principal, atualizar a sessão
-      if (account.isMain) {
-        // A sessão será atualizada na próxima autenticação
-      }
-
       return NextResponse.json({
         success: true,
-        message: "Conta do Instagram desconectada com sucesso"
+        message: "Conta do Instagram desconectada com sucesso",
+        providerAccountId: account.providerAccountId
       });
     }
   } catch (error) {

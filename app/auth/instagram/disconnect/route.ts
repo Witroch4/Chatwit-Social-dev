@@ -1,6 +1,7 @@
+//app\auth\instagram\disconnect\route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { auth, update } from "@/auth";
-import prisma from "@/lib/prisma";
+import { prisma } from "@/lib/prisma";
 
 export async function POST(req: NextRequest) {
   try {
@@ -69,22 +70,22 @@ export async function POST(req: NextRequest) {
         // Atualizar a sessão com os dados da nova conta principal
         await update({
           user: {
-            instagramAccessToken: newMainAccount.access_token || null,
-            providerAccountId: newMainAccount.providerAccountId || null,
+            instagramAccessToken: newMainAccount.access_token || undefined,
+            providerAccountId: newMainAccount.providerAccountId || undefined,
           }
         });
 
         return NextResponse.json({
           success: true,
           message: "Conta principal desconectada. Uma nova conta principal foi definida.",
-          newMainAccountId: newMainAccount.id
+          newMainAccountId: newMainAccount.providerAccountId
         });
       } else {
         // Se não houver outras contas, limpar os dados da sessão
         await update({
           user: {
-            instagramAccessToken: null,
-            providerAccountId: null,
+            instagramAccessToken: undefined,
+            providerAccountId: undefined,
           }
         });
 
@@ -98,7 +99,7 @@ export async function POST(req: NextRequest) {
     // Verificar se a conta específica pertence ao usuário
     const account = await prisma.account.findFirst({
       where: {
-        id: accountId,
+        providerAccountId: accountId,
         userId: session.user.id,
         provider: "instagram",
       },
@@ -117,7 +118,7 @@ export async function POST(req: NextRequest) {
     // Excluir a conta
     await prisma.account.delete({
       where: {
-        id: accountId,
+        id: account.id,
       },
     });
 
@@ -151,22 +152,22 @@ export async function POST(req: NextRequest) {
         // Atualizar a sessão com os dados da nova conta principal
         await update({
           user: {
-            instagramAccessToken: newMainAccount.access_token || null,
-            providerAccountId: newMainAccount.providerAccountId || null,
+            instagramAccessToken: newMainAccount.access_token || undefined,
+            providerAccountId: newMainAccount.providerAccountId || undefined,
           }
         });
 
         return NextResponse.json({
           success: true,
           message: "Conta desconectada. Uma nova conta principal foi definida.",
-          newMainAccountId: newMainAccount.id
+          newMainAccountId: newMainAccount.providerAccountId
         });
       } else {
         // Se não houver outras contas, limpar os dados da sessão
         await update({
           user: {
-            instagramAccessToken: null,
-            providerAccountId: null,
+            instagramAccessToken: undefined,
+            providerAccountId: undefined,
           }
         });
       }

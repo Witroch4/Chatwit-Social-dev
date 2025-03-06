@@ -31,13 +31,15 @@ interface Automacao {
 interface PastasEAutomacoesProps {
   pastas: Pasta[]
   automacoes: Automacao[]
-  fetchData: () => void
+  providerAccountId: string
+  onCreated: () => void
 }
 
 export default function PastasEAutomacoes({
   pastas,
   automacoes,
-  fetchData,
+  providerAccountId,
+  onCreated,
 }: PastasEAutomacoesProps) {
   const [openNovaPasta, setOpenNovaPasta] = useState(false)
   const [novaPastaName, setNovaPastaName] = useState("")
@@ -52,7 +54,10 @@ export default function PastasEAutomacoes({
       const res = await fetch("/api/pasta", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: novaPastaName.trim() }),
+        body: JSON.stringify({
+          name: novaPastaName.trim(),
+          providerAccountId
+        }),
       })
       if (!res.ok) {
         const err = await res.json()
@@ -60,7 +65,7 @@ export default function PastasEAutomacoes({
       }
       setNovaPastaName("")
       setOpenNovaPasta(false)
-      fetchData()
+      onCreated()
     } catch (e: any) {
       console.error(e.message)
     }
@@ -78,7 +83,7 @@ export default function PastasEAutomacoes({
 
   // Abre automação existente
   function handleOpenAutomacao(autoId: string) {
-    window.location.href = `/dashboard/automacao/guiado-facil/${autoId}`
+    window.location.href = `/${providerAccountId}/dashboard/automacao/guiado-facil/${autoId}`
   }
 
   // -------------------------------------------------------------
@@ -151,7 +156,8 @@ export default function PastasEAutomacoes({
               <MenuAcoesAutomacao
                 automacao={auto}
                 pastas={pastas}
-                fetchData={fetchData}
+                fetchData={onCreated}
+                providerAccountId={providerAccountId}
               />
             </div>
           ))}

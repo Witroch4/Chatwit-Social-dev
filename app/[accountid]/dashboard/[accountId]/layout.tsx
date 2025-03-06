@@ -16,12 +16,17 @@ interface InstagramAccount {
   isMain?: boolean;
 }
 
+interface DashboardParams {
+  accountId: string;
+  [key: string]: string | string[];
+}
+
 export default function AccountDashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const params = useParams();
+  const params = useParams() as DashboardParams;
   const router = useRouter();
   const { data: session, status } = useSession();
   const [account, setAccount] = useState<InstagramAccount | null>(null);
@@ -90,8 +95,8 @@ export default function AccountDashboardLayout({
   return (
     <SidebarProvider>
       <div className="flex h-full min-h-screen">
-        <ConditionalSidebar accountId={accountId} />
-        <AppHeader accountInfo={account} />
+        <ConditionalSidebar />
+        <AppHeader />
         <main className="flex-1 p-4 md:p-8">
           {children}
         </main>

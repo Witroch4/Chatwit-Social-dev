@@ -23,7 +23,10 @@ export async function GET(request: NextRequest) {
         providerAccountId: true,
         access_token: true,
         createdAt: true,
-        updatedAt: true
+        updatedAt: true,
+        igUserId: true,
+        igUsername: true,
+        isMain: true
       },
       orderBy: [
         { createdAt: 'asc' } // Ordenar por data de criação (mais antigas primeiro)
@@ -35,9 +38,9 @@ export async function GET(request: NextRequest) {
       id: account.id,
       providerAccountId: account.providerAccountId,
       access_token: account.access_token,
-      igUsername: "Instagram",
-      igUserId: account.providerAccountId,
-      isMain: false,
+      igUsername: account.igUsername || "Instagram",
+      igUserId: account.igUserId || account.providerAccountId,
+      isMain: account.isMain || false,
       createdAt: account.createdAt,
       updatedAt: account.updatedAt
     }));

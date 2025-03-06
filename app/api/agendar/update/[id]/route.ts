@@ -86,11 +86,26 @@ export async function PATCH(
 
     // 2) Cancela o job antigo e re-agenda
     await cancelAgendamentoBullMQ(rowId);
-    await scheduleAgendamentoBullMQ({
-      id: response.data.id,
-      Data: response.data.Data,
-      userID: response.data.userID,
-    });
+
+    try {
+      // Garantir que os dados necessários estão presentes e válidos
+      const agendamentoData = {
+        id: response.data.id,
+        Data: Data || response.data.Data,
+        userID: userID
+      };
+
+      // Verificar se os dados são válidos
+      if (!agendamentoData.id || !agendamentoData.Data || !agendamentoData.userID) {
+        throw new Error(`Dados inválidos para reagendamento: ${JSON.stringify(agendamentoData)}`);
+      }
+
+      await scheduleAgendamentoBullMQ(agendamentoData);
+    } catch (bullMQError: any) {
+      console.error("[BullMQ] Erro ao reagendar job:", bullMQError.message);
+      // Não retornar erro para o cliente, apenas logar
+      // A atualização já foi salva no Baserow
+    }
 
     return NextResponse.json(response.data, { status: 200 });
   } catch (error: any) {

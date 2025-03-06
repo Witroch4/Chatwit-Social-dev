@@ -1,4 +1,4 @@
-//app\dashboard\agendamento\page.tsx
+//app/[accountid]/dashboard/agendamento/page.tsx
 "use client";
 
 import React, { useEffect, useState } from "react";
@@ -6,6 +6,7 @@ import { useSession } from "next-auth/react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import axios from "axios";
+import { useRouter, useParams } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -20,17 +21,17 @@ import AgendamentosList from "@/app/[accountid]/dashboard/agendamento/components
 import { UploadedFile } from "@/components/custom/FileUpload";
 import { useToast } from "@/hooks/use-toast";
 import useAgendamentos from "@/hooks/useAgendamentos";
-import { useRouter } from "next/navigation";
 
 import { DotLottieReact } from "@lottiefiles/dotlottie-react";
 
 const AgendamentoDePostagens: React.FC = () => {
   const { data: session, status } = useSession();
   const router = useRouter();
+  const params = useParams();
+  const accountid = params?.accountid as string;
 
-  // userID e igUserId do usuário logado
+  // userID do usuário logado
   const userID = session?.user?.id;
-  const igUserId = session?.user?.providerAccountId;
   const IGtoken = session?.user?.instagramAccessToken;
 
   // Estado combinado para data e hora
@@ -44,11 +45,8 @@ const AgendamentoDePostagens: React.FC = () => {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const { toast } = useToast();
 
-  // Hook para buscar agendamentos (recebe userID e igUserId)
-  const { agendamentos, loading, error, refetch } = useAgendamentos(
-    userID,
-    igUserId
-  );
+  // Hook para buscar agendamentos (recebe apenas userID, accountid vem da URL)
+  const { agendamentos, loading, error, refetch } = useAgendamentos(userID);
 
   // Função para lidar com o agendamento
   const handleAgendar = async () => {
@@ -104,7 +102,7 @@ const AgendamentoDePostagens: React.FC = () => {
 
       const isoDate = dateTime.toISOString();
 
-      // Inclui o campo igUserId com o valor de providerAccountId da sessão
+      // Usa o accountid da URL como providerAccountId
       const newRow = {
         Data: isoDate,
         Descrição: legenda,
@@ -118,10 +116,11 @@ const AgendamentoDePostagens: React.FC = () => {
         Randomizar: tipos.Aleatorio,
         IGtoken: IGtoken,
         userID: userID,
-        igUserId: igUserId, // enviando para a API
+        igUserId: accountid, // Usa o accountid da URL
       };
 
-      const response = await axios.post("/api/agendar", newRow, {
+      // Faz a requisição para a API usando o accountid da URL
+      const response = await axios.post(`/api/${accountid}/agendar`, newRow, {
         headers: {
           "Content-Type": "application/json",
         },
