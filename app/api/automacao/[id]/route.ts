@@ -15,28 +15,36 @@ interface PatchBody {
   data?: any; // Para o updateAll: { [campo]: valor }
 }
 
-export async function GET(request: Request, context: any) {
+export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
     const session = await auth();
     if (!session?.user?.id) {
-      return NextResponse.json({ error: "Usuário não autenticado." }, { status: 401 });
+      return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
     }
 
-    const { params } = context;
-    const { id: automacaoId } = params;
+    const { id } = await params;
 
-    const automacao = await prisma.automacao.findUnique({
-      where: { id: automacaoId },
+    const automacao = await prisma.automacao.findFirst({
+      where: {
+        id: id,
+        userId: session.user.id,
+      },
     });
 
-    if (!automacao || automacao.userId !== session.user.id) {
-      return NextResponse.json({ error: "Automação não encontrada ou sem permissão." }, { status: 404 });
+    if (!automacao) {
+      return NextResponse.json(
+        { error: "Automação não encontrada" },
+        { status: 404 }
+      );
     }
 
-    return NextResponse.json(automacao, { status: 200 });
+    return NextResponse.json(automacao);
   } catch (error: any) {
     console.error("[GET /api/automacao/[id]] Erro:", error);
-    return NextResponse.json({ error: "Erro ao buscar automação." }, { status: 500 });
+    return NextResponse.json(
+      { error: "Erro ao buscar automação" },
+      { status: 500 }
+    );
   }
 }
 

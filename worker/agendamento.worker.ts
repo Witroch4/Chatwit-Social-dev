@@ -13,8 +13,8 @@ dotenv.config();
 // Corrigir a URL do webhook (garantir que o protocolo esteja correto)
 let webhookUrl = process.env.WEBHOOK_URL || 'https://autofluxofilaapi.witdev.com.br/webhook/5f439037-6e1a-4d53-80ae-1cc0c4633c51';
 
-// Garantir que a URL começa com 'https://' (corrigir 'htpps://')
-if (webhookUrl.startsWith('htpps://')) {
+// Garantir que a URL começa com 'https://' (corrigir 'https://')
+if (webhookUrl.startsWith('https://')) {
   webhookUrl = 'https://' + webhookUrl.substring(8);
   console.log('[BullMQ] URL do webhook corrigida:', webhookUrl);
 }

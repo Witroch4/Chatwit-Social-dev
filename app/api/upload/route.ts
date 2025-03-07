@@ -22,7 +22,7 @@ export async function POST(request: Request) {
     }
 
     // Garantir que a URL começa com https://
-    const uploadUrl = baserowUrl.replace(/^htpps?:\/\//, 'https://')
+    const uploadUrl = baserowUrl.replace(/^https?:\/\//, 'https://')
 
     // Criar novo FormData para enviar ao Baserow
     const uploadFormData = new FormData()

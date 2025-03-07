@@ -3,7 +3,7 @@
 
 import { useParams, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, use } from "react";
 
 import LoadingState from "../../components/WIT-EQ/LoadingState";
 import UnauthenticatedState from "../../components/WIT-EQ/UnauthenticatedState";
@@ -82,29 +82,40 @@ interface PalavraExpressaoSelectionProps {
   className?: string;
 }
 
-export default function GuiadoFacilEditPage() {
-  const { id } = useParams() as { id: string };
+interface PageParams {
+  id: string;
+  accountid: string;
+  [key: string]: string | string[]; // adiciona índice de assinatura necessário
+}
+
+export default function EditPage() {
   const { data: session, status } = useSession();
   const { toast } = useToast();
   const router = useRouter();
+  const params = useParams<PageParams>();
+  const id = params?.id;
+  const providerAccountId = params?.accountid;
 
-  // Estado para controle de edição
-  const [isEditing, setIsEditing] = useState(false);
+  if (!id || !providerAccountId) {
+    return <div>Parâmetros da rota não fornecidos</div>;
+  }
 
-  // Estados para carregamento/erro da automação
-  const [loadingAuto, setLoadingAuto] = useState(true);
-  const [autoError, setAutoError] = useState<string | null>(null);
-
-  // Estados do formulário
-  const [instagramUser, setInstagramUser] = useState<InstagramUserData | null>(null);
-  const [instagramMedia, setInstagramMedia] = useState<InstagramMediaItem[]>([]);
+  // Estados para dados do Instagram
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [instagramUser, setInstagramUser] = useState<InstagramUserData | null>(null);
+  const [instagramMedia, setInstagramMedia] = useState<InstagramMediaItem[]>([]);
 
-  // Etapa 1: Seleção de Post
-  const [selectedOptionPostagem, setSelectedOptionPostagem] = useState<"especifico" | "qualquer">("especifico");
+  // Estados para dados da automação
+  const [loadingAuto, setLoadingAuto] = useState(true);
+  const [autoError, setAutoError] = useState<string | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [isLive, setIsLive] = useState(true);
+
+  // Estados para seleção de post
   const [selectedPost, setSelectedPost] = useState<InstagramMediaItem | null>(null);
   const [selectedMediaIdLocal, setSelectedMediaIdLocal] = useState<string | null>(null);
+  const [selectedOptionPostagem, setSelectedOptionPostagem] = useState<"especifico" | "qualquer">("especifico");
 
   // Etapa 1: Palavra/Expressão
   const [anyword, setAnyword] = useState(true);
@@ -143,68 +154,58 @@ export default function GuiadoFacilEditPage() {
     "🔥 Quer saber mais? Então não esquece de clicar no link aqui embaixo! ⬇️✨ Tenho certeza de que você vai amar! ❤️😍🚀"
   );
 
-  // Estado para controlar se a automação está ativa (live)
-  const [isLive, setIsLive] = useState(true);
-
   // Estado de Preview
   const [openDialog, setOpenDialog] = useState(false);
   const [toggleValue, setToggleValue] = useState<"publicar" | "comentarios" | "dm">("publicar");
   const [commentContent, setCommentContent] = useState("");
 
-  const accessToken = session?.user?.instagramAccessToken;
-
-  // 1) Carrega a automação do BD
+  // Carregar dados da automação
   useEffect(() => {
-    if (!id || !session?.user?.id) return;
     async function fetchAutomacao() {
       try {
-        setLoadingAuto(true);
-        setAutoError(null);
-        const res = await fetch(`/api/automacao/${id}`, { method: "GET" });
+        const res = await fetch(`/api/automacao/${id}`);
         if (!res.ok) {
           const errData = await res.json();
-          throw new Error(errData.error || "Falha ao buscar automação");
+          throw new Error(errData.error || "Erro ao carregar automação.");
         }
-        const data = (await res.json()) as AutomacaoDB;
+        const auto: AutomacaoDB = await res.json();
 
-        // Configurações da Etapa 1
-        setSelectedOptionPostagem(data.anyMediaSelected ? "qualquer" : "especifico");
-        setSelectedMediaIdLocal(data.selectedMediaId);
+        // Atualizar estados com dados da automação
+        setSelectedMediaIdLocal(auto.selectedMediaId);
+        setSelectedOptionPostagem(auto.anyMediaSelected ? "qualquer" : "especifico");
+        setIsLive(auto.live);
 
-        // Configuração de Palavra/Expressão
-        setAnyword(data.anyword);
-        setInputPalavra(data.palavrasChave || "");
+        // Etapa 1: Palavra/Expressão
+        setAnyword(auto.anyword);
+        setInputPalavra(auto.palavrasChave || "");
 
-        // Configurações das mensagens
-        setDmWelcomeMessage(data.fraseBoasVindas || "");
-        setDmQuickReply(data.quickReplyTexto || "");
-        setDmSecondMessage(data.mensagemEtapa3 || "");
-        setDmLink(data.linkEtapa3 || "");
-        setDmButtonLabel(data.legendaBotaoEtapa3 || "");
+        // Etapa 2: DM de Boas-Vindas
+        setDmWelcomeMessage(auto.fraseBoasVindas || "");
+        setDmQuickReply(auto.quickReplyTexto || "");
 
-        // Configurações de resposta pública
-        setSwitchResponderComentario(data.responderPublico);
-        if (data.publicReply) {
-          try {
-            const arr = JSON.parse(data.publicReply) as string[];
-            setPublicReply1(arr[0] || "");
-            setPublicReply2(arr[1] || "");
-            setPublicReply3(arr[2] || "");
-          } catch (e) {
-            console.error("Erro ao parsear respostas públicas:", e);
+        // Etapa 3: DM com Link
+        setDmSecondMessage(auto.mensagemEtapa3 || "");
+        setDmLink(auto.linkEtapa3 || "");
+        setDmButtonLabel(auto.legendaBotaoEtapa3 || "");
+
+        // Etapa 4: Outros Recursos
+        setSwitchResponderComentario(auto.responderPublico);
+        if (auto.publicReply) {
+          const replies = JSON.parse(auto.publicReply);
+          if (Array.isArray(replies) && replies.length >= 3) {
+            setPublicReply1(replies[0]);
+            setPublicReply2(replies[1]);
+            setPublicReply3(replies[2]);
           }
         }
 
-        // Configurações PRO
-        setSwitchPedirEmail(data.pedirEmailPro);
-        setEmailPrompt(data.emailPrompt || emailPrompt);
-        setSwitchPedirParaSeguir(data.pedirParaSeguirPro);
-        setFollowPrompt(data.followPrompt || followPrompt);
-        setSwitchEntrarEmContato(data.contatoSemClique);
-        setNoClickPrompt(data.noClickPrompt || noClickPrompt);
-
-        // Status da automação
-        setIsLive(data.live);
+        // Recursos PRO
+        setSwitchPedirEmail(auto.pedirEmailPro);
+        setEmailPrompt(auto.emailPrompt || "");
+        setSwitchPedirParaSeguir(auto.pedirParaSeguirPro);
+        setFollowPrompt(auto.followPrompt || "");
+        setSwitchEntrarEmContato(auto.contatoSemClique);
+        setNoClickPrompt(auto.noClickPrompt || "");
 
       } catch (err: any) {
         setAutoError(err.message);
@@ -215,58 +216,47 @@ export default function GuiadoFacilEditPage() {
     fetchAutomacao();
   }, [id, session]);
 
-  // 2) Carrega dados do Instagram
+  // Carregar dados do Instagram
   useEffect(() => {
     const fetchInstagramData = async () => {
-      setLoading(true);
-      if (status === "authenticated" && accessToken) {
+      if (status === "authenticated" && providerAccountId) {
         try {
-          const userRes = await fetch(
-            `https://graph.instagram.com/me?fields=id,username,media_count,profile_picture_url&access_token=${accessToken}`
-          );
-          if (!userRes.ok) {
-            const errorText = await userRes.text();
-            console.error("Erro ao buscar usuário:", errorText);
-            setError("Não foi possível obter os dados do Instagram do usuário.");
-            setLoading(false);
-            return;
-          }
-          const userData: InstagramUserData = await userRes.json();
-          setInstagramUser(userData);
+          const res = await fetch(`/api/instagram/posts?providerAccountId=${providerAccountId}`);
 
-          const mediaRes = await fetch(
-            `https://graph.instagram.com/me/media?fields=id,caption,media_url,media_type,thumbnail_url,media_product_type,like_count,comments_count&access_token=${accessToken}`
-          );
-          if (!mediaRes.ok) {
-            const errorText = await mediaRes.text();
-            console.error("Erro ao buscar mídias:", errorText);
-            setError("Não foi possível obter as mídias do Instagram.");
-            setLoading(false);
-            return;
+          if (!res.ok) {
+            const errorData = await res.json();
+            throw new Error(errorData.error || "Erro ao buscar dados do Instagram");
           }
-          const mediaData = await mediaRes.json();
-          setInstagramMedia(mediaData.data || []);
+
+          const data = await res.json();
+          setInstagramUser(data.user);
+          setInstagramMedia(data.media || []);
           setLoading(false);
-        } catch (err) {
-          console.error("Erro na API do Instagram:", err);
-          setError("Erro ao conectar-se à API do Instagram.");
+        } catch (err: any) {
+          console.error("Erro ao conectar com o Instagram:", err);
+          setError(err.message || "Erro ao conectar com o Instagram.");
           setLoading(false);
         }
       } else {
         setLoading(false);
       }
     };
-    fetchInstagramData();
-  }, [status, accessToken]);
 
-  // 2.1) Associa o post salvo (se existir) com as mídias do Instagram
+    fetchInstagramData();
+  }, [status, providerAccountId]);
+
+  // Quando já temos "instagramMedia" e "selectedMediaIdLocal"
   useEffect(() => {
-    if (!selectedMediaIdLocal || selectedOptionPostagem !== "especifico" || instagramMedia.length === 0) return;
+    if (!selectedMediaIdLocal) return;
+    if (selectedOptionPostagem !== "especifico") return;
+    if (instagramMedia.length === 0) return;
+
+    // Tenta achar a mídia correspondente
     const found = instagramMedia.find((m) => m.id === selectedMediaIdLocal);
     if (found) {
       setSelectedPost(found);
     } else {
-      console.warn("Post salvo no BD não encontrado nas mídias recentes.");
+      console.warn("Mídia salva no BD não encontrada nas últimas do Instagram.");
     }
   }, [selectedMediaIdLocal, selectedOptionPostagem, instagramMedia]);
 
@@ -448,14 +438,16 @@ export default function GuiadoFacilEditPage() {
           setSelectedOptionPostagem={setSelectedOptionPostagem}
           selectedPost={selectedPost}
           setSelectedPost={setSelectedPost}
-          ultimasPostagens={ultimasPostagens}
           instagramMedia={instagramMedia}
           openDialog={openDialog}
           setOpenDialog={setOpenDialog}
           disabled={!isEditing}
           className={!isEditing ? "cursor-not-allowed" : ""}
           onSelectPost={() => {
-            if (selectedPost) setCommentContent(selectedPost.caption || "");
+            // Selecione manualmente um post
+            if (selectedPost) {
+              setCommentContent(selectedPost.caption || "");
+            }
           }}
         />
 

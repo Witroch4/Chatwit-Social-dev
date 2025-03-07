@@ -50,10 +50,10 @@ export default function UserPage() {
   const { data: session, status } = useSession();
   const { toast } = useToast();
   const router = useRouter();
-  const params = useParams();
-  const accountId = params?.accountid as string;
+  const params = useParams<{ accountid: string }>();
+  const providerAccountId = params?.accountid ?? '';
 
-  if (!accountId) {
+  if (!providerAccountId) {
     return <div>ID da conta não fornecido</div>;
   }
 
@@ -62,10 +62,10 @@ export default function UserPage() {
   const [inputPalavra, setInputPalavra] = useState("");
 
   // Instagram data
-  const [instagramUser, setInstagramUser] = useState<InstagramUserData | null>(null);
-  const [instagramMedia, setInstagramMedia] = useState<InstagramMediaItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [instagramUser, setInstagramUser] = useState<InstagramUserData | null>(null);
+  const [instagramMedia, setInstagramMedia] = useState<InstagramMediaItem[]>([]);
 
   // Etapa 1: Seleção de Post
   const [selectedOptionPostagem, setSelectedOptionPostagem] = useState<"especifico" | "qualquer">("especifico");
@@ -113,49 +113,33 @@ export default function UserPage() {
   const [toggleValue, setToggleValue] = useState<"publicar" | "comentarios" | "dm">("publicar");
   const [commentContent, setCommentContent] = useState("");
 
-  const accessToken = session?.user?.instagramAccessToken;
-
   useEffect(() => {
     const fetchInstagramData = async () => {
-      if (status === "authenticated" && accessToken) {
+      if (status === "authenticated" && providerAccountId) {
         try {
-          const userRes = await fetch(
-            `https://graph.instagram.com/me?fields=id,username,media_count,profile_picture_url&access_token=${accessToken}`
-          );
-          if (!userRes.ok) {
-            const errorText = await userRes.text();
-            console.error("Erro ao buscar usuário:", errorText);
-            setError("Não foi possível obter dados do Instagram.");
-            setLoading(false);
-            return;
-          }
-          const userData: InstagramUserData = await userRes.json();
-          setInstagramUser(userData);
+          const res = await fetch(`/api/instagram/posts?providerAccountId=${providerAccountId}`);
 
-          const mediaRes = await fetch(
-            `https://graph.instagram.com/me/media?fields=id,caption,media_url,media_type,thumbnail_url,media_product_type,like_count,comments_count&access_token=${accessToken}`
-          );
-          if (!mediaRes.ok) {
-            const errorText = await mediaRes.text();
-            console.error("Erro ao buscar mídias:", errorText);
-            setError("Não foi possível obter mídias do Instagram.");
-            setLoading(false);
-            return;
+          if (!res.ok) {
+            const errorData = await res.json();
+            throw new Error(errorData.error || "Erro ao buscar dados do Instagram");
           }
-          const mediaData = await mediaRes.json();
-          setInstagramMedia(mediaData.data || []);
+
+          const data = await res.json();
+          setInstagramUser(data.user);
+          setInstagramMedia(data.media || []);
           setLoading(false);
-        } catch (err) {
+        } catch (err: any) {
           console.error("Erro ao conectar com o Instagram:", err);
-          setError("Erro ao conectar com o Instagram.");
+          setError(err.message || "Erro ao conectar com o Instagram.");
           setLoading(false);
         }
       } else {
         setLoading(false);
       }
     };
+
     fetchInstagramData();
-  }, [status, accessToken]);
+  }, [status, providerAccountId]);
 
   if (status === "loading" || loading) return <LoadingState />;
   if (status === "unauthenticated") return <UnauthenticatedState />;
@@ -244,7 +228,7 @@ export default function UserPage() {
         live: true,
       };
 
-      const res = await fetch(`/api/automacao?providerAccountId=${accountId}`, {
+      const res = await fetch(`/api/automacao?providerAccountId=${providerAccountId}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -260,7 +244,7 @@ export default function UserPage() {
         description: "Automação criada com sucesso!",
         variant: "default",
       });
-      router.push(`/${accountId}/dashboard/automacao/guiado-facil/${data.id}`);
+      router.push(`/${providerAccountId}/dashboard/automacao/guiado-facil/${data.id}`);
     } catch (error: any) {
       console.error("Erro ao salvar automação:", error.message);
       toast({

@@ -86,7 +86,6 @@ export function AppSidebar() {
     if (pathname) {
       const match = pathname.match(/\/([^\/]+)\/dashboard/);
       if (match && match[1]) {
-        // Agora estamos armazenando o providerAccountId como activeAccountId
         setActiveAccountId(match[1]);
       } else {
         setActiveAccountId(null);
@@ -97,26 +96,26 @@ export function AppSidebar() {
   // Efeito para carregar contas conectadas
   useEffect(() => {
     if (session?.user?.id) {
-      // Buscar todas as contas conectadas
       const fetchAccounts = async () => {
         try {
-          const response = await fetch('/api/auth/instagram/accounts');
+          const response = await fetch("/api/auth/instagram/accounts");
 
           if (response.ok) {
             const data = await response.json();
             if (data.accounts && Array.isArray(data.accounts)) {
-              setConnectedAccounts(data.accounts.map((account: any) => ({
-                id: account.id,
-                provider: "instagram",
-                name: account.igUsername || "Instagram",
-                providerAccountId: account.providerAccountId,
-                connected: true,
-                isMain: account.isMain
-              })));
+              setConnectedAccounts(
+                data.accounts.map((account: any) => ({
+                  id: account.id,
+                  provider: "instagram",
+                  name: account.igUsername || "Instagram",
+                  providerAccountId: account.providerAccountId,
+                  connected: true,
+                  isMain: account.isMain,
+                }))
+              );
             }
           } else {
             console.error("Erro ao buscar contas conectadas");
-            // Se houver erro, mas tiver uma conta na sessão, mostrar pelo menos essa
             if (session?.user?.instagramAccessToken && session?.user?.providerAccountId) {
               setConnectedAccounts([
                 {
@@ -125,17 +124,15 @@ export function AppSidebar() {
                   name: "Instagram Principal",
                   providerAccountId: session.user.providerAccountId,
                   connected: true,
-                  isMain: true
-                }
+                  isMain: true,
+                },
               ]);
             } else {
-              // Não há contas conectadas
               setConnectedAccounts([]);
             }
           }
         } catch (error) {
           console.error("Erro ao buscar contas do Instagram:", error);
-          // Fallback para a conta na sessão
           if (session?.user?.instagramAccessToken && session?.user?.providerAccountId) {
             setConnectedAccounts([
               {
@@ -144,8 +141,8 @@ export function AppSidebar() {
                 name: "Instagram Principal",
                 providerAccountId: session.user.providerAccountId,
                 connected: true,
-                isMain: true
-              }
+                isMain: true,
+              },
             ]);
           } else {
             setConnectedAccounts([]);
@@ -174,14 +171,12 @@ export function AppSidebar() {
       });
 
       if (res.ok) {
-        // Atualizar a lista de contas conectadas
-        setConnectedAccounts(prevAccounts =>
-          prevAccounts.filter(account => account.providerAccountId !== providerAccountId)
+        setConnectedAccounts((prevAccounts) =>
+          prevAccounts.filter((account) => account.providerAccountId !== providerAccountId)
         );
 
-        // Se a conta desconectada for a ativa, redirecionar para o dashboard principal
         if (activeAccountId === providerAccountId) {
-          router.push('/dashboard');
+          router.push("/dashboard");
         }
       } else {
         const errorData = await res.json();
@@ -202,11 +197,9 @@ export function AppSidebar() {
         headers: {
           "Content-Type": "application/json",
         },
-        // Sem especificar accountId, a API desconectará a conta principal
       });
 
       if (res.ok) {
-        // Recarrega a página para atualizar o estado da sessão
         window.location.reload();
       } else {
         const errorData = await res.json();
@@ -219,12 +212,10 @@ export function AppSidebar() {
     }
   }
 
-  // Carregamento Inicial
   if (isLoading) {
     return (
       <Sidebar collapsible="icon" side="left" variant="sidebar">
         <SidebarContent>
-          {/* Placeholder de carregamento */}
           <div className="p-4 space-y-6">
             <Skeleton className="h-[125px] w-full rounded-xl" />
             <div className="space-y-4">
@@ -249,8 +240,7 @@ export function AppSidebar() {
     );
   }
 
-  // Encontrar a conta ativa
-  const activeAccount = connectedAccounts.find(account => account.id === activeAccountId);
+  const activeAccount = connectedAccounts.find((account) => account.id === activeAccountId);
 
   return (
     <Sidebar collapsible="icon" side="left" variant="sidebar">
@@ -263,17 +253,21 @@ export function AppSidebar() {
                 <div className="flex items-center gap-2">
                   {activeAccount ? (
                     <>
-                      <div className="h-8 w-8 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white text-xs font-bold">
-                        {activeAccount.name && activeAccount.name.startsWith('@')
-                          ? activeAccount.name.substring(1, 2).toUpperCase()
-                          : 'I'}
-                      </div>
+                      <DotLottieReact
+                        src={instagramAnimationSrc}
+                        autoplay
+                        loop={false}
+                        style={{ width: "24px", height: "24px" }}
+                        aria-label="Instagram conectado"
+                      />
                       <div className="flex flex-col items-start">
                         <span className="text-sm font-medium truncate max-w-[150px]">
                           {activeAccount.name}
                         </span>
                         <span className="text-xs text-muted-foreground">
-                          {activeAccount.isMain ? 'Conta Principal' : 'Conta Conectada'}
+                          {activeAccount.isMain
+                            ? "Conta Principal"
+                            : "Conta Conectada"}
                         </span>
                       </div>
                     </>
@@ -298,7 +292,7 @@ export function AppSidebar() {
               {/* Link para o dashboard principal */}
               <DropdownMenuItem
                 className="flex items-center gap-2 cursor-pointer"
-                onClick={() => router.push('/dashboard')}
+                onClick={() => router.push("/dashboard")}
               >
                 <div className="h-6 w-6 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white text-xs font-bold">
                   <User2 className="h-3 w-3" />
@@ -317,14 +311,21 @@ export function AppSidebar() {
                   {connectedAccounts.map((account) => (
                     <DropdownMenuItem
                       key={account.id}
-                      className="flex items-center gap-2 cursor-pointer"
-                      onClick={() => navigateToAccount(account.id, account.providerAccountId)}
+                      className={`flex items-center gap-2 cursor-pointer rounded-md p-2 transition-colors ${
+                        activeAccountId === account.providerAccountId ? "bg-accent" : ""
+                      }`}
+                      onClick={() => {
+                        setActiveAccountId(account.providerAccountId);
+                        navigateToAccount(account.id, account.providerAccountId);
+                      }}
                     >
-                      <div className="h-6 w-6 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white text-xs font-bold">
-                        {account.name && account.name.startsWith('@')
-                          ? account.name.substring(1, 2).toUpperCase()
-                          : 'I'}
-                      </div>
+                      <DotLottieReact
+                        src={instagramAnimationSrc}
+                        autoplay
+                        loop={false}
+                        style={{ width: "24px", height: "24px" }}
+                        aria-label="Instagram animação"
+                      />
                       <div className="flex flex-col">
                         <span className="text-sm">{account.name}</span>
                         {account.isMain && (
@@ -333,7 +334,9 @@ export function AppSidebar() {
                           </Badge>
                         )}
                       </div>
-                      {activeAccountId === account.providerAccountId && <Check className="ml-auto h-4 w-4" />}
+                      {activeAccountId === account.providerAccountId && (
+                        <Check className="ml-auto h-4 w-4" />
+                      )}
                     </DropdownMenuItem>
                   ))}
                 </>
@@ -342,7 +345,7 @@ export function AppSidebar() {
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 className="flex items-center gap-2 cursor-pointer text-primary"
-                onClick={() => router.push('/registro/redesocial')}
+                onClick={() => router.push("/registro/redesocial")}
               >
                 <Plus className="h-4 w-4" />
                 <span>Adicionar nova conta</span>
@@ -369,11 +372,9 @@ export function AppSidebar() {
                     state === "collapsed" ? "mx-auto" : "mr-2"
                   }`}
                 />
-                {/* MOSTRA o texto "Social Login" apenas se a sidebar NÃO estiver colapsada */}
                 {state !== "collapsed" && (
                   <span className="ml-2">Social Login</span>
                 )}
-                {/* MOSTRA a animação do Instagram apenas se conectado e NÃO estiver colapsada */}
                 {isInstagramConnected && state !== "collapsed" && (
                   <DotLottieReact
                     src={instagramAnimationSrc}
@@ -387,7 +388,6 @@ export function AppSidebar() {
                     aria-label="Instagram conectado"
                   />
                 )}
-                {/* Ícone de Chevron para indicar colapso/expansão */}
                 <ChevronDown
                   className={`ml-auto transition-transform duration-300 ${
                     state === "collapsed" ? "hidden" : "inline-block"
@@ -399,7 +399,6 @@ export function AppSidebar() {
             <CollapsibleContent>
               <SidebarGroupContent>
                 <div className="p-4">
-                  {/* Lista de contas conectadas */}
                   {connectedAccounts.length > 0 && (
                     <div className="mb-4">
                       <div className="flex items-center justify-between mb-2">
@@ -412,17 +411,24 @@ export function AppSidebar() {
                         {connectedAccounts.map((account) => (
                           <div
                             key={account.id}
-                            className={`flex items-center justify-between p-2 rounded-md hover:bg-accent transition-colors cursor-pointer ${
-                              activeAccountId === account.providerAccountId ? 'bg-accent' : 'bg-accent/50'
+                            className={`flex items-center justify-between p-2 rounded-md transition-colors cursor-pointer ${
+                              activeAccountId === account.providerAccountId
+                                ? "bg-accent"
+                                : "hover:bg-accent/50"
                             }`}
-                            onClick={() => navigateToAccount(account.id, account.providerAccountId)}
+                            onClick={() => {
+                              setActiveAccountId(account.providerAccountId);
+                              navigateToAccount(account.id, account.providerAccountId);
+                            }}
                           >
                             <div className="flex items-center gap-2">
-                              <div className="h-6 w-6 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white text-xs font-bold">
-                                {account.name && account.name.startsWith('@')
-                                  ? account.name.substring(1, 2).toUpperCase()
-                                  : 'I'}
-                              </div>
+                              <DotLottieReact
+                                src={instagramAnimationSrc}
+                                autoplay
+                                loop={false}
+                                style={{ width: "24px", height: "24px" }}
+                                aria-label="Instagram animação"
+                              />
                               <div className="flex flex-col">
                                 <span className="text-sm truncate max-w-[120px]">{account.name}</span>
                                 {account.isMain && (
@@ -440,7 +446,18 @@ export function AppSidebar() {
                               className="text-xs text-red-500 hover:text-red-600"
                               aria-label="Desconectar conta"
                             >
-                              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-log-out">
+                              <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                width="16"
+                                height="16"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                className="lucide lucide-log-out"
+                              >
                                 <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
                                 <polyline points="16 17 21 12 16 7"></polyline>
                                 <line x1="21" y1="12" x2="9" y2="12"></line>
@@ -452,7 +469,6 @@ export function AppSidebar() {
                     </div>
                   )}
 
-                  {/* Botão para adicionar nova conta */}
                   <SidebarMenu>
                     <SidebarMenuItem>
                       <SidebarMenuButton asChild>
@@ -467,7 +483,6 @@ export function AppSidebar() {
                     </SidebarMenuItem>
                   </SidebarMenu>
 
-                  {/* Se não está conectado, mostra botão de login do Instagram */}
                   {!isInstagramConnected && (
                     <>
                       <p className="text-lg font-bold mb-2 mt-4">
@@ -495,20 +510,6 @@ export function AppSidebar() {
                       </SidebarMenu>
                     </>
                   )}
-
-                  {/* Se já está conectado ao Instagram, mostra a animação */}
-                  {isInstagramConnected && (
-                    <div className="mt-4 flex flex-col items-center">
-                      <DotLottieReact
-                        src={instagramAnimationSrc}
-                        autoplay
-                        style={{ width: "60px", height: "60px" }}
-                      />
-                      <p className="text-center mt-2">
-                        Instagram conectado e pronto para chamadas API.
-                      </p>
-                    </div>
-                  )}
                 </div>
               </SidebarGroupContent>
             </CollapsibleContent>
@@ -525,17 +526,14 @@ export function AppSidebar() {
                 }`}
               >
                 <CollapsibleTrigger className="flex items-center justify-center cursor-pointer">
-                  {/* Ícone para o grupo Admin */}
                   <HelpCircle
                     className={`transition-all duration-300 ${
                       state === "collapsed" ? "mx-auto" : "mr-2"
                     }`}
                   />
-                  {/* Texto "Admin" apenas se a sidebar NÃO estiver colapsada */}
                   {state !== "collapsed" && (
                     <span className="ml-2 font-bold">Admin</span>
                   )}
-                  {/* Chevron para colapso/expansão */}
                   <ChevronDown
                     className={`ml-auto transition-transform duration-300 ${
                       state === "collapsed" ? "hidden" : "inline-block"
@@ -547,15 +545,12 @@ export function AppSidebar() {
               <CollapsibleContent>
                 <SidebarGroupContent>
                   <SidebarMenu>
-                    {/* /admin/queues */}
                     <SidebarMenuItem>
                       <SidebarMenuButton asChild>
                         <Link
                           href="/admin/queue"
                           className={`flex items-center ${
-                            state === "collapsed"
-                              ? "justify-start pl-4"
-                              : "justify-start pl-2"
+                            state === "collapsed" ? "justify-start pl-4" : "justify-start pl-2"
                           }`}
                         >
                           <Calendar className="mr-2" />
@@ -564,15 +559,12 @@ export function AppSidebar() {
                       </SidebarMenuButton>
                     </SidebarMenuItem>
 
-                    {/* /dashboard/calendario */}
                     <SidebarMenuItem>
                       <SidebarMenuButton asChild>
                         <Link
                           href="/dashboard/calendario"
                           className={`flex items-center ${
-                            state === "collapsed"
-                              ? "justify-start pl-4"
-                              : "justify-start pl-2"
+                            state === "collapsed" ? "justify-start pl-4" : "justify-start pl-2"
                           }`}
                         >
                           <Users className="mr-2" />
@@ -581,34 +573,26 @@ export function AppSidebar() {
                       </SidebarMenuButton>
                     </SidebarMenuItem>
 
-                    {/* /api/auth/get-token */}
                     <SidebarMenuItem>
                       <SidebarMenuButton asChild>
                         <Link
                           href="/api/auth/get-token"
                           className={`flex items-center ${
-                            state === "collapsed"
-                              ? "justify-start pl-4"
-                              : "justify-start pl-2"
+                            state === "collapsed" ? "justify-start pl-4" : "justify-start pl-2"
                           }`}
                         >
                           <MessageCircle className="mr-2" />
-                          {state !== "collapsed" && (
-                            <span>API Auth Get Token</span>
-                          )}
+                          {state !== "collapsed" && <span>API Auth Get Token</span>}
                         </Link>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
 
-                    {/* /auth/users */}
                     <SidebarMenuItem>
                       <SidebarMenuButton asChild>
                         <Link
                           href="/auth/users"
                           className={`flex items-center ${
-                            state === "collapsed"
-                              ? "justify-start pl-4"
-                              : "justify-start pl-2"
+                            state === "collapsed" ? "justify-start pl-4" : "justify-start pl-2"
                           }`}
                         >
                           <User2 className="mr-2" />
@@ -771,7 +755,6 @@ export function AppSidebar() {
                 ) : (
                   <User2 className="h-6 w-6" />
                 )}
-                {/* Ocultar o nome do usuário se a sidebar estiver colapsada */}
                 {state !== "collapsed" && (
                   <span className="ml-2">
                     {session?.user?.name ?? "Minha Conta"}

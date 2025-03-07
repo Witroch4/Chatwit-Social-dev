@@ -1,6 +1,6 @@
 // app/dashboard/automacao/components/WIT-EQ/PostSelection.tsx
 
-import { InstagramMediaItem } from "../../guiado-facil/page"; // Ajuste o caminho se necessário
+import { InstagramMediaItem } from "../../guiado-facil/page";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -15,19 +15,18 @@ import {
   DialogClose,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { useEffect, useState } from "react";
+import { useParams } from "next/navigation";
 
 interface PostSelectionProps {
   selectedOptionPostagem: "especifico" | "qualquer";
   setSelectedOptionPostagem: (v: "especifico" | "qualquer") => void;
   selectedPost: InstagramMediaItem | null;
   setSelectedPost: (p: InstagramMediaItem | null) => void;
-  ultimasPostagens: InstagramMediaItem[];
   instagramMedia: InstagramMediaItem[];
   openDialog: boolean;
   setOpenDialog: (open: boolean) => void;
   onSelectPost?: () => void;
-
-  // NOVO: Adicionando props para desabilitar o componente
   disabled?: boolean;
   className?: string;
 }
@@ -37,26 +36,62 @@ export default function PostSelection({
   setSelectedOptionPostagem,
   selectedPost,
   setSelectedPost,
-  ultimasPostagens,
-  instagramMedia,
-  openDialog,
-  setOpenDialog,
   onSelectPost,
-  disabled = false, // Valor padrão como false
+  disabled = false,
   className = "",
 }: PostSelectionProps) {
-  // Verifica se é Reels (ajuste se sua lógica for diferente)
+  const params = useParams<{ accountid: string }>();
+  const providerAccountId = params?.accountid;
+
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [instagramMedia, setInstagramMedia] = useState<InstagramMediaItem[]>([]);
+  const [openDialog, setOpenDialog] = useState(false);
+
+  useEffect(() => {
+    const fetchInstagramData = async () => {
+      if (!providerAccountId) {
+        setError("ID da conta não fornecido");
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const res = await fetch(`/api/instagram/posts?providerAccountId=${providerAccountId}`);
+
+        if (!res.ok) {
+          const errorData = await res.json();
+          throw new Error(errorData.error || "Erro ao buscar dados do Instagram");
+        }
+
+        const data = await res.json();
+        setInstagramMedia(data.media || []);
+        setLoading(false);
+      } catch (err: any) {
+        console.error("Erro ao conectar com o Instagram:", err);
+        setError(err.message || "Erro ao conectar com o Instagram.");
+        setLoading(false);
+      }
+    };
+
+    fetchInstagramData();
+  }, [providerAccountId]);
+
+  // Verifica se é Reels
   const isReel = (post: InstagramMediaItem) => {
     return post.media_type === "VIDEO" && post.media_product_type === "REELS";
   };
 
   // Ao selecionar um post específico
   const handleSelectPost = (post: InstagramMediaItem) => {
-    if (disabled) return; // <<< BLOQUEIA A SELEÇÃO SE ESTIVER DESABILITADO
+    if (disabled) return;
     setSelectedPost(post);
     setSelectedOptionPostagem("especifico");
-    onSelectPost?.(); // Usa optional chaining para evitar erro caso não exista
+    onSelectPost?.();
   };
+
+  // Pegar apenas as 4 últimas postagens para o preview
+  const ultimasPostagens = instagramMedia.slice(0, 4);
 
   // Renderiza cards de posts (pequenos)
   const renderPostCard = (post: InstagramMediaItem) => (
@@ -68,7 +103,7 @@ export default function PostSelection({
         border: selectedPost?.id === post.id ? "2px solid blue" : "1px solid #333",
         borderRadius: "5px",
         overflow: "hidden",
-        cursor: disabled ? "not-allowed" : "pointer", // <<< ALTERAÇÃO DO CURSOR
+        cursor: disabled ? "not-allowed" : "pointer",
         flexShrink: 0,
         position: "relative",
       }}
@@ -82,7 +117,6 @@ export default function PostSelection({
               style={{ width: "100%", height: "100%", objectFit: "cover" }}
               alt={post.caption || "Reels thumbnail"}
             />
-            {/* Indicador de Reels */}
             <div
               style={{
                 position: "absolute",
@@ -121,15 +155,15 @@ export default function PostSelection({
         border: "1px solid #333",
         borderRadius: "5px",
         overflow: "hidden",
-        cursor: disabled ? "not-allowed" : "pointer", // <<< ALTERAÇÃO DO CURSOR
+        cursor: disabled ? "not-allowed" : "pointer",
         position: "relative",
       }}
       onClick={() => {
-        if (disabled) return; // <<< BLOQUEIA A SELEÇÃO SE ESTIVER DESABILITADO
+        if (disabled) return;
         setSelectedPost(post);
         setOpenDialog(false);
         setSelectedOptionPostagem("especifico");
-        onSelectPost?.(); // Atualiza o preview no pai
+        onSelectPost?.();
       }}
     >
       {post.media_url ? (
@@ -174,7 +208,7 @@ export default function PostSelection({
       <RadioGroup
         value={selectedOptionPostagem}
         onValueChange={(v) => {
-          if (disabled) return; // <<< BLOQUEIA A MUDANÇA SE ESTIVER DESABILITADO
+          if (disabled) return;
           setSelectedOptionPostagem(v as "especifico" | "qualquer");
           if (v === "qualquer") {
             setSelectedPost(null);
@@ -193,7 +227,6 @@ export default function PostSelection({
         </div>
       </RadioGroup>
 
-      {/* Se o usuário escolheu "específico", mostra algumas miniaturas e o botão de "Mostrar Todos" */}
       {selectedOptionPostagem === "especifico" && (
         <div style={{ marginBottom: "20px" }}>
           {ultimasPostagens.length > 0 ? (
@@ -216,19 +249,18 @@ export default function PostSelection({
             </div>
           )}
 
-          {/* Botão "Mostrar Todos" abre o Dialog */}
           <Dialog open={openDialog} onOpenChange={setOpenDialog}>
             <DialogTrigger asChild>
               <button
                 style={{
                   background: "transparent",
                   border: "none",
-                  color: disabled ? "#aaa" : "#0af", // <<< COR P/ DESABILITADO
+                  color: disabled ? "#aaa" : "#0af",
                   textDecoration: disabled ? "none" : "underline",
                   cursor: disabled ? "not-allowed" : "pointer",
                   marginTop: "10px",
                 }}
-                disabled={disabled} // <<< DESABILITA O BOTÃO
+                disabled={disabled}
               >
                 Mostrar Todos
               </button>

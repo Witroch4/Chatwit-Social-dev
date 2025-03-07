@@ -11,7 +11,7 @@ import { getInstagramUserToken } from "@/lib/instagram-auth";
 import { followUpQueue } from "@/worker/queues/followUpQueue"; // Exemplo (você deve implementar)
 
 // Constante base da Graph API do IG
-const IG_GRAPH_API_BASE = process.env.IG_GRAPH_API_BASE || "https://graph.instagram.com/v21.0";
+const IG_GRAPH_API_BASE = "https://graph.instagram.com/v21.0";
 
 /**
  * Função principal que recebe o webhook e despacha para handleCommentChange() ou handleMessageEvent().
@@ -382,14 +382,37 @@ async function sendFollowRequestMessage({
  * Envia uma msg pública no comentário do IG.
  */
 async function replyPublicComment(commentId: string, accessToken: string, msg: string) {
-  await axios.post(
-    `${IG_GRAPH_API_BASE}/${commentId}/replies`,
-    new URLSearchParams({
-      message: msg,
-      access_token: accessToken,
-    })
-  );
-  console.log("[replyPublicComment] Resposta pública p/ commentId=", commentId);
+  try {
+    console.log(`[replyPublicComment] Iniciando resposta para commentId=${commentId}`);
+    console.log(`[replyPublicComment] URL: ${IG_GRAPH_API_BASE}/${commentId}/replies`);
+
+    const response = await axios.post(
+      `${IG_GRAPH_API_BASE}/${commentId}/replies`,
+      new URLSearchParams({
+        message: msg,
+        access_token: accessToken,
+      }).toString(),
+      {
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded'
+        }
+      }
+    );
+
+    console.log("[replyPublicComment] Resposta pública enviada com sucesso:", response.status);
+    return response.data;
+  } catch (error: any) {
+    console.error("[replyPublicComment] Erro ao enviar resposta:", {
+      status: error.response?.status,
+      data: error.response?.data,
+      config: {
+        url: error.config?.url,
+        method: error.config?.method,
+        headers: error.config?.headers
+      }
+    });
+    throw error;
+  }
 }
 
 /**

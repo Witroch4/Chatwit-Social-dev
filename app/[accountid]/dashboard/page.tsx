@@ -1,5 +1,5 @@
 // app/[accountid]/dashboard/page.tsx
-'use client'
+"use client";
 
 import React, { useState, useCallback, useEffect, useRef } from "react";
 import { useSession } from "next-auth/react";
@@ -16,9 +16,6 @@ import {
 } from "@/components/ui/dialog";
 import { loadStripe } from "@stripe/stripe-js";
 import { EmbeddedCheckoutProvider, EmbeddedCheckout } from "@stripe/react-stripe-js";
-import { auth } from "@/auth";
-import { prisma } from "@/lib/prisma";
-import { redirect } from "next/navigation";
 
 // Componente auxiliar: Card
 type CardProps = {
@@ -69,89 +66,178 @@ function Card({ title, description, tag, popular, ia }: CardProps) {
 // Configuração do Stripe
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
 
-// Removida a exportação de metadata, pois não é permitida em componentes cliente
-
-export default function AccountDashboardPage() {
+export default function DashboardHome() {
   const { data: session } = useSession();
   const router = useRouter();
   const params = useParams();
-  const accountId = params?.accountid as string; // Adicionado o operador de optional chaining
-  const [account, setAccount] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const accountId = params.accountid as string;
+  const subscriptionSectionRef = useRef<HTMLDivElement>(null);
+  const [checkoutDialogOpen, setCheckoutDialogOpen] = useState(false);
+  const [isSubscribed, setIsSubscribed] = useState(false);
+  // Estado para armazenar os dados completos da assinatura para debug
+  const [subscriptionData, setSubscriptionData] = useState<any>(null);
 
+  // Busca os dados da assinatura do usuário
   useEffect(() => {
-    async function fetchAccountInfo() {
-      if (!accountId) {
-        router.push('/dashboard');
-        return;
-      }
+    fetch("/api/user/subscription")
+      .then((res) => res.json())
+      .then((data) => {
+        // Salva os dados completos da assinatura para fins de debug
+        setSubscriptionData(data.subscription);
+        // O usuário é considerado assinante se houver uma assinatura e seu status for "ACTIVE"
+        setIsSubscribed(data.subscription && data.subscription.status === "ACTIVE");
+      })
+      .catch((err) => {
+        console.error("Erro ao buscar dados da assinatura:", err);
+        setIsSubscribed(false);
+      });
+  }, []);
 
-      try {
-        const response = await fetch(`/api/auth/instagram/account/${accountId}`);
-        if (response.ok) {
-          const data = await response.json();
-          setAccount(data); // Corrigido: a API retorna diretamente o objeto account, não dentro de data.account
-        } else {
-          // Se a conta não existir ou não pertencer ao usuário, redirecionar para o dashboard
-          router.push('/dashboard');
-        }
-      } catch (error) {
-        console.error("Erro ao buscar informações da conta:", error);
-        router.push('/dashboard');
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    if (accountId) {
-      fetchAccountInfo();
+  // Handler para clique nos cards
+  const handleCardClick = useCallback(() => {
+    if (!isSubscribed && subscriptionSectionRef.current) {
+      subscriptionSectionRef.current.scrollIntoView({ behavior: "smooth" });
     } else {
-      setLoading(false);
-      router.push('/dashboard');
+      // Se o usuário já estiver assinando, prossiga para a funcionalidade do card
+      console.log("Usuário assinante – prosseguir com a ação do card");
     }
-  }, [accountId, router]);
+  }, [isSubscribed]);
 
-  if (loading) {
-    return (
-      <div className="p-6 flex justify-center items-center h-full">
-        <p>Carregando informações da conta...</p>
-      </div>
-    );
-  }
+  // Função para buscar o clientSecret da Checkout Session
+  const fetchClientSecret = useCallback(() => {
+    return fetch("/api/checkout-sessions", {
+      method: "POST",
+    })
+      .then((res) => res.json())
+      .then((data) => data.clientSecret);
+  }, []);
 
-  if (!account) {
-    return null; // O redirecionamento já foi tratado no useEffect
-  }
+  const checkoutOptions = { fetchClientSecret };
+
+  // Obter primeiro nome do usuário (ou "Usuário" se não houver nome)
+  const userName = session?.user?.name?.split(" ")[0] ?? "Usuário";
 
   return (
-    <div className="p-6">
-      <h1 className="text-3xl font-bold mb-6">Dashboard da Conta</h1>
-
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6">
-        <h2 className="text-xl font-semibold mb-4">Informações da Conta</h2>
-        <div className="space-y-2">
-          <p><span className="font-medium">Nome de usuário:</span> {account.igUsername || "Instagram"}</p>
-          <p><span className="font-medium">ID da conta:</span> {account.id}</p>
-          <p><span className="font-medium">Conta principal:</span> {account.isMain ? "Sim" : "Não"}</p>
+    <div className="space-y-8">
+      {/* Seção Inicial */}
+      <section className="pt-6">
+        <h1 className="text-3xl font-bold mb-2">Olá, {userName}</h1>
+        <div className="flex items-center gap-2">
+          <span className="bg-indigo-100 dark:bg-indigo-800 text-indigo-800 dark:text-indigo-100 px-2 py-0.5 rounded-md text-sm font-semibold">
+            [IA]
+          </span>
+          <p className="text-lg">
+            Deixe a IA cuidar da agitação do feriado. A IA trabalha, você comemora!
+          </p>
         </div>
-      </div>
+        <p className="mt-2 text-gray-600 dark:text-gray-300">
+          Desconto de <strong>20% no valor</strong>
+        </p>
+      </section>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-          <h3 className="text-lg font-semibold mb-3">Estatísticas</h3>
-          <p className="text-gray-600 dark:text-gray-300">Estatísticas da sua conta do Instagram.</p>
+      {/* Seção com Cards */}
+      <section>
+        <h2 className="text-xl font-semibold mb-4">
+          A IA ideal para otimizar e minimizar tarefas repetitivas
+        </h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <Card
+            title="Use IA para automatizar interações"
+            description="Reduza tarefas manuais repetitivas e aumente a produtividade."
+          />
+          <Card
+            title="Converter interações em leads quentes com IA"
+            description="Identifique rapidamente oportunidades de negócio."
+          />
+          <Card
+            title="Converter interações em leads quentes com IA"
+            description="Segmentação inteligente e automática para potenciais clientes."
+          />
         </div>
+      </section>
 
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-          <h3 className="text-lg font-semibold mb-3">Automações</h3>
-          <p className="text-gray-600 dark:text-gray-300">Gerencie suas automações.</p>
+      {/* Seção "Comece aqui" */}
+      <section>
+        <h2 className="text-xl font-semibold mb-4">Comece aqui</h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <Card
+            title="Enviar links automaticamente por DM a partir dos comentários"
+            description="Envie um link sempre que alguém comentar em uma publicação ou reel."
+            tag="Quick Automation"
+            popular
+          />
+          <Card
+            title="Conheça nossos modelos"
+            description="Templates prontos para interações de DM automáticas."
+            tag="Quick Automation"
+          />
+          <Card
+            title="Gere leads dos stories"
+            description="Use ofertas por tempo limitado nos Stories para converter leads."
+            tag="Flow Builder"
+          />
         </div>
+      </section>
 
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-          <h3 className="text-lg font-semibold mb-3">Mensagens</h3>
-          <p className="text-gray-600 dark:text-gray-300">Gerencie suas mensagens.</p>
+      {/* Seção com um único card */}
+      <section>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <Card
+            title="Use IA para automatizar interações"
+            description="Colete informações dos seus seguidores ou defina respostas automáticas."
+            tag="Flow Builder"
+            ia
+          />
         </div>
-      </div>
+      </section>
+
+      {/* Seção de assinatura (exibida somente se o usuário NÃO tiver assinatura ativa) */}
+      {!isSubscribed && (
+        <section ref={subscriptionSectionRef}>
+          <h2 className="text-xl font-semibold mb-4">Assine Agora</h2>
+          <p className="mb-4">
+            Assine agora e decole na automatização das redes sociais.
+          </p>
+          <Button variant="default" onClick={() => setCheckoutDialogOpen(true)}>
+            Assine agora
+          </Button>
+        </section>
+      )}
+
+      {/* Diálogo com o Embedded Checkout */}
+      <Dialog open={checkoutDialogOpen} onOpenChange={setCheckoutDialogOpen}>
+        <DialogTrigger asChild />
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Checkout - Assinatura Mensal</DialogTitle>
+          </DialogHeader>
+          <div id="checkout" className="min-h-[300px]">
+            <EmbeddedCheckoutProvider stripe={stripePromise} options={checkoutOptions}>
+              <EmbeddedCheckout />
+            </EmbeddedCheckoutProvider>
+          </div>
+          <DialogFooter>
+            <Button onClick={() => setCheckoutDialogOpen(false)}>Concluir</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/*
+        =========================
+        DEBUG: Informações da Assinatura do Usuário
+        =========================
+        Essa seção exibe todas as informações da assinatura salvas no banco de dados para fins didáticos.
+        Após confirmar que os dados estão sendo exibidos corretamente, você pode removê-la.
+      */}
+      <section className="border-t border-gray-300 pt-4 mt-4">
+        <h2 className="text-xl font-bold mb-2">DEBUG: Dados da Assinatura</h2>
+        <pre className="text-sm bg-gray-100 p-4 rounded">
+          {JSON.stringify(subscriptionData, null, 2)}
+        </pre>
+        {/* =========================
+             Fim da seção DEBUG
+             ========================= */}
+      </section>
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import PreviewPhoneMockup from "../PreviewPhoneMockup";
+import { useParams } from "next/navigation";
 
 interface InstagramUserData {
   id: string;
@@ -41,6 +42,13 @@ export default function AutomacaoSteps({
   instagramUser,
   selectedPost,
 }: AutomacaoStepsProps) {
+  const params = useParams<{ accountid: string }>();
+  const providerAccountId = params.accountid;
+
+  if (!providerAccountId) {
+    throw new Error("providerAccountId é obrigatório");
+  }
+
   // Controla a etapa atual
   const [step, setStep] = useState(1);
 
@@ -86,7 +94,7 @@ export default function AutomacaoSteps({
         // Etapa 1
         selectedMediaId: selectedPost?.id || null,
         anyMediaSelected: selectedOptionPostagem === "qualquer",
-        anyword: anyWord, // envia o boolean diretamente
+        anyword: anyWord,
         palavrasChave: anyWord ? null : palavrasChave,
         // Etapa 2
         fraseBoasVindas,
@@ -100,9 +108,11 @@ export default function AutomacaoSteps({
         pedirEmailPro: outrosRecursos.pedirEmailPro,
         pedirParaSeguirPro: outrosRecursos.pedirParaSeguirPro,
         contatoSemClique: outrosRecursos.contatoSemClique,
+        // Adicionar providerAccountId
+        providerAccountId,
       };
 
-      const res = await fetch("/api/automacao", {
+      const res = await fetch(`/api/automacao?providerAccountId=${providerAccountId}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -130,7 +140,7 @@ export default function AutomacaoSteps({
   const canGoNextStep = (): boolean => {
     switch (step) {
       case 1:
-        // Se for “uma palavra específica”, exige que o usuário preencha as palavras
+        // Se for "uma palavra específica", exige que o usuário preencha as palavras
         if (!anyWord) {
           return palavrasChave.trim().length > 0;
         }
