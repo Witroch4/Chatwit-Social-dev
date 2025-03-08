@@ -1,0 +1,62 @@
+"use client";
+
+import React, { useState, useEffect } from "react";
+import { SidebarProvider } from "@/components/ui/sidebar";
+import ConditionalSidebar from "@/components/conditional-sidebar";
+import Navbar from "@/components/navbar";
+import { SidebarSkeleton } from "@/components/ui/sidebar-skeleton";
+import { NavbarSkeleton } from "@/components/ui/navbar-skeleton";
+import { useSession } from "next-auth/react";
+
+interface DashboardLayoutClientProps {
+  children: React.ReactNode;
+}
+
+export default function DashboardLayoutClient({ children }: DashboardLayoutClientProps) {
+  const { status } = useSession();
+  const [isMounted, setIsMounted] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Garante que o componente está montado no cliente
+  useEffect(() => {
+    setIsMounted(true);
+
+    // Simula um pequeno atraso para garantir que o esqueleto seja exibido
+    // mesmo que a autenticação seja rápida
+    const timer = setTimeout(() => {
+      setIsLoading(false);
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Determina se deve mostrar o esqueleto
+  const showSkeleton = !isMounted || isLoading || status === 'loading';
+
+  return (
+    <SidebarProvider defaultOpen={true}>
+      <div className="flex h-full min-h-screen">
+        {/* Renderiza o esqueleto ou a sidebar condicional */}
+        {showSkeleton ? (
+          <SidebarSkeleton />
+        ) : (
+          <ConditionalSidebar />
+        )}
+
+        {/* Conteúdo principal - as classes CSS no globals.css ajustam automaticamente a margem */}
+        <div className="flex-1 flex flex-col">
+          {/* Renderiza o esqueleto do navbar ou o navbar real */}
+          {showSkeleton ? (
+            <NavbarSkeleton />
+          ) : (
+            <Navbar />
+          )}
+
+          <div className="flex-1 p-4 md:p-8">
+            {children}
+          </div>
+        </div>
+      </div>
+    </SidebarProvider>
+  );
+}

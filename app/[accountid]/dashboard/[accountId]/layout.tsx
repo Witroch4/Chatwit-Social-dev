@@ -44,8 +44,8 @@ export default function AccountDashboardLayout({
 
         if (!response.ok) {
           if (response.status === 404) {
-            // Conta não encontrada, redirecionar para o dashboard principal
-            router.push("/dashboard");
+            // Conta não encontrada, redirecionar para a página de registro de rede social
+            router.push("/registro/redesocial");
             return;
           }
           throw new Error("Falha ao validar conta");
@@ -58,7 +58,7 @@ export default function AccountDashboardLayout({
         setError("Não foi possível validar a conta. Redirecionando...");
         // Redirecionar após um breve atraso
         setTimeout(() => {
-          router.push("/dashboard");
+          router.push("/registro/redesocial");
         }, 2000);
       } finally {
         setIsLoading(false);

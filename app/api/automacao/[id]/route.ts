@@ -1,3 +1,4 @@
+//app\api\automacao\[id]\route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
@@ -15,18 +16,25 @@ interface PatchBody {
   data?: any; // Para o updateAll: { [campo]: valor }
 }
 
-export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+// Tipagem explícita para os parâmetros da URL
+interface Params {
+  params: Promise<{ id: string }>;
+}
+
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
   try {
+    const { id } = await params;
     const session = await auth();
     if (!session?.user?.id) {
       return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
     }
 
-    const { id } = await params;
-
     const automacao = await prisma.automacao.findFirst({
       where: {
-        id: id,
+        id,
         userId: session.user.id,
       },
     });
@@ -48,23 +56,31 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
   }
 }
 
-export async function PATCH(request: Request, context: any) {
+export async function PATCH(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
   try {
+    const { id } = await params;
     const session = await auth();
     if (!session?.user?.id) {
-      return NextResponse.json({ error: "Usuário não autenticado." }, { status: 401 });
+      return NextResponse.json(
+        { error: "Usuário não autenticado." },
+        { status: 401 }
+      );
     }
 
-    const { params } = context;
-    const { id: automacaoId } = params;
     const body = (await request.json()) as PatchBody;
 
     // Carrega a automação
     const automacao = await prisma.automacao.findUnique({
-      where: { id: automacaoId },
+      where: { id },
     });
     if (!automacao || automacao.userId !== session.user.id) {
-      return NextResponse.json({ error: "Automação não encontrada ou sem permissão." }, { status: 404 });
+      return NextResponse.json(
+        { error: "Automação não encontrada ou sem permissão." },
+        { status: 404 }
+      );
     }
 
     // Se for o updateAll, podemos querer atualizar vários campos de uma vez
@@ -72,7 +88,10 @@ export async function PATCH(request: Request, context: any) {
       // 1) Converter "selectedOptionPalavra" -> "anyword"
       if ("selectedOptionPalavra" in body.data) {
         body.data.anyword = body.data.selectedOptionPalavra === "qualquer";
-        if (!body.data.anyword && (!body.data.palavrasChave || body.data.palavrasChave.trim() === "")) {
+        if (
+          !body.data.anyword &&
+          (!body.data.palavrasChave || body.data.palavrasChave.trim() === "")
+        ) {
           return NextResponse.json(
             { error: "Palavras-chave são obrigatórias quando não é selecionado 'qualquer'." },
             { status: 400 }
@@ -111,10 +130,13 @@ export async function PATCH(request: Request, context: any) {
     switch (body.action) {
       case "rename": {
         if (!body.newName) {
-          return NextResponse.json({ error: "Informe newName para renomear." }, { status: 400 });
+          return NextResponse.json(
+            { error: "Informe newName para renomear." },
+            { status: 400 }
+          );
         }
         const renamed = await prisma.automacao.update({
-          where: { id: automacaoId },
+          where: { id },
           data: { fraseBoasVindas: body.newName },
         });
         return NextResponse.json(renamed, { status: 200 });
@@ -123,27 +145,8 @@ export async function PATCH(request: Request, context: any) {
       case "duplicate": {
         const duplicated = await prisma.automacao.create({
           data: {
-            userId: automacao.userId,
-            accountId: automacao.accountId,
-            folderId: automacao.folderId,
-            selectedMediaId: automacao.selectedMediaId,
-            anyMediaSelected: automacao.anyMediaSelected,
-            anyword: automacao.anyword,
-            palavrasChave: automacao.palavrasChave,
+            ...automacao,
             fraseBoasVindas: (automacao.fraseBoasVindas || "") + " (Cópia)",
-            quickReplyTexto: automacao.quickReplyTexto,
-            mensagemEtapa3: automacao.mensagemEtapa3,
-            linkEtapa3: automacao.linkEtapa3,
-            legendaBotaoEtapa3: automacao.legendaBotaoEtapa3,
-            responderPublico: automacao.responderPublico,
-            pedirEmailPro: automacao.pedirEmailPro,
-            emailPrompt: automacao.emailPrompt,
-            pedirParaSeguirPro: automacao.pedirParaSeguirPro,
-            followPrompt: automacao.followPrompt,
-            contatoSemClique: automacao.contatoSemClique,
-            noClickPrompt: automacao.noClickPrompt,
-            publicReply: automacao.publicReply,
-            live: automacao.live,
             buttonPayload: `WIT-EQ:${uuidv4()}`,
           },
         });
@@ -152,10 +155,13 @@ export async function PATCH(request: Request, context: any) {
 
       case "move": {
         if (body.folderId === undefined) {
-          return NextResponse.json({ error: "Informe folderId para mover a automação." }, { status: 400 });
+          return NextResponse.json(
+            { error: "Informe folderId para mover a automação." },
+            { status: 400 }
+          );
         }
         const moved = await prisma.automacao.update({
-          where: { id: automacaoId },
+          where: { id },
           data: { folderId: body.folderId },
         });
         return NextResponse.json(moved, { status: 200 });
@@ -170,7 +176,7 @@ export async function PATCH(request: Request, context: any) {
         }
 
         const updated = await prisma.automacao.update({
-          where: { id: automacaoId },
+          where: { id },
           data: body.data,
         });
         return NextResponse.json(updated, { status: 200 });
@@ -181,31 +187,44 @@ export async function PATCH(request: Request, context: any) {
     }
   } catch (error: any) {
     console.error("[PATCH /api/automacao/[id]] Erro:", error);
-    return NextResponse.json({ error: "Erro ao modificar automação." }, { status: 500 });
+    return NextResponse.json(
+      { error: "Erro ao modificar automação." },
+      { status: 500 }
+    );
   }
 }
 
-export async function DELETE(request: Request, context: any) {
+export async function DELETE(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
   try {
+    const { id } = await params;
     const session = await auth();
     if (!session?.user?.id) {
-      return NextResponse.json({ error: "Usuário não autenticado." }, { status: 401 });
+      return NextResponse.json(
+        { error: "Usuário não autenticado." },
+        { status: 401 }
+      );
     }
-
-    const { params } = context;
-    const { id: automacaoId } = params;
 
     const automacao = await prisma.automacao.findUnique({
-      where: { id: automacaoId },
+      where: { id },
     });
     if (!automacao || automacao.userId !== session.user.id) {
-      return NextResponse.json({ error: "Automação não encontrada ou sem permissão." }, { status: 404 });
+      return NextResponse.json(
+        { error: "Automação não encontrada ou sem permissão." },
+        { status: 404 }
+      );
     }
 
-    await prisma.automacao.delete({ where: { id: automacaoId } });
+    await prisma.automacao.delete({ where: { id } });
     return NextResponse.json({ success: true }, { status: 200 });
   } catch (error: any) {
     console.error("[DELETE /api/automacao/[id]] Erro:", error);
-    return NextResponse.json({ error: "Erro ao deletar automação." }, { status: 500 });
+    return NextResponse.json(
+      { error: "Erro ao deletar automação." },
+      { status: 500 }
+    );
   }
 }

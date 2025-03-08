@@ -42,8 +42,8 @@ export default function CalendarioPage() {
   const userID = session?.user?.id;
   const igUserId = session?.user?.providerAccountId;
 
-  // Carrega agendamentos usando o hook, agora filtrando pelos dois campos
-  const { agendamentos, loading, error, refetch } = useAgendamentos(userID, igUserId);
+  // Carrega agendamentos usando o hook
+  const { agendamentos, loading, error, refetch } = useAgendamentos(userID);
 
   // Estado para o dia selecionado e para controlar o diálogo
   const [selectedDay, setSelectedDay] = useState<Date | null>(null);

@@ -1,17 +1,12 @@
-// worker/automacao/eu-quero/automation.ts
+//gpt/
+
 import axios from "axios";
-import { prisma } from "@/lib/prisma";  // Ajuste o caminho conforme seu projeto
+import { prisma } from "@/lib/prisma";
 import { getInstagramUserToken } from "@/lib/instagram-auth";
+import { followUpQueue } from "@/worker/queues/followUpQueue";
 
-/**
- * Exemplo de import do Bull. Você pode ter algo como:
- *   import { Queue } from "bullmq";
- *   export const followUpQueue = new Queue("contato-sem-clique", { connection: redisConnection });
- */
-import { followUpQueue } from "@/worker/queues/followUpQueue"; // Exemplo (você deve implementar)
-
-// Constante base da Graph API do IG
-const IG_GRAPH_API_BASE = "https://graph.instagram.com/v21.0";
+// Base da Graph API do Instagram
+const IG_GRAPH_API_BASE = process.env.IG_GRAPH_API_BASE || "https://graph.instagram.com/v21.0";
 
 /**
  * Função principal que recebe o webhook e despacha para handleCommentChange() ou handleMessageEvent().
@@ -43,11 +38,10 @@ export async function handleInstagramWebhook(data: any) {
 
 /**
  * 1) Trata Comentários:
- *    - Verifica se automacao.anyMediaSelected ou if (effectiveMediaId == selectedMediaId).
- *    - Se automacao.anyword for true, não checa palavras específicas. Caso contrário, checa `palavrasChave`.
- *    - Se responderPublico, manda reply no comentário.
- *    - Se fraseBoasVindas/quickReplyTexto, manda private reply com botão.
- *    - Se contatoSemClique = true, agenda job (Bull) para mandar msg 1h depois caso não clique.
+ *    - Verifica se a automação aplica para o comentário (mídia selecionada e palavras-chave).
+ *    - Se responderPublico, envia resposta pública e, se houver frase de boas-vindas,
+ *      envia mensagem privada com botão.
+ *    - Se contatoSemClique for true, agenda um job para follow-up em 1h.
  */
 async function handleCommentChange(value: any, igUserId: string) {
   try {
@@ -58,20 +52,20 @@ async function handleCommentChange(value: any, igUserId: string) {
 
     console.log(`[handleCommentChange] Comentário: media=${mediaId}, text="${commentText}"`);
 
-    // Ignora se for o dono da conta
+    // Ignora comentário do próprio usuário (dono da conta)
     if (from?.id === igUserId) {
       console.log("[handleCommentChange] Ignorando comentário do próprio igUserId.");
       return;
     }
 
-    // Token
+    // Token para requisições na Graph API
     const accessToken = await getInstagramUserToken(igUserId);
     if (!accessToken) {
-      console.warn("[handleCommentChange] Sem token p/ igUserId=", igUserId);
+      console.warn("[handleCommentChange] Sem token para igUserId=", igUserId);
       return;
     }
 
-    // Buscar automações ativas
+    // Busca automações ativas para esse usuário
     const automacoes = await prisma.automacao.findMany({
       where: {
         user: { accounts: { some: { provider: "instagram", igUserId } } },
@@ -79,17 +73,15 @@ async function handleCommentChange(value: any, igUserId: string) {
       },
     });
     if (!automacoes.length) {
-      console.log("[handleCommentChange] Nenhuma automação ativa p/ igUserId=", igUserId);
+      console.log("[handleCommentChange] Nenhuma automação ativa para igUserId=", igUserId);
       return;
     }
 
-    // Função para ver se comentario bate com a automacao
+    // Função de filtro para identificar se o comentário bate com a automação
     function matches(automacao: any) {
-      // 1) Checa se anyMediaSelected ou mediaId == selectedMediaId
       if (!automacao.anyMediaSelected) {
         if (effectiveMediaId !== automacao.selectedMediaId) return false;
       }
-      // 2) Checa if automacao.anyword ou se text incl. automacao.palavrasChave
       if (!automacao.anyword) {
         const kw = automacao.palavrasChave?.toLowerCase() || "";
         if (!commentText.toLowerCase().includes(kw)) return false;
@@ -103,16 +95,14 @@ async function handleCommentChange(value: any, igUserId: string) {
       return;
     }
 
-    // Pega a primeira
+    // Seleciona a primeira automação que bateu
     const automacao = matchList[0];
 
-    // Se responderPublico
+    // Se responderPublico, envia resposta pública e/ou mensagem privada com botão de boas-vindas
     if (automacao.responderPublico) {
       const pubMsg = pickRandomPublicReply(automacao.publicReply);
       await replyPublicComment(commentId, accessToken, pubMsg);
     }
-
-    // Se fraseBoasVindas + quickReplyTexto => private reply (com postback)
     if (automacao.fraseBoasVindas && automacao.quickReplyTexto) {
       await sendPrivateReplyWithButton({
         igUserId,
@@ -124,16 +114,100 @@ async function handleCommentChange(value: any, igUserId: string) {
       });
     }
 
-    // Se automacao.contatoSemClique = true => Agenda job p/ 1h depois
+    // Se contatoSemClique estiver ativo, agenda job para follow-up caso o usuário não clique
     if (automacao.contatoSemClique) {
-      // Precisamos criar/atualizar Lead + LeadAutomacao
       const senderId = from.id;
-      // Cria Lead se não existir
       let lead = await prisma.lead.findUnique({ where: { igSenderId: senderId } });
       if (!lead) {
         lead = await prisma.lead.create({ data: { igSenderId: senderId } });
       }
-      // Cria LeadAutomacao se não existir
+      let la = await prisma.leadAutomacao.findUnique({
+        where: {
+          leadIgSenderId_automacaoId: {
+            leadIgSenderId: lead.igSenderId,
+            automacaoId: automacao.id,
+          },
+        },
+      });
+      if (!la) {
+        la = await prisma.leadAutomacao.create({
+          data: {
+            leadIgSenderId: lead.igSenderId,
+            automacaoId: automacao.id,
+            linkSent: false,
+            waitingForEmail: false,
+          },
+        });
+      }
+      await followUpQueue.add(
+        "noClickFollowUp",
+        {
+          leadId: lead.igSenderId,
+          automacaoId: automacao.id,
+          quickReplyTexto: automacao.quickReplyTexto,
+          followUpMsg:
+            automacao.noClickPrompt ||
+            "🔥 Quer saber mais? Então não esquece de clicar no link aqui embaixo!",
+        },
+        { delay: 3600000 } // 1 hora de delay
+      );
+      console.log("[handleCommentChange] Job agendado para contatoSemClique em 1h.");
+    }
+
+    console.log("[handleCommentChange] OK, automacaoId =", automacao.id);
+  } catch (err) {
+    console.error("[handleCommentChange] Erro:", err);
+    throw err;
+  }
+}
+
+/**
+ * 2) Trata Mensagens (DM) e Postbacks.
+ *    - Se for postback/quick_reply: identifica a automação via buttonPayload.
+ *      * Se pedirParaSeguirPro estiver ativo, marca o lead como seguidor (validação automática).
+ *      * Se pedirEmailPro estiver ativo, verifica se há e-mail. Se não houver, marca como waitingForEmail e solicita o e-mail.
+ *      * Caso contrário, envia a mensagem com o link da etapa 3.
+ *    - Se for mensagem de texto:
+ *      * Se o texto for um e-mail válido, atualiza o lead e, para cada automação aguardando e-mail,
+ *        se o lead não for seguidor (quando exigido), solicita follow; senão, envia o link.
+ */
+async function handleMessageEvent(msgEvt: any, igUserId: string) {
+  try {
+    if (msgEvt.message?.is_echo) {
+      console.log("[handleMessageEvent] Ignorando echo");
+      return;
+    }
+    const senderId = msgEvt.sender?.id;
+    if (!senderId || senderId === igUserId) return;
+
+    const accessToken = await getInstagramUserToken(igUserId);
+    if (!accessToken) return;
+
+    const postbackPayload = msgEvt.postback?.payload || msgEvt.message?.quick_reply?.payload;
+    if (postbackPayload) {
+      console.log("[handleMessageEvent] Postback ou quick_reply detectado, payload =", postbackPayload);
+
+      // Busca a automação que tenha o payload correspondente em buttonPayload ou followButtonPayload
+      const automacao = await prisma.automacao.findFirst({
+        where: {
+          user: { accounts: { some: { provider: "instagram", igUserId } } },
+          live: true,
+          OR: [
+            { buttonPayload: postbackPayload },
+            { followButtonPayload: postbackPayload }
+          ]
+        },
+      });
+      if (!automacao) {
+        console.log("[handleMessageEvent] Automação não encontrada para payload =", postbackPayload);
+        return;
+      }
+
+      let lead = await prisma.lead.findUnique({ where: { igSenderId: senderId } });
+      if (!lead) {
+        lead = await prisma.lead.create({ data: { igSenderId: senderId } });
+      }
+
       let la = await prisma.leadAutomacao.findUnique({
         where: {
           leadIgSenderId_automacaoId: {
@@ -153,104 +227,21 @@ async function handleCommentChange(value: any, igUserId: string) {
         });
       }
 
-      // Adicionamos um job na fila "contato-sem-clique" para disparar daqui a 1h
-      await followUpQueue.add(
-        "noClickFollowUp", // Nome do job
-        {
-          leadId: lead.igSenderId,
-          automacaoId: automacao.id,
-          quickReplyTexto: automacao.quickReplyTexto,
-          followUpMsg:
-            automacao.noClickPrompt ||
-            "🔥 Quer saber mais? Então não esquece de clicar no link aqui embaixo!",
-        },
-        { delay: 3600000 } // 1 hora = 3600 * 1000 ms
-      );
-      console.log("[handleCommentChange] Job agendado p/ contatoSemClique em 1h.");
-    }
-
-    console.log("[handleCommentChange] OK, automacaoId =", automacao.id);
-  } catch (err) {
-    console.error("[handleCommentChange] Erro:", err);
-    throw err;
-  }
-}
-
-/**
- * 2) Trata Mensagens (DM) e Postbacks.
- *    - Se postback => checa se automacao pede para seguir (pedirParaSeguirPro); se sim, procede direto (pois assumimos o usuário segue).
- *    - Se pedirEmailPro, checa email. Se não tem => waitingForEmail. Se tem => envia link.
- *    - Se for texto => se waitingForEmail, salva e-mail e envia link.
- *    - Se clicou no quickReply => cancela job "contatoSemClique" (se implementar).
- */
-async function handleMessageEvent(msgEvt: any, igUserId: string) {
-  try {
-    // Ignora mensagens de echo
-    if (msgEvt.message?.is_echo) {
-      console.log("[handleMessageEvent] ignoring echo");
-      return;
-    }
-    const senderId = msgEvt.sender?.id;
-    if (!senderId || senderId === igUserId) return;
-
-    const accessToken = await getInstagramUserToken(igUserId);
-    if (!accessToken) return;
-
-    // Verifica se é postback ou quick_reply
-    const postbackPayload = msgEvt.postback?.payload || msgEvt.message?.quick_reply?.payload;
-    if (postbackPayload) {
-      console.log("[handleMessageEvent] Detected postback or quick_reply, payload =", postbackPayload);
-
-      // Busca a automação que possui o mesmo buttonPayload
-      const automacao = await prisma.automacao.findFirst({
-        where: {
-          user: { accounts: { some: { provider: "instagram", igUserId } } },
-          buttonPayload: postbackPayload,
-          live: true,
-        },
-      });
-      if (!automacao) {
-        console.log("[handleMessageEvent] automacao não encontrada para payload =", postbackPayload);
-        return;
+      // Se a automação pede para seguir e o payload recebido for o followButtonPayload,
+      // atualiza o lead para seguidor=true.
+      if (automacao.pedirParaSeguirPro && postbackPayload === automacao.followButtonPayload) {
+        if (!lead.seguidor) {
+          await prisma.lead.update({
+            where: { igSenderId: lead.igSenderId },
+            data: { seguidor: true },
+          });
+          console.log("[handleMessageEvent] Lead marcada como seguidor.");
+        }
       }
 
-      // Cria ou pega o Lead
-      let lead = await prisma.lead.findUnique({ where: { igSenderId: senderId } });
-      if (!lead) {
-        lead = await prisma.lead.create({ data: { igSenderId: senderId } });
-      }
-
-      // Cria ou pega o LeadAutomacao
-      let la = await prisma.leadAutomacao.findUnique({
-        where: {
-          leadIgSenderId_automacaoId: {
-            leadIgSenderId: lead.igSenderId,
-            automacaoId: automacao.id,
-          },
-        },
-      });
-      if (!la) {
-        la = await prisma.leadAutomacao.create({
-          data: {
-            leadIgSenderId: lead.igSenderId,
-            automacaoId: automacao.id,
-          },
-        });
-      }
-
-      // Se houver job agendado, você pode cancelar aqui (ex: followUpQueue.remove(la.followUpJobId))
-
-      // 1.1) Se a automação pede para seguir (pedirParaSeguirPro),
-      // vamos simplesmente continuar assumindo que o usuário segue
-      if (automacao.pedirParaSeguirPro) {
-        console.log("[handleMessageEvent] Supondo que o usuário segue a conta (FORÇANDO TRUE).");
-        // Aqui, em vez de checar, pulamos direto para próxima lógica
-      }
-
-      // 1.2) Se a automação pede email
+      // Se a automação pede e-mail, verifica se o lead já possui um e-mail válido.
       if (automacao.pedirEmailPro) {
-        if (!lead.email) {
-          // Marca a automação como aguardando e-mail e solicita o e-mail
+        if (!lead.email || lead.email.trim() === "") {
           await prisma.leadAutomacao.update({
             where: { id: la.id },
             data: { waitingForEmail: true },
@@ -262,28 +253,22 @@ async function handleMessageEvent(msgEvt: any, igUserId: string) {
             recipientId: senderId,
             emailPrompt: prompt,
           });
-          return;
-        } else {
-          // Se já possui e-mail, envia o link
-          await sendLinkForAutomacao(lead, automacao, accessToken, igUserId);
-          return;
+          return; // Interrompe o fluxo até que o e-mail seja recebido.
         }
       }
 
-      // 1.3) Se não há solicitação de e-mail, envia o link diretamente
+      // Se não for necessário e-mail ou já foi informado, envia o link da automação.
       await sendLinkForAutomacao(lead, automacao, accessToken, igUserId);
       return;
     }
 
-    // 2) Se for mensagem de texto normal (sem postback/quick_reply)
+    // Fluxo para mensagens de texto (sem postback/quick_reply):
     const text = msgEvt.message?.text || "";
     if (!text) return;
 
-    // Procura pelo Lead
     const lead = await prisma.lead.findUnique({ where: { igSenderId: senderId } });
     if (!lead) return;
 
-    // Busca automações que estão aguardando e-mail para esse Lead
     const waitingList = await prisma.leadAutomacao.findMany({
       where: { leadIgSenderId: lead.igSenderId, waitingForEmail: true },
     });
@@ -298,7 +283,7 @@ async function handleMessageEvent(msgEvt: any, igUserId: string) {
         where: { igSenderId: lead.igSenderId },
         data: { email: text },
       });
-      // Para cada automação aguardando e-mail, marca como atendida e envia o link
+      // Para cada automação que aguardava e-mail:
       for (const la of waitingList) {
         await prisma.leadAutomacao.update({
           where: { id: la.id },
@@ -308,16 +293,23 @@ async function handleMessageEvent(msgEvt: any, igUserId: string) {
           where: { id: la.automacaoId },
         });
         if (!automacao) continue;
-
-        // Caso a automação peça para seguir, iremos ignorar a checagem e seguir
-        if (automacao.pedirParaSeguirPro) {
-          console.log("[handleMessageEvent] (Email Flow) Supondo que o usuário segue a conta (FORÇANDO TRUE).");
+        // Se a automação exige seguir e o lead ainda não for seguidor, solicita o follow.
+        if (automacao.pedirParaSeguirPro && !updatedLead.seguidor) {
+          await sendFollowRequestMessage({
+            igUserId,
+            accessToken,
+            recipientId: lead.igSenderId,
+            followPrompt: automacao.followPrompt ||
+              "Você está quase lá! 🚀 Este link é exclusivo para meus seguidores. Me segue e clique em 'Estou seguindo'!",
+            buttonPayload: automacao.followButtonPayload || automacao.buttonPayload,
+          });
+          continue; // Aguarda que o usuário confirme o follow.
         }
         // Envia o link da automação
         await sendLinkForAutomacao(updatedLead, automacao, accessToken, igUserId);
       }
     } else {
-      // Solicita novamente um e-mail válido
+      // Caso o e-mail não seja válido, solicita novamente um e-mail válido.
       await sendEmailRequestMessage({
         igUserId,
         accessToken,
@@ -330,22 +322,10 @@ async function handleMessageEvent(msgEvt: any, igUserId: string) {
   }
 }
 
-/**
- * Verifica se o user (senderId) segue a conta (igUserId).
- * Agora, sempre vamos retornar true para forçar a continuidade da automação.
- */
-async function checkIfUserFollows(
-  senderId: string,
-  igUserId: string,
-  accessToken: string
-): Promise<boolean> {
-  console.log(`[checkIfUserFollows] Forçando TRUE para ${senderId} seguir a conta ${igUserId}.`);
-  return true;
-}
+
 
 /**
- * Envia uma msg pedindo para seguir + botão "Estou seguindo" (postback = automacao.buttonPayload).
- * IMPORTANTE: aqui passamos o buttonPayload da automação para o quick reply.
+ * Envia mensagem pedindo para seguir com quick reply ("Estou seguindo").
  */
 async function sendFollowRequestMessage({
   igUserId,
@@ -368,55 +348,32 @@ async function sendFollowRequestMessage({
       quick_replies: [
         {
           content_type: "text",
-          title: "Estou seguindo", // Botão que o usuário clica após seguir
-          payload: buttonPayload,  // Usa o payload único da automação
+          title: "Estou seguindo",
+          payload: buttonPayload,
         },
       ],
     },
   };
   await axios.post(url, body, { params: { access_token: accessToken } });
-  console.log("[sendFollowRequestMessage] Mensagem pedindo follow enviada a", recipientId);
+  console.log("[sendFollowRequestMessage] Mensagem pedindo follow enviada para", recipientId);
 }
 
 /**
- * Envia uma msg pública no comentário do IG.
+ * Envia resposta pública a um comentário.
  */
 async function replyPublicComment(commentId: string, accessToken: string, msg: string) {
-  try {
-    console.log(`[replyPublicComment] Iniciando resposta para commentId=${commentId}`);
-    console.log(`[replyPublicComment] URL: ${IG_GRAPH_API_BASE}/${commentId}/replies`);
-
-    const response = await axios.post(
-      `${IG_GRAPH_API_BASE}/${commentId}/replies`,
-      new URLSearchParams({
-        message: msg,
-        access_token: accessToken,
-      }).toString(),
-      {
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded'
-        }
-      }
-    );
-
-    console.log("[replyPublicComment] Resposta pública enviada com sucesso:", response.status);
-    return response.data;
-  } catch (error: any) {
-    console.error("[replyPublicComment] Erro ao enviar resposta:", {
-      status: error.response?.status,
-      data: error.response?.data,
-      config: {
-        url: error.config?.url,
-        method: error.config?.method,
-        headers: error.config?.headers
-      }
-    });
-    throw error;
-  }
+  await axios.post(
+    `${IG_GRAPH_API_BASE}/${commentId}/replies`,
+    new URLSearchParams({
+      message: msg,
+      access_token: accessToken,
+    })
+  );
+  console.log("[replyPublicComment] Resposta pública enviada para commentId=", commentId);
 }
 
 /**
- * Retorna random de publicReply[] ou fallback.
+ * Retorna uma frase aleatória a partir de publicReply (ou fallback).
  */
 function pickRandomPublicReply(publicReply?: string | null): string {
   let frases: string[] = [];
@@ -437,7 +394,7 @@ function pickRandomPublicReply(publicReply?: string | null): string {
 }
 
 /**
- * Private Reply com botão postback no comentário do IG.
+ * Envia mensagem privada com botão (template do tipo button) para o comentário.
  */
 async function sendPrivateReplyWithButton({
   igUserId,
@@ -475,11 +432,11 @@ async function sendPrivateReplyWithButton({
     },
   };
   await axios.post(url, body, { params: { access_token: accessToken } });
-  console.log("[sendPrivateReplyWithButton] enviado p/ commentId=", commentId);
+  console.log("[sendPrivateReplyWithButton] Mensagem privada com botão enviada para commentId=", commentId);
 }
 
 /**
- * Envia um template type=generic com web_url (Link).
+ * Envia mensagem com template (generic) contendo link (etapa 3).
  */
 async function sendTemplateLink({
   igUserId,
@@ -521,11 +478,11 @@ async function sendTemplateLink({
     },
   };
   await axios.post(endpoint, body, { params: { access_token: accessToken } });
-  console.log("[sendTemplateLink] link DM p/ userId=", recipientId);
+  console.log("[sendTemplateLink] Link enviado por DM para userId=", recipientId);
 }
 
 /**
- * Envia msg pedindo e-mail
+ * Solicita o e-mail do usuário.
  */
 async function sendEmailRequestMessage({
   igUserId,
@@ -544,16 +501,13 @@ async function sendEmailRequestMessage({
     message: { text: emailPrompt },
   };
   await axios.post(url, body, { params: { access_token: accessToken } });
-  console.log("[sendEmailRequestMessage] pedindo email de", recipientId);
+  console.log("[sendEmailRequestMessage] Solicitando email de", recipientId);
 }
 
 /**
- * Envia a Etapa 3 (link) p/ (Lead, Automacao).
- * Marca linkSent = true em LeadAutomacao, se ainda não estiver true.
- * Cancela job "contatoSemClique" se existir.
+ * Envia a etapa 3 (link) da automação e marca que o link já foi enviado.
  */
 async function sendLinkForAutomacao(lead: any, automacao: any, accessToken: string, igUserId: string) {
-  // Acha LeadAutomacao
   let la = await prisma.leadAutomacao.findUnique({
     where: {
       leadIgSenderId_automacaoId: {
@@ -567,23 +521,21 @@ async function sendLinkForAutomacao(lead: any, automacao: any, accessToken: stri
       data: {
         leadIgSenderId: lead.igSenderId,
         automacaoId: automacao.id,
+        linkSent: false,
+        waitingForEmail: false,
       },
     });
   }
 
   if (la.linkSent) {
-    console.log("[sendLinkForAutomacao] link já enviado p/ automacaoId=", automacao.id);
+    console.log("[sendLinkForAutomacao] Link já enviado para automacaoId=", automacao.id);
     return;
   }
-
-  // Cancela job "contatoSemClique" se estiver programado
-  // if (la.followUpJobId) { await followUpQueue.remove(la.followUpJobId); }
 
   const textEtapa3 = automacao.mensagemEtapa3 || "Obrigado! Segue nosso link.";
   const link = automacao.linkEtapa3 || "https://exemplo.com";
   const linkTitle = automacao.legendaBotaoEtapa3 || "Acessar Link";
 
-  // Envia DM
   await sendTemplateLink({
     igUserId,
     accessToken,
@@ -597,13 +549,16 @@ async function sendLinkForAutomacao(lead: any, automacao: any, accessToken: stri
     where: { id: la.id },
     data: { linkSent: true },
   });
-  console.log("[sendLinkForAutomacao] Link enviado p/ automacao =", automacao.id);
+  console.log("[sendLinkForAutomacao] Link enviado para automacao =", automacao.id);
 }
 
 /**
- * isValidEmail
+ * Validação simples de e-mail.
  */
 function isValidEmail(email: string): boolean {
   const regex = /^[A-Za-z0-9._%+-]+@(gmail|outlook|icloud|aol|zoho|yahoo|gmx|protonmail|hotmail)\.com(\.br)?$/i;
   return regex.test(email);
 }
+
+// Nota: Removemos a função de checagem de seguidor (checkIfUserFollows)
+// pois a validação automática ocorre ao receber o clique no botão.

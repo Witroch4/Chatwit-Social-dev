@@ -37,7 +37,7 @@
     "theme.config.jsx",
     "types/**/*.d.ts",
     "worker/**/*"
-, "lib/scheduler.ts.old"  ],
+, "lib/scheduler.ts.old", "app/layout.tsx.old", "app/layout.tsx"  ],
   "exclude": [
     "node_modules"
   ]

@@ -70,7 +70,7 @@ export default function DashboardHome() {
   const { data: session } = useSession();
   const router = useRouter();
   const params = useParams();
-  const accountId = params.accountid as string;
+  const accountId = params?.accountid as string;
   const subscriptionSectionRef = useRef<HTMLDivElement>(null);
   const [checkoutDialogOpen, setCheckoutDialogOpen] = useState(false);
   const [isSubscribed, setIsSubscribed] = useState(false);

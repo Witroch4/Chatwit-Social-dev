@@ -1,3 +1,4 @@
+//\app\api\automacao\route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
@@ -163,6 +164,7 @@ export async function POST(request: NextRequest) {
         publicReply: publicReply || null,
         live: Boolean(live),
         buttonPayload: `WIT-EQ:${uuidv4()}`,
+        followButtonPayload: pedirParaSeguirPro ? `WIT-EQ-FOLLOW:${uuidv4()}` : null,
         folderId: folderId || null,
       },
       include: {

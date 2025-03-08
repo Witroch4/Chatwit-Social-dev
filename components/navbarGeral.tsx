@@ -10,14 +10,13 @@ import Link from 'next/link';
 
 const NavbarGeral = () => {
   const { data: session } = useSession();
-  const pathname = usePathname() ?? "";
+  const pathname = usePathname();
 
+  // Verifica se a rota atual é do dashboard (contém [accountid]/dashboard)
+  const isDashboardRoute = pathname ? pathname.includes('/dashboard') || pathname.match(/\/[^\/]+\/dashboard/) : false;
 
-  // Verifica se a rota atual é /dashboard ou começa com /dashboard/
-  const isDashboardRoute = pathname === "/dashboard" || pathname.startsWith("/dashboard/");
-
+  // Não renderiza o NavbarGeral nas rotas do dashboard
   if (isDashboardRoute) {
-    // Não renderiza o NavbarGeral nas rotas /dashboard e subrotas
     return null;
   }
 

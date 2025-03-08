@@ -94,3 +94,18 @@ body,
     @apply bg-background text-foreground;
   }
 }
+
+/* Estilos para o layout do dashboard */
+@layer components {
+  /* Ajusta o conteúdo principal quando a sidebar está expandida */
+  [data-state="expanded"] + .flex-1 {
+    margin-left: 12rem;
+    transition: margin-left 0.3s ease;
+  }
+
+  /* Ajusta o conteúdo principal quando a sidebar está recolhida */
+  [data-state="collapsed"] + .flex-1 {
+    margin-left: 2rem;
+    transition: margin-left 0.3s ease;
+  }
+}

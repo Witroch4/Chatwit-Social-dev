@@ -57,8 +57,13 @@ export default function UserPage() {
     return <div>ID da conta não fornecido</div>;
   }
 
-  // Etapa 1: Palavra/Expressão
-  const [anyword, setAnyword] = useState(true);
+  // Estados para seleção de postagem
+  const [selectedPost, setSelectedPost] = useState<InstagramMediaItem | null>(null);
+  const [anyMediaSelected, setAnyMediaSelected] = useState(false);
+  const [openDialog, setOpenDialog] = useState(false);
+
+  // Estados para palavras-chave
+  const [anyword, setAnyword] = useState(false);
   const [inputPalavra, setInputPalavra] = useState("");
 
   // Instagram data
@@ -66,10 +71,6 @@ export default function UserPage() {
   const [error, setError] = useState<string | null>(null);
   const [instagramUser, setInstagramUser] = useState<InstagramUserData | null>(null);
   const [instagramMedia, setInstagramMedia] = useState<InstagramMediaItem[]>([]);
-
-  // Etapa 1: Seleção de Post
-  const [selectedOptionPostagem, setSelectedOptionPostagem] = useState<"especifico" | "qualquer">("especifico");
-  const [selectedPost, setSelectedPost] = useState<InstagramMediaItem | null>(null);
 
   // Etapa 2: DM de Boas-Vindas
   const [dmWelcomeMessage, setDmWelcomeMessage] = useState(
@@ -109,7 +110,6 @@ export default function UserPage() {
   );
 
   // Preview e outros estados
-  const [openDialog, setOpenDialog] = useState(false);
   const [toggleValue, setToggleValue] = useState<"publicar" | "comentarios" | "dm">("publicar");
   const [commentContent, setCommentContent] = useState("");
 
@@ -146,16 +146,14 @@ export default function UserPage() {
   if (error) return <ErrorState error={error} />;
 
   function validarEtapas(): boolean {
-    // Validação da seleção de postagem
-    if (selectedOptionPostagem === "especifico" && !selectedPost) {
+    if (!anyMediaSelected && !selectedPost) {
       toast({
         title: "Erro",
-        description: "Selecione uma postagem ou mude para 'qualquer'.",
+        description: "Selecione uma publicação específica ou escolha 'Qualquer Publicação'",
         variant: "destructive",
       });
       return false;
     }
-
     // Validação de palavra/expressão:
     // Se anyword for false (ou seja, "específica"), o input não pode estar vazio
     if (anyword === false && inputPalavra.trim() === "") {
@@ -202,11 +200,10 @@ export default function UserPage() {
       const publicReplyArray = [publicReply1, publicReply2, publicReply3];
       const publicReplyJson = switchResponderComentario ? JSON.stringify(publicReplyArray) : null;
 
-      const isAnyMedia = selectedOptionPostagem === "qualquer";
       const payload = {
         // Etapa 1
-        selectedMediaId: isAnyMedia ? null : selectedPost?.id || null,
-        anyMediaSelected: isAnyMedia,
+        selectedMediaId: anyMediaSelected ? null : selectedPost?.id || null,
+        anyMediaSelected: anyMediaSelected,
         anyword: anyword,
         palavrasChave: anyword ? null : inputPalavra,
         // Etapa 2
@@ -255,8 +252,6 @@ export default function UserPage() {
     }
   }
 
-  const ultimasPostagens = instagramMedia.slice(0, 4);
-
   return (
     <div
       style={{
@@ -279,11 +274,10 @@ export default function UserPage() {
         }}
       >
         <PostSelection
-          selectedOptionPostagem={selectedOptionPostagem}
-          setSelectedOptionPostagem={setSelectedOptionPostagem}
+          anyMediaSelected={anyMediaSelected}
+          setAnyMediaSelected={setAnyMediaSelected}
           selectedPost={selectedPost}
           setSelectedPost={setSelectedPost}
-          ultimasPostagens={ultimasPostagens}
           instagramMedia={instagramMedia}
           openDialog={openDialog}
           setOpenDialog={setOpenDialog}

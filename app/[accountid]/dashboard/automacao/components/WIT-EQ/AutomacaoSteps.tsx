@@ -43,7 +43,7 @@ export default function AutomacaoSteps({
   selectedPost,
 }: AutomacaoStepsProps) {
   const params = useParams<{ accountid: string }>();
-  const providerAccountId = params.accountid;
+  const providerAccountId = params?.accountid;
 
   if (!providerAccountId) {
     throw new Error("providerAccountId é obrigatório");
@@ -53,7 +53,7 @@ export default function AutomacaoSteps({
   const [step, setStep] = useState(1);
 
   // Estado para definir se uma postagem específica foi selecionada ou se é "qualquer"
-  const [selectedOptionPostagem, setSelectedOptionPostagem] = useState<"especifico" | "qualquer">("especifico");
+  const [anyMediaSelected, setAnyMediaSelected] = useState(false);
 
   // Substitui o antigo selectedOptionPalavra (string) por um estado booleano:
   // anyWord = true  -> "qualquer palavra"
@@ -92,8 +92,8 @@ export default function AutomacaoSteps({
     try {
       const payload = {
         // Etapa 1
-        selectedMediaId: selectedPost?.id || null,
-        anyMediaSelected: selectedOptionPostagem === "qualquer",
+        selectedMediaId: anyMediaSelected ? null : selectedPost?.id || null,
+        anyMediaSelected: anyMediaSelected,
         anyword: anyWord,
         palavrasChave: anyWord ? null : palavrasChave,
         // Etapa 2

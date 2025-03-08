@@ -176,7 +176,14 @@ export function AppSidebar() {
         );
 
         if (activeAccountId === providerAccountId) {
-          router.push("/dashboard");
+          // Buscar outra conta para redirecionar
+          const otherAccount = connectedAccounts.find(acc => acc.providerAccountId !== providerAccountId);
+          if (otherAccount) {
+            router.push(`/${otherAccount.providerAccountId}/dashboard`);
+          } else {
+            // Se não houver outras contas, redirecionar para a página de registro
+            router.push("/registro/redesocial");
+          }
         }
       } else {
         const errorData = await res.json();
@@ -214,8 +221,8 @@ export function AppSidebar() {
 
   if (isLoading) {
     return (
-      <Sidebar collapsible="icon" side="left" variant="sidebar">
-        <SidebarContent>
+      <Sidebar collapsible="icon" side="left" variant="sidebar" className="bg-background z-50 border-r">
+        <SidebarContent className="bg-background">
           <div className="p-4 space-y-6">
             <Skeleton className="h-[125px] w-full rounded-xl" />
             <div className="space-y-4">
@@ -243,115 +250,148 @@ export function AppSidebar() {
   const activeAccount = connectedAccounts.find((account) => account.id === activeAccountId);
 
   return (
-    <Sidebar collapsible="icon" side="left" variant="sidebar">
-      <SidebarContent>
+    <Sidebar collapsible="icon" side="left" variant="sidebar" className="bg-background z-50 border-r">
+      <SidebarContent className="bg-background">
+        {/* Cabeçalho com informações do usuário */}
+        <div className="p-4 border-b">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              {session?.user?.image ? (
+                <Avatar className="h-8 w-8">
+                  <AvatarImage src={session.user.image} />
+                  <AvatarFallback>
+                    <CircleUser className="h-5 w-5" />
+                  </AvatarFallback>
+                </Avatar>
+              ) : (
+                <Avatar className="h-8 w-8">
+                  <AvatarFallback>
+                    <User2 className="h-5 w-5" />
+                  </AvatarFallback>
+                </Avatar>
+              )}
+              {state !== "collapsed" && (
+                <div className="flex flex-col">
+                  <span className="font-medium text-sm">{session?.user?.name ?? "Usuário"}</span>
+                  <span className="text-xs text-muted-foreground">{session?.user?.email ?? ""}</span>
+                </div>
+              )}
+            </div>
+            {state !== "collapsed" && (
+              <DropdownMenu>
+                <DropdownMenuTrigger className="h-8 w-8 flex items-center justify-center rounded-full hover:bg-accent">
+                  <ChevronDown className="h-4 w-4" />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-60 p-0">
+                  <LoginBadge user={session?.user} />
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+          </div>
+        </div>
+
         {/* Seletor de Contas */}
         <div className="p-4">
-          <DropdownMenu>
-            <DropdownMenuTrigger className="w-full">
-              <div className="flex items-center justify-between p-2 bg-accent/50 rounded-md hover:bg-accent transition-colors">
-                <div className="flex items-center gap-2">
-                  {activeAccount ? (
-                    <>
-                      <DotLottieReact
-                        src={instagramAnimationSrc}
-                        autoplay
-                        loop={false}
-                        style={{ width: "24px", height: "24px" }}
-                        aria-label="Instagram conectado"
-                      />
-                      <div className="flex flex-col items-start">
-                        <span className="text-sm font-medium truncate max-w-[150px]">
-                          {activeAccount.name}
-                        </span>
-                        <span className="text-xs text-muted-foreground">
-                          {activeAccount.isMain
-                            ? "Conta Principal"
-                            : "Conta Conectada"}
-                        </span>
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <div className="h-8 w-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white text-xs font-bold">
-                        <User2 className="h-4 w-4" />
-                      </div>
-                      <div className="flex flex-col items-start">
-                        <span className="text-sm font-medium">Dashboard Principal</span>
-                        <span className="text-xs text-muted-foreground">
-                          {connectedAccounts.length} conta(s) conectada(s)
-                        </span>
-                      </div>
-                    </>
-                  )}
-                </div>
-                <ChevronDown className="h-4 w-4 text-muted-foreground" />
-              </div>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="w-[250px]">
-              {/* Link para o dashboard principal */}
-              <DropdownMenuItem
-                className="flex items-center gap-2 cursor-pointer"
-                onClick={() => router.push("/dashboard")}
-              >
-                <div className="h-6 w-6 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white text-xs font-bold">
-                  <User2 className="h-3 w-3" />
-                </div>
-                <span>Dashboard Principal</span>
-                {!activeAccountId && <Check className="ml-auto h-4 w-4" />}
-              </DropdownMenuItem>
-
-              {connectedAccounts.length > 0 && (
-                <>
-                  <DropdownMenuSeparator />
-                  <div className="px-2 py-1 text-xs text-muted-foreground">
-                    Contas Conectadas
+          {activeAccount ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger className="w-full">
+                <div className="flex items-center justify-between p-2 bg-accent/50 rounded-md hover:bg-accent transition-colors">
+                  <div className="flex items-center gap-2">
+                    <DotLottieReact
+                      src={instagramAnimationSrc}
+                      autoplay
+                      loop={false}
+                      style={{ width: "24px", height: "24px" }}
+                      aria-label="Instagram conectado"
+                    />
+                    <div className="flex flex-col items-start">
+                      <span className="text-sm font-medium truncate max-w-[150px]">
+                        {activeAccount.name}
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        {activeAccount.isMain
+                          ? "Conta Principal"
+                          : "Conta Conectada"}
+                      </span>
+                    </div>
                   </div>
+                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                </div>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-[250px]">
+                {/* Link para o dashboard principal */}
+                <DropdownMenuItem
+                  className="flex items-center gap-2 cursor-pointer"
+                  onClick={() => {
+                    // Buscar a conta principal ou a primeira conta
+                    const mainAccount = connectedAccounts.find(acc => acc.isMain) || connectedAccounts[0];
+                    if (mainAccount) {
+                      router.push(`/${mainAccount.providerAccountId}/dashboard`);
+                    } else {
+                      router.push("/registro/redesocial");
+                    }
+                  }}
+                >
+                  <div className="h-6 w-6 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white text-xs font-bold">
+                    <User2 className="h-3 w-3" />
+                  </div>
+                  <span>Minha Conta</span>
+                </DropdownMenuItem>
 
-                  {connectedAccounts.map((account) => (
-                    <DropdownMenuItem
-                      key={account.id}
-                      className={`flex items-center gap-2 cursor-pointer rounded-md p-2 transition-colors ${
-                        activeAccountId === account.providerAccountId ? "bg-accent" : ""
-                      }`}
-                      onClick={() => {
-                        setActiveAccountId(account.providerAccountId);
-                        navigateToAccount(account.id, account.providerAccountId);
-                      }}
-                    >
-                      <DotLottieReact
-                        src={instagramAnimationSrc}
-                        autoplay
-                        loop={false}
-                        style={{ width: "24px", height: "24px" }}
-                        aria-label="Instagram animação"
-                      />
-                      <div className="flex flex-col">
-                        <span className="text-sm">{account.name}</span>
-                        {account.isMain && (
-                          <Badge variant="outline" className="text-[10px] py-0 h-4">
-                            Principal
-                          </Badge>
+                {connectedAccounts.length > 0 && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <div className="px-2 py-1 text-xs text-muted-foreground">
+                      Contas Conectadas
+                    </div>
+
+                    {connectedAccounts.map((account) => (
+                      <DropdownMenuItem
+                        key={account.id}
+                        className={`flex items-center gap-2 cursor-pointer rounded-md p-2 transition-colors ${
+                          activeAccountId === account.providerAccountId ? "bg-accent" : ""
+                        }`}
+                        onClick={() => {
+                          setActiveAccountId(account.providerAccountId);
+                          navigateToAccount(account.id, account.providerAccountId);
+                        }}
+                      >
+                        <DotLottieReact
+                          src={instagramAnimationSrc}
+                          autoplay
+                          loop={false}
+                          style={{ width: "24px", height: "24px" }}
+                          aria-label="Instagram animação"
+                        />
+                        <div className="flex flex-col">
+                          <span className="text-sm">{account.name}</span>
+                          {account.isMain && (
+                            <Badge variant="outline" className="text-[10px] py-0 h-4">
+                              Principal
+                            </Badge>
+                          )}
+                        </div>
+                        {activeAccountId === account.providerAccountId && (
+                          <Check className="ml-auto h-4 w-4" />
                         )}
-                      </div>
-                      {activeAccountId === account.providerAccountId && (
-                        <Check className="ml-auto h-4 w-4" />
-                      )}
-                    </DropdownMenuItem>
-                  ))}
-                </>
-              )}
+                      </DropdownMenuItem>
+                    ))}
+                  </>
+                )}
 
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                className="flex items-center gap-2 cursor-pointer text-primary"
-                onClick={() => router.push("/registro/redesocial")}
-              >
-                <Plus className="h-4 w-4" />
-                <span>Adicionar nova conta</span>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  className="flex items-center gap-2 cursor-pointer text-primary"
+                  onClick={() => router.push("/registro/redesocial")}
+                >
+                  <Plus className="h-4 w-4" />
+                  <span>Adicionar nova conta</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : (
+            <div className="h-10">{/* Espaço reservado quando não há conta ativa */}</div>
+          )}
         </div>
 
         {/* Grupo Social Login */}
@@ -397,7 +437,7 @@ export function AppSidebar() {
             </div>
 
             <CollapsibleContent>
-              <SidebarGroupContent>
+              <SidebarGroupContent className="bg-background">
                 <div className="p-4">
                   {connectedAccounts.length > 0 && (
                     <div className="mb-4">
@@ -543,7 +583,7 @@ export function AppSidebar() {
               </div>
 
               <CollapsibleContent>
-                <SidebarGroupContent>
+                <SidebarGroupContent className="bg-background">
                   <SidebarMenu>
                     <SidebarMenuItem>
                       <SidebarMenuButton asChild>

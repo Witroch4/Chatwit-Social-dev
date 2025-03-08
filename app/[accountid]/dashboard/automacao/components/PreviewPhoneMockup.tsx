@@ -52,6 +52,9 @@ export default function PreviewPhoneMockup({
   responderPublico,
   publicReply1,
 }: Props) {
+  // Log para depuração
+  console.log("PreviewPhoneMockup - selectedPost:", selectedPost);
+
   return (
     <div
       style={{

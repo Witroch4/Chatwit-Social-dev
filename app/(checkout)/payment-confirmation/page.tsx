@@ -8,9 +8,25 @@ import { Button } from "@/components/ui/button";
 export default function PaymentConfirmationPage() {
   const [status, setStatus] = useState<string | null>(null);
   const [customerEmail, setCustomerEmail] = useState<string>("");
+  const [accounts, setAccounts] = useState<any[]>([]);
   const router = useRouter();
 
   useEffect(() => {
+    // Buscar contas do Instagram do usuário
+    const fetchAccounts = async () => {
+      try {
+        const res = await fetch("/api/auth/instagram/accounts");
+        if (res.ok) {
+          const data = await res.json();
+          setAccounts(data.accounts || []);
+        }
+      } catch (error) {
+        console.error("Erro ao buscar contas:", error);
+      }
+    };
+
+    fetchAccounts();
+
     const searchParams = new URLSearchParams(window.location.search);
     const sessionId = searchParams.get("session_id");
 
@@ -38,12 +54,17 @@ export default function PaymentConfirmationPage() {
     }
   }, []);
 
-  // Se o status for "open", redireciona para o Dashboard
+  // Se o status for "open", redireciona para a conta do Instagram ou página de registro
   useEffect(() => {
     if (status === "open") {
-      router.push("/dashboard");
+      if (accounts.length > 0) {
+        const mainAccount = accounts.find(acc => acc.isMain) || accounts[0];
+        router.push(`/${mainAccount.providerAccountId}/dashboard`);
+      } else {
+        router.push("/registro/redesocial");
+      }
     }
-  }, [status, router]);
+  }, [status, router, accounts]);
 
   if (status === "complete") {
     return (
@@ -56,8 +77,15 @@ export default function PaymentConfirmationPage() {
           Um email de confirmação foi enviado para{" "}
           <span className="font-medium">{customerEmail}</span>.
         </p>
-        <Button onClick={() => router.push("/dashboard")}>
-          Ir para o Dashboard
+        <Button onClick={() => {
+          if (accounts.length > 0) {
+            const mainAccount = accounts.find(acc => acc.isMain) || accounts[0];
+            router.push(`/${mainAccount.providerAccountId}/dashboard`);
+          } else {
+            router.push("/registro/redesocial");
+          }
+        }}>
+          Ir para o Meu Painel
         </Button>
       </div>
     );

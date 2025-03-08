@@ -111,14 +111,15 @@ export default function EditPage() {
   const [autoError, setAutoError] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [isLive, setIsLive] = useState(true);
+  const [automacaoData, setAutomacaoData] = useState<AutomacaoDB | null>(null);
 
-  // Estados para seleção de post
+  // Estados para seleção de postagem
   const [selectedPost, setSelectedPost] = useState<InstagramMediaItem | null>(null);
-  const [selectedMediaIdLocal, setSelectedMediaIdLocal] = useState<string | null>(null);
-  const [selectedOptionPostagem, setSelectedOptionPostagem] = useState<"especifico" | "qualquer">("especifico");
+  const [anyMediaSelected, setAnyMediaSelected] = useState(false);
+  const [openDialog, setOpenDialog] = useState(false);
 
-  // Etapa 1: Palavra/Expressão
-  const [anyword, setAnyword] = useState(true);
+  // Estados para palavras-chave
+  const [anyword, setAnyword] = useState(false);
   const [inputPalavra, setInputPalavra] = useState("");
 
   // Etapa 2: DM de Boas-Vindas
@@ -155,9 +156,37 @@ export default function EditPage() {
   );
 
   // Estado de Preview
-  const [openDialog, setOpenDialog] = useState(false);
   const [toggleValue, setToggleValue] = useState<"publicar" | "comentarios" | "dm">("publicar");
   const [commentContent, setCommentContent] = useState("");
+
+  // Carregar dados do Instagram
+  useEffect(() => {
+    const fetchInstagramData = async () => {
+      if (status === "authenticated" && providerAccountId) {
+        try {
+          const res = await fetch(`/api/instagram/posts?providerAccountId=${providerAccountId}`);
+
+          if (!res.ok) {
+            const errorData = await res.json();
+            throw new Error(errorData.error || "Erro ao buscar dados do Instagram");
+          }
+
+          const data = await res.json();
+          setInstagramUser(data.user);
+          setInstagramMedia(data.media || []);
+          setLoading(false);
+        } catch (err: any) {
+          console.error("Erro ao conectar com o Instagram:", err);
+          setError(err.message || "Erro ao conectar com o Instagram.");
+          setLoading(false);
+        }
+      } else {
+        setLoading(false);
+      }
+    };
+
+    fetchInstagramData();
+  }, [status, providerAccountId]);
 
   // Carregar dados da automação
   useEffect(() => {
@@ -169,10 +198,10 @@ export default function EditPage() {
           throw new Error(errData.error || "Erro ao carregar automação.");
         }
         const auto: AutomacaoDB = await res.json();
+        setAutomacaoData(auto);
 
         // Atualizar estados com dados da automação
-        setSelectedMediaIdLocal(auto.selectedMediaId);
-        setSelectedOptionPostagem(auto.anyMediaSelected ? "qualquer" : "especifico");
+        setAnyMediaSelected(auto.anyMediaSelected);
         setIsLive(auto.live);
 
         // Etapa 1: Palavra/Expressão
@@ -216,49 +245,23 @@ export default function EditPage() {
     fetchAutomacao();
   }, [id, session]);
 
-  // Carregar dados do Instagram
+  // Efeito para definir o post selecionado após carregar os dados do Instagram e da automação
   useEffect(() => {
-    const fetchInstagramData = async () => {
-      if (status === "authenticated" && providerAccountId) {
-        try {
-          const res = await fetch(`/api/instagram/posts?providerAccountId=${providerAccountId}`);
+    if (automacaoData && instagramMedia.length > 0 && automacaoData.selectedMediaId) {
+      console.log("Buscando mídia selecionada:", automacaoData.selectedMediaId);
+      console.log("Mídias disponíveis:", instagramMedia.map(m => m.id));
 
-          if (!res.ok) {
-            const errorData = await res.json();
-            throw new Error(errorData.error || "Erro ao buscar dados do Instagram");
-          }
+      const foundPost = instagramMedia.find(media => media.id === automacaoData.selectedMediaId);
+      console.log("Mídia encontrada:", foundPost);
 
-          const data = await res.json();
-          setInstagramUser(data.user);
-          setInstagramMedia(data.media || []);
-          setLoading(false);
-        } catch (err: any) {
-          console.error("Erro ao conectar com o Instagram:", err);
-          setError(err.message || "Erro ao conectar com o Instagram.");
-          setLoading(false);
-        }
-      } else {
-        setLoading(false);
+      if (foundPost) {
+        setSelectedPost(foundPost);
+        // Se encontrou o post, também define o conteúdo do comentário para o preview
+        setCommentContent(foundPost.caption || "");
+        console.log("Post selecionado definido:", foundPost);
       }
-    };
-
-    fetchInstagramData();
-  }, [status, providerAccountId]);
-
-  // Quando já temos "instagramMedia" e "selectedMediaIdLocal"
-  useEffect(() => {
-    if (!selectedMediaIdLocal) return;
-    if (selectedOptionPostagem !== "especifico") return;
-    if (instagramMedia.length === 0) return;
-
-    // Tenta achar a mídia correspondente
-    const found = instagramMedia.find((m) => m.id === selectedMediaIdLocal);
-    if (found) {
-      setSelectedPost(found);
-    } else {
-      console.warn("Mídia salva no BD não encontrada nas últimas do Instagram.");
     }
-  }, [selectedMediaIdLocal, selectedOptionPostagem, instagramMedia]);
+  }, [automacaoData, instagramMedia]);
 
   if (status === "loading" || loadingAuto || loading) return <LoadingState />;
   if (status === "unauthenticated") return <UnauthenticatedState />;
@@ -266,10 +269,10 @@ export default function EditPage() {
   if (error) return <ErrorState error={error} />;
 
   function validarEtapas(): boolean {
-    if (selectedOptionPostagem === "especifico" && !selectedPost) {
+    if (!anyMediaSelected && !selectedPost) {
       toast({
         title: "Erro",
-        description: "Selecione uma postagem específica ou mude para 'qualquer postagem'.",
+        description: "Selecione uma publicação específica ou escolha 'Qualquer Publicação'",
         variant: "destructive",
       });
       return false;
@@ -319,8 +322,8 @@ export default function EditPage() {
 
       const payload = {
         // Etapa 1
-        selectedMediaId: selectedOptionPostagem === "especifico" ? selectedPost?.id || null : null,
-        anyMediaSelected: selectedOptionPostagem === "qualquer",
+        selectedMediaId: selectedPost?.id || null,
+        anyMediaSelected: anyMediaSelected,
         palavrasChave: !anyword ? inputPalavra : null,
         // Etapa 2
         fraseBoasVindas: dmWelcomeMessage,
@@ -434,8 +437,8 @@ export default function EditPage() {
         }}
       >
         <PostSelection
-          selectedOptionPostagem={selectedOptionPostagem}
-          setSelectedOptionPostagem={setSelectedOptionPostagem}
+          anyMediaSelected={anyMediaSelected}
+          setAnyMediaSelected={setAnyMediaSelected}
           selectedPost={selectedPost}
           setSelectedPost={setSelectedPost}
           instagramMedia={instagramMedia}

@@ -1,3 +1,5 @@
+//app-header
+
 "use client";
 
 import { useSession, signIn } from "next-auth/react";
@@ -15,6 +17,24 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useState, useEffect } from "react";
+import { SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
+
+// Componente wrapper para o SidebarTrigger que verifica se está dentro de um SidebarProvider
+const SafeSidebarTrigger = () => {
+  try {
+    // Tenta usar o hook useSidebar para verificar se estamos dentro do contexto
+    useSidebar();
+    // Se não lançar erro, renderiza o SidebarTrigger
+    return <SidebarTrigger />;
+  } catch (error) {
+    // Se ocorrer um erro (fora do SidebarProvider), renderiza um botão simples
+    return (
+      <Button variant="ghost" size="icon">
+        <Menu className="h-5 w-5" />
+      </Button>
+    );
+  }
+};
 
 export function AppHeader() {
   const { data: session, status } = useSession();
@@ -25,6 +45,9 @@ export function AppHeader() {
   const isContasRoute = pathname === "/contas" || pathname.startsWith("/contas/");
   const isDashboardRoute = pathname === "/dashboard" || pathname.startsWith("/dashboard/");
   const isAuthRoute = pathname === "/auth/login" || pathname.startsWith("/auth/");
+
+  // Verificar se estamos em uma rota de dashboard de conta
+  const isAccountDashboardRoute = pathname.match(/^\/[^\/]+\/dashboard/) !== null;
 
   // Evitar erro de hidratação
   useEffect(() => {
@@ -41,6 +64,29 @@ export function AppHeader() {
       <div className="fixed top-4 right-4 z-50 flex items-center space-x-4">
         <ThemeToggle />
       </div>
+    );
+  }
+
+  // Se estamos na rota de dashboard de conta, renderizar apenas o SidebarTrigger e ThemeToggle
+  if (isAccountDashboardRoute) {
+    return (
+      <header className="border-b border-border h-14 px-4 flex items-center justify-between bg-background">
+        <div className="flex items-center gap-2">
+          <SafeSidebarTrigger />
+        </div>
+        <div className="flex items-center gap-2">
+          <ThemeToggle />
+          <Button variant="ghost" size="icon" className="relative">
+            <Bell className="h-5 w-5" />
+            <span className="sr-only">Notificações</span>
+            <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-primary"></span>
+          </Button>
+          <Button variant="ghost" size="icon">
+            <HelpCircle className="h-5 w-5" />
+            <span className="sr-only">Ajuda</span>
+          </Button>
+        </div>
+      </header>
     );
   }
 

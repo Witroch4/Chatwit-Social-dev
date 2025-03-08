@@ -19,8 +19,8 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 
 interface PostSelectionProps {
-  selectedOptionPostagem: "especifico" | "qualquer";
-  setSelectedOptionPostagem: (v: "especifico" | "qualquer") => void;
+  anyMediaSelected: boolean;
+  setAnyMediaSelected: (value: boolean) => void;
   selectedPost: InstagramMediaItem | null;
   setSelectedPost: (p: InstagramMediaItem | null) => void;
   instagramMedia: InstagramMediaItem[];
@@ -32,21 +32,26 @@ interface PostSelectionProps {
 }
 
 export default function PostSelection({
-  selectedOptionPostagem,
-  setSelectedOptionPostagem,
+  anyMediaSelected,
+  setAnyMediaSelected,
   selectedPost,
   setSelectedPost,
+  instagramMedia,
+  openDialog,
+  setOpenDialog,
   onSelectPost,
   disabled = false,
   className = "",
 }: PostSelectionProps) {
+  // Log para depuração
+  console.log("PostSelection - selectedPost:", selectedPost);
+  console.log("PostSelection - anyMediaSelected:", anyMediaSelected);
+
   const params = useParams<{ accountid: string }>();
   const providerAccountId = params?.accountid;
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [instagramMedia, setInstagramMedia] = useState<InstagramMediaItem[]>([]);
-  const [openDialog, setOpenDialog] = useState(false);
 
   useEffect(() => {
     const fetchInstagramData = async () => {
@@ -65,7 +70,6 @@ export default function PostSelection({
         }
 
         const data = await res.json();
-        setInstagramMedia(data.media || []);
         setLoading(false);
       } catch (err: any) {
         console.error("Erro ao conectar com o Instagram:", err);
@@ -86,7 +90,7 @@ export default function PostSelection({
   const handleSelectPost = (post: InstagramMediaItem) => {
     if (disabled) return;
     setSelectedPost(post);
-    setSelectedOptionPostagem("especifico");
+    setAnyMediaSelected(false); // Não é qualquer mídia, é específica
     onSelectPost?.();
   };
 
@@ -152,7 +156,7 @@ export default function PostSelection({
       style={{
         width: "205px",
         height: "265px",
-        border: "1px solid #333",
+        border: selectedPost?.id === post.id ? "2px solid blue" : "1px solid #333",
         borderRadius: "5px",
         overflow: "hidden",
         cursor: disabled ? "not-allowed" : "pointer",
@@ -162,7 +166,7 @@ export default function PostSelection({
         if (disabled) return;
         setSelectedPost(post);
         setOpenDialog(false);
-        setSelectedOptionPostagem("especifico");
+        setAnyMediaSelected(false);
         onSelectPost?.();
       }}
     >
@@ -203,14 +207,15 @@ export default function PostSelection({
   );
 
   return (
-    <div className={className} style={{ pointerEvents: disabled ? "none" : "auto", opacity: disabled ? 0.6 : 1 }}>
+    <div className={className} style={{ opacity: disabled ? 0.6 : 1 }}>
       <h2 style={{ marginBottom: "10px" }}>Quando Alguém faz um Comentário</h2>
       <RadioGroup
-        value={selectedOptionPostagem}
+        value={anyMediaSelected ? "qualquer" : "especifico"}
         onValueChange={(v) => {
           if (disabled) return;
-          setSelectedOptionPostagem(v as "especifico" | "qualquer");
-          if (v === "qualquer") {
+          const isAnyMedia = v === "qualquer";
+          setAnyMediaSelected(isAnyMedia);
+          if (isAnyMedia) {
             setSelectedPost(null);
             onSelectPost?.();
           }
@@ -227,7 +232,7 @@ export default function PostSelection({
         </div>
       </RadioGroup>
 
-      {selectedOptionPostagem === "especifico" && (
+      {!anyMediaSelected && (
         <div style={{ marginBottom: "20px" }}>
           {ultimasPostagens.length > 0 ? (
             <div
@@ -248,51 +253,30 @@ export default function PostSelection({
               <Skeleton className="h-[95px] w-[70px] rounded" />
             </div>
           )}
-
           <Dialog open={openDialog} onOpenChange={setOpenDialog}>
             <DialogTrigger asChild>
-              <button
-                style={{
-                  background: "transparent",
-                  border: "none",
-                  color: disabled ? "#aaa" : "#0af",
-                  textDecoration: disabled ? "none" : "underline",
-                  cursor: disabled ? "not-allowed" : "pointer",
-                  marginTop: "10px",
-                }}
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-2"
                 disabled={disabled}
               >
-                Mostrar Todos
-              </button>
+                Ver Mais Publicações
+              </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[730px] max-h-[730px] overflow-auto bg-background">
+            <DialogContent className="sm:max-w-[800px]">
               <DialogHeader>
-                <DialogTitle>Selecione Qualquer Publicação</DialogTitle>
+                <DialogTitle>Selecione uma Publicação</DialogTitle>
                 <DialogDescription>
-                  Escolha uma publicação da lista abaixo.
+                  Escolha uma publicação específica para monitorar comentários.
                 </DialogDescription>
               </DialogHeader>
-
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(auto-fill, minmax(205px, 1fr))",
-                  gap: "10px",
-                  marginTop: "20px",
-                }}
-              >
-                {instagramMedia.length > 0
-                  ? instagramMedia.map(renderPostDialogCard)
-                  : Array.from({ length: 9 }).map((_, i) => (
-                      <Skeleton key={i} className="h-[265px] w-[205px] rounded" />
-                    ))}
+              <div className="grid grid-cols-3 gap-4 py-4 max-h-[500px] overflow-y-auto">
+                {instagramMedia.map(renderPostDialogCard)}
               </div>
-
-              <DialogFooter className="sm:justify-start">
+              <DialogFooter>
                 <DialogClose asChild>
-                  <Button type="button" variant="secondary" disabled={disabled}>
-                    Fechar
-                  </Button>
+                  <Button variant="outline">Cancelar</Button>
                 </DialogClose>
               </DialogFooter>
             </DialogContent>
