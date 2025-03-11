@@ -47,7 +47,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.AlertDescription = exports.AlertTitle = exports.Alert = void 0;
 const React = __importStar(require("react"));
 const class_variance_authority_1 = require("class-variance-authority");
-const utils_1 = require("@/lib/utils");
+const utils_1 = require("../../lib/utils");
 const alertVariants = (0, class_variance_authority_1.cva)("relative w-full rounded-lg border p-4 [&>svg~*]:pl-7 [&>svg+div]:translate-y-[-3px] [&>svg]:absolute [&>svg]:left-4 [&>svg]:top-4 [&>svg]:text-foreground", {
     variants: {
         variant: {

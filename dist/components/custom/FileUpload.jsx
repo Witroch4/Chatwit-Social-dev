@@ -16,7 +16,7 @@ const progress_1 = require("../ui/progress");
 const scroll_area_1 = require("../ui/scroll-area");
 const uuid_1 = require("uuid");
 const sonner_1 = require("sonner");
-const tooltip_1 = require("@/components/ui/tooltip"); // Importação dos componentes de Tooltip
+const tooltip_1 = require("../../components/ui/tooltip"); // Importação dos componentes de Tooltip
 var FileTypes;
 (function (FileTypes) {
     FileTypes["Image"] = "image";

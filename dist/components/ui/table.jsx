@@ -46,7 +46,7 @@ var __rest = (this && this.__rest) || function (s, e) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.TableCaption = exports.TableCell = exports.TableRow = exports.TableHead = exports.TableFooter = exports.TableBody = exports.TableHeader = exports.Table = void 0;
 const React = __importStar(require("react"));
-const utils_1 = require("@/lib/utils");
+const utils_1 = require("../../lib/utils");
 const Table = React.forwardRef((_a, ref) => {
     var { className } = _a, props = __rest(_a, ["className"]);
     return (<div className="relative w-full overflow-auto">

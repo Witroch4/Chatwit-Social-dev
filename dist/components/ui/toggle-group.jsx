@@ -48,8 +48,8 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.ToggleGroupItem = exports.ToggleGroup = void 0;
 const React = __importStar(require("react"));
 const ToggleGroupPrimitive = __importStar(require("@radix-ui/react-toggle-group"));
-const utils_1 = require("@/lib/utils");
-const toggle_1 = require("@/components/ui/toggle");
+const utils_1 = require("../../lib/utils");
+const toggle_1 = require("../../components/ui/toggle");
 const ToggleGroupContext = React.createContext({
     size: "default",
     variant: "default",

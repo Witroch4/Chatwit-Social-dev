@@ -48,7 +48,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.Progress = void 0;
 const React = __importStar(require("react"));
 const ProgressPrimitive = __importStar(require("@radix-ui/react-progress"));
-const utils_1 = require("@/lib/utils");
+const utils_1 = require("../../lib/utils");
 const Progress = React.forwardRef((_a, ref) => {
     var { className, value } = _a, props = __rest(_a, ["className", "value"]);
     return (<ProgressPrimitive.Root ref={ref} className={(0, utils_1.cn)("relative h-4 w-full overflow-hidden rounded-full bg-secondary", className)} {...props}>

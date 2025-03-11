@@ -46,7 +46,7 @@ var __rest = (this && this.__rest) || function (s, e) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.CardContent = exports.CardDescription = exports.CardTitle = exports.CardFooter = exports.CardHeader = exports.Card = void 0;
 const React = __importStar(require("react"));
-const utils_1 = require("@/lib/utils");
+const utils_1 = require("../../lib/utils");
 const Card = React.forwardRef((_a, ref) => {
     var { className } = _a, props = __rest(_a, ["className"]);
     return (<div ref={ref} className={(0, utils_1.cn)("rounded-lg border bg-card text-card-foreground shadow-sm", className)} {...props}/>);

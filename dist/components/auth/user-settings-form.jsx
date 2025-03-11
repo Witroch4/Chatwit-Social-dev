@@ -5,11 +5,11 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.default = UserSettingsForm;
-const settings_1 = require("@/actions/auth/settings");
-const button_1 = require("@/components/ui/button");
-const form_1 = require("@/components/ui/form");
-const input_1 = require("@/components/ui/input");
-const auth_1 = require("@/schemas/auth");
+const settings_1 = require("../../actions/auth/settings");
+const button_1 = require("../../components/ui/button");
+const form_1 = require("../../components/ui/form");
+const input_1 = require("../../components/ui/input");
+const auth_1 = require("../../schemas/auth");
 const zod_1 = require("@hookform/resolvers/zod");
 const lucide_react_1 = require("lucide-react");
 const react_1 = require("next-auth/react");

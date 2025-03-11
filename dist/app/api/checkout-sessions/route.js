@@ -8,7 +8,7 @@ exports.GET = GET;
 // app/api/checkout-sessions/route.ts
 const stripe_1 = __importDefault(require("stripe"));
 const server_1 = require("next/server");
-const auth_1 = require("@/auth");
+const auth_1 = require("../../../auth");
 // Função auxiliar para criar a instância do Stripe somente quando necessário
 function getStripeInstance() {
     const secretKey = process.env.STRIPE_SECRET_KEY;

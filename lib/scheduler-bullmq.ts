@@ -1,167 +1,123 @@
-import axios from 'axios';
-import dotenv from 'dotenv';
-import { agendamentoQueue, IAgendamentoJobData } from '@/lib/queue/agendamento.queue';
-
-dotenv.config();
-
-const BASEROW_TOKEN = process.env.BASEROW_TOKEN || '';
-const BASEROW_TABLE_ID = process.env.BASEROW_TABLE_ID || '';
+import { agendamentoQueue, IAgendamentoJobData } from "@/lib/queue/agendamento.queue";
+import { prisma } from "@/lib/prisma";
 
 /**
- * Agenda (ou re-agenda) um job no BullMQ, calculando o delay com base em "Data".
- * Garante que `jobId` seja no formato "ag-job-<id>".
+ * Agenda um job no BullMQ para um agendamento
  */
-export async function scheduleAgendamentoBullMQ(agendamento: {
-  id: string | number; // ID do Baserow
-  Data: string;        // Data/hora em formato ISO
-  userID: string;      // Usuário responsável pelo agendamento
+export async function scheduleAgendamentoBullMQ(data: {
+  id: string | number;
+  Data: string;
+  userID: string;
+  Diario?: boolean;
 }) {
-  // 1) Calcula o delay
-  const now = Date.now();
-  const targetTime = new Date(agendamento.Data).getTime();
-
-  // Verificar se a data é válida
-  if (isNaN(targetTime)) {
-    console.error(`[BullMQ] Data inválida: ${agendamento.Data}`);
-    throw new Error(`Data inválida para agendamento: ${agendamento.Data}`);
-  }
-
-  let delay = targetTime - now;
-  if (delay < 0) {
-    // Se a data já passou, processa imediatamente
-    delay = 0;
-  }
-
-  // Garantir que o ID seja uma string válida
-  const agendamentoId = String(agendamento.id || '').trim();
-  if (!agendamentoId) {
-    console.error(`[BullMQ] ID inválido: ${agendamento.id}`);
-    throw new Error(`ID inválido para agendamento: ${agendamento.id}`);
-  }
-
-  // 2) Monta o jobId: "ag-job-<rowId>"
-  const jobIdString = `ag-job-${BASEROW_TABLE_ID}-${agendamentoId}`;
-  console.log(`[scheduleAgendamentoBullMQ] jobIdString=${jobIdString}`);
-
-  // 3) Remove job anterior, se existir
-  const oldJob = await agendamentoQueue.getJob(jobIdString);
-  if (oldJob) {
-    await oldJob.remove();
-    console.log(`[BullMQ] Job antigo removido: jobId=${oldJob.id}`);
-  }
-
-  // 4) Cria o novo job
   try {
-    // Garantir que todos os dados são válidos e serializáveis
-    const jobData: IAgendamentoJobData = {
-      baserowId: jobIdString,
-      Data: agendamento.Data,
-      userID: agendamento.userID || '',
-    };
+    const { id, Data, userID, Diario } = data;
 
-    // Verificar se há valores NaN ou Infinity nos dados
-    for (const [key, value] of Object.entries(jobData)) {
-      if (typeof value === 'number' && (isNaN(value) || !isFinite(value))) {
-        console.error(`[BullMQ] Valor inválido para ${key}: ${value}`);
-        throw new Error(`Valor inválido para ${key}: ${value}`);
+    // Formata o ID do job para incluir o ID do agendamento
+    const baserowId = `ag-job-${id}`;
+    const jobId = `agendamento-${baserowId}`;
+
+    // Calcula o delay até a data de agendamento
+    const agendamentoDate = new Date(Data);
+    const now = new Date();
+    const delay = Math.max(0, agendamentoDate.getTime() - now.getTime());
+
+    console.log(`[BullMQ] Agendando job para ${agendamentoDate.toISOString()} (delay: ${delay}ms)`);
+
+    // Adiciona o job à fila
+    const job = await agendamentoQueue.add(
+      jobId,
+      {
+        baserowId,
+        Data,
+        userID,
+        Diario,
+      },
+      {
+        delay,
+        jobId,
+        removeOnComplete: true,
+        removeOnFail: false,
       }
-    }
+    );
 
-    const newJob = await agendamentoQueue.add('agendamento', jobData, {
-      jobId: jobIdString,
-      delay,
-      attempts: 3,
-      removeOnComplete: true,
-      removeOnFail: false,
-    });
-
-    console.log(`[BullMQ] (schedule) Job agendado com sucesso: jobId=${jobIdString}, delay=${delay}ms`);
-    return newJob;
-  } catch (error: any) {
-    console.error(`[BullMQ] Erro ao adicionar job: ${error.message}`);
+    console.log(`[BullMQ] Job agendado com sucesso: ${job.id}`);
+    return job;
+  } catch (error) {
+    console.error("[BullMQ] Erro ao agendar job:", error);
     throw error;
   }
 }
 
-// lib/scheduler-bullmq.ts
-
 /**
- * Cancela um job específico (pelo ID do Baserow).
- * Formata o ID no padrão "ag-job-<BASEROW_TABLE_ID>-<rowId>" para buscar no Redis.
+ * Cancela um job no BullMQ para um agendamento
  */
-export async function cancelAgendamentoBullMQ(rowId: string | number) {
-  const jobIdString = `ag-job-${BASEROW_TABLE_ID}-${String(rowId)}`;
-  console.log(`[cancelAgendamentoBullMQ] jobIdString=${jobIdString}`);
+export async function cancelAgendamentoBullMQ(agendamentoId: string | number) {
+  try {
+    const jobId = `agendamento-ag-job-${agendamentoId}`;
+    const job = await agendamentoQueue.getJob(jobId);
 
-  const oldJob = await agendamentoQueue.getJob(jobIdString);
-  if (oldJob) {
-    await oldJob.remove();
-    console.log(`[BullMQ] Job removido com sucesso. ID=${jobIdString}`);
-  } else {
-    console.warn(`[BullMQ] Nenhum job encontrado com ID=${jobIdString}`);
+    if (job) {
+      await job.remove();
+      console.log(`[BullMQ] Job cancelado com sucesso: ${jobId}`);
+      return true;
+    } else {
+      console.log(`[BullMQ] Job não encontrado para cancelamento: ${jobId}`);
+      return false;
+    }
+  } catch (error) {
+    console.error("[BullMQ] Erro ao cancelar job:", error);
+    throw error;
   }
 }
 
-
-/// lib/scheduler-bullmq.ts
-
 /**
- * Processa agendamentos pendentes do Baserow (1x/dia), criando jobs no BullMQ.
+ * Processa agendamentos pendentes
+ * Esta função é chamada periodicamente para verificar agendamentos que estão próximos de vencer
  */
 export async function processarAgendamentosPendentes() {
   try {
-    console.log('[BullMQ] Iniciando processamento de agendamentos pendentes...');
+    console.log("[BullMQ] Processando agendamentos pendentes...");
 
-    // Exemplo: pega agendamentos entre agora e +24 dias
+    // Busca agendamentos que estão próximos de vencer (próximas 24 horas)
     const now = new Date();
-    const maxDelayDate = new Date(now.getTime() + 24 * 24 * 60 * 60 * 1000);
+    const nextDay = new Date(now);
+    nextDay.setDate(now.getDate() + 1);
 
-    const filter = JSON.stringify({
-      userID: { _neq: null },
-      Data: {
-        _gte: now.toISOString(),
-        _lte: maxDelayDate.toISOString(),
+    const agendamentosPendentes = await prisma.agendamento.findMany({
+      where: {
+        Data: {
+          gte: now,
+          lt: nextDay,
+        },
       },
     });
 
-    const response = await axios.get(
-      `https://planilhatecnologicabd.witdev.com.br/api/database/rows/table/${BASEROW_TABLE_ID}/?user_field_names=true&filter=${encodeURIComponent(
-        filter
-      )}`,
-      {
-        headers: { Authorization: `Token ${BASEROW_TOKEN}` },
-      }
-    );
+    console.log(`[BullMQ] Encontrados ${agendamentosPendentes.length} agendamentos pendentes.`);
 
-    const agendamentos = response.data?.results || [];
-    console.log(`[BullMQ] Encontrados ${agendamentos.length} agendamento(s) pendente(s).`);
+    // Agenda jobs para cada agendamento pendente
+    for (const agendamento of agendamentosPendentes) {
+      // Verifica se já existe um job para este agendamento
+      const jobId = `agendamento-ag-job-${agendamento.id}`;
+      const existingJob = await agendamentoQueue.getJob(jobId);
 
-    // Agenda cada item
-    for (const agendamento of agendamentos) {
-      try {
-        // Garantir que os dados necessários estão presentes e válidos
-        const agendamentoData = {
+      if (!existingJob) {
+        // Se não existir, agenda um novo job
+        await scheduleAgendamentoBullMQ({
           id: agendamento.id,
-          Data: agendamento.Data,
-          userID: agendamento.userID || ''
-        };
+          Data: agendamento.Data.toISOString(),
+          userID: agendamento.userId,
+          Diario: agendamento.Diario,
+        });
 
-        // Verificar se os dados são válidos
-        if (!agendamentoData.id || !agendamentoData.Data) {
-          console.error(`[BullMQ] Dados inválidos para agendamento: ${JSON.stringify(agendamentoData)}`);
-          continue; // Pula este agendamento e continua com o próximo
-        }
-
-        await scheduleAgendamentoBullMQ(agendamentoData);
-      } catch (error: any) {
-        console.error(`[BullMQ] Erro ao agendar item ${agendamento.id}:`, error.message || error);
-        // Continua com o próximo agendamento
+        console.log(`[BullMQ] Agendamento pendente agendado: ${agendamento.id}`);
       }
     }
 
-    console.log('[BullMQ] Processamento de agendamentos pendentes concluído.');
-  } catch (error: any) {
-    console.error('[BullMQ] Erro ao processar agendamentos pendentes:', error.message || error);
+    return agendamentosPendentes.length;
+  } catch (error) {
+    console.error("[BullMQ] Erro ao processar agendamentos pendentes:", error);
+    throw error;
   }
 }
 

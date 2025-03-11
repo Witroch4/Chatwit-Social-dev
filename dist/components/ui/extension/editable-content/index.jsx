@@ -2,8 +2,8 @@
 "use client";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.EditableContent = void 0;
-const input_1 = require("@/components/ui/input");
-const utils_1 = require("@/lib/utils");
+const input_1 = require("../../../../components/ui/input");
+const utils_1 = require("../../../../lib/utils");
 const lucide_react_1 = require("lucide-react");
 const react_1 = require("react");
 const EditableContent = ({ initialValue, clipAt = 25, action, className }) => {

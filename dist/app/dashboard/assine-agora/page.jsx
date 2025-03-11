@@ -8,7 +8,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.default = AssineAgoraPage;
 const react_1 = __importDefault(require("react"));
 const navigation_1 = require("next/navigation");
-const button_1 = require("@/components/ui/button");
+const button_1 = require("../../../components/ui/button");
 function AssineAgoraPage() {
     const router = (0, navigation_1.useRouter)();
     return (<div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 dark:bg-neutral-900 p-4">

@@ -1,11 +1,12 @@
-//app\auth\instagram\callback\route.ts
+// app/auth/instagram/callback/route.ts
 import { NextResponse } from 'next/server';
 import { auth, update } from "@/auth";
 import { prisma } from "@/lib/prisma";
+
 export const runtime = "nodejs";
+
 export async function GET(request: Request) {
   try {
-    // 1. Obter 'code' da query
     const url = new URL(request.url);
     const code = url.searchParams.get('code');
     if (!code) {
@@ -15,12 +16,10 @@ export async function GET(request: Request) {
 
     console.log(`Code recebido: ${code}`);
 
-    // Variáveis de ambiente
     const clientId = process.env.NEXT_PUBLIC_INSTAGRAM_APP_ID!;
     const clientSecret = process.env.INSTAGRAM_APP_SECRET!;
     const redirectUri = process.env.NEXT_PUBLIC_INSTAGRAM_REDIRECT_URI!;
 
-    // 2. Trocar code por token de curto prazo
     const tokenResp = await fetch('https://api.instagram.com/oauth/access_token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -39,7 +38,6 @@ export async function GET(request: Request) {
       return new NextResponse('Erro token curto prazo', { status: 500 });
     }
 
-    // Garantir que "user_id" seja string
     const tokenRespText = await tokenResp.text();
     const fixedRespText = tokenRespText.replace(
       /"user_id":\s*(\d+)/,
@@ -52,10 +50,9 @@ export async function GET(request: Request) {
     };
 
     const shortLivedToken = shortTokenData.access_token;
-    console.log('Token curto prazo:', shortLivedToken);
+    console.log(`Token curto prazo (PARCIAL): ${shortLivedToken.slice(0, 3)}...`);
     console.log('User ID app-scoped:', shortTokenData.user_id);
 
-    // 3. Trocar token curto por token longo
     const exchangeUrl = new URL('https://graph.instagram.com/access_token');
     exchangeUrl.search = new URLSearchParams({
       grant_type: 'ig_exchange_token',
@@ -73,15 +70,13 @@ export async function GET(request: Request) {
     const longTokenData = await longTokenResp.json() as {
       access_token: string;
       token_type: string;
-      expires_in: number; // em segundos
+      expires_in: number;
     };
 
     const finalToken = longTokenData.access_token;
     const expiresAt = Math.floor(Date.now() / 1000) + longTokenData.expires_in;
+    console.log(`Token longo prazo (PARCIAL): ${finalToken.slice(0, 3)}...`);
 
-    console.log('Token longo prazo:', finalToken);
-
-    // 4. Obter sessão do usuário logado
     const session = await auth();
     if (!session?.user) {
       console.error('Usuário não autenticado.');
@@ -91,7 +86,6 @@ export async function GET(request: Request) {
     const userId = session.user.id;
     console.log(`Usuário logado (ID interno): ${userId}`);
 
-    // 5. Buscar dados da conta IG (/me)
     const meUrl = `https://graph.instagram.com/me?fields=id,username,media_count,account_type,user_id&access_token=${finalToken}`;
     const meResp = await fetch(meUrl);
 
@@ -101,7 +95,6 @@ export async function GET(request: Request) {
     if (!meResp.ok) {
       const errorText = await meResp.text();
       console.error('Erro ao buscar /me:', errorText);
-      // Podemos continuar, mas não teremos o user_id business (se for business)
     } else {
       const meData = await meResp.json() as {
         id: string;
@@ -110,16 +103,13 @@ export async function GET(request: Request) {
         user_id?: string;
       };
       console.log('meData:', meData);
-
       username = meData.username || null;
-
       if (meData.user_id) {
         igBusinessId = meData.user_id;
         console.log(`Conta BUSINESS ID (user_id) = ${igBusinessId}`);
       }
     }
 
-    // 6. Verificar se já existe uma conta com o mesmo providerAccountId
     const existingAccountWithSameId = await prisma.account.findFirst({
       where: {
         providerAccountId: shortTokenData.user_id,
@@ -127,7 +117,6 @@ export async function GET(request: Request) {
       },
     });
 
-    // Vamos saber quantas contas IG esse usuário já tem:
     const userIgAccounts = await prisma.account.findMany({
       where: {
         userId,
@@ -138,16 +127,12 @@ export async function GET(request: Request) {
     let accountToUse;
 
     if (existingAccountWithSameId) {
-      // Se a conta já existe para esse providerAccountId, atualizamos
-      // Verificar se pertence ao mesmo usuário
       if (existingAccountWithSameId.userId !== userId) {
         console.log('Esta conta do Instagram já está conectada a outro usuário.');
         return NextResponse.redirect(
           `${process.env.NEXTAUTH_URL}/registro/redesocial?error=account_already_connected`
         );
       }
-
-      // Atualizar a conta existente
       accountToUse = await prisma.account.update({
         where: { id: existingAccountWithSameId.id },
         data: {
@@ -161,10 +146,7 @@ export async function GET(request: Request) {
       });
       console.log('Conta Instagram atualizada (mesmo providerAccountId).');
     } else {
-      // 7. Se não existe conta IG com esse providerAccountId, criamos uma nova.
-      // Definir isMain = true somente se for a primeira conta do usuário
       const isFirstInstagramAccount = userIgAccounts.length === 0;
-
       const newAccount = await prisma.account.create({
         data: {
           userId,
@@ -177,14 +159,13 @@ export async function GET(request: Request) {
           scope: "instagram_business_basic,instagram_business_manage_messages,instagram_business_manage_comments,instagram_business_content_publish",
           igUserId: igBusinessId,
           igUsername: username,
-          isMain: isFirstInstagramAccount, // se quiser que só a primeira seja principal
+          isMain: isFirstInstagramAccount,
         },
       });
       console.log('Nova conta Instagram criada.');
       accountToUse = newAccount;
     }
 
-    // 8. Atualizar o token JWT (para uso imediato, se quiser)
     await update({
       user: {
         instagramAccessToken: finalToken,
@@ -192,7 +173,6 @@ export async function GET(request: Request) {
       },
     });
 
-    // 9. Redirecionar para a rota dinâmica com o providerAccountId
     if (accountToUse) {
       console.log(`Redirecionando para /${accountToUse.providerAccountId}/dashboard`);
       return NextResponse.redirect(`${process.env.NEXTAUTH_URL}/${accountToUse.providerAccountId}/dashboard`);

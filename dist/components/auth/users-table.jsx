@@ -3,11 +3,11 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.default = UsersTable;
 const lucide_react_1 = require("lucide-react");
-const button_1 = require("@/components/ui/button");
-const card_1 = require("@/components/ui/card");
-const dropdown_menu_1 = require("@/components/ui/dropdown-menu");
-const table_1 = require("@/components/ui/table");
-const dialog_1 = require("@/components/ui/dialog");
+const button_1 = require("../../components/ui/button");
+const card_1 = require("../../components/ui/card");
+const dropdown_menu_1 = require("../../components/ui/dropdown-menu");
+const table_1 = require("../../components/ui/table");
+const dialog_1 = require("../../components/ui/dialog");
 const react_1 = require("react");
 function UsersTable({ users }) {
     const [open, setOpen] = (0, react_1.useState)(false);

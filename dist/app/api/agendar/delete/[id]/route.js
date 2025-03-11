@@ -7,7 +7,7 @@ exports.DELETE = DELETE;
 //app\api\agendar\delete\[id]\route.ts
 const server_1 = require("next/server");
 const axios_1 = __importDefault(require("axios"));
-const scheduler_bullmq_1 = require("@/lib/scheduler-bullmq");
+const scheduler_bullmq_1 = require("../../../../../lib/scheduler-bullmq");
 async function DELETE(request, context) {
     try {
         // Aguarda a resolução dos parâmetros assíncronos

@@ -4,8 +4,8 @@ exports.GET = GET;
 exports.POST = POST;
 // app/api/pasta/route.ts
 const server_1 = require("next/server");
-const auth_1 = require("@/auth");
-const prisma_1 = require("@/lib/prisma");
+const auth_1 = require("../../../auth");
+const prisma_1 = require("../../../lib/prisma");
 async function GET() {
     var _a;
     try {

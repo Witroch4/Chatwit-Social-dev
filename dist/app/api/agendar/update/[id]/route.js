@@ -7,7 +7,7 @@ exports.PATCH = PATCH;
 //app\api\agendar\update\[id]\route.ts
 const server_1 = require("next/server");
 const axios_1 = __importDefault(require("axios"));
-const scheduler_bullmq_1 = require("@/lib/scheduler-bullmq");
+const scheduler_bullmq_1 = require("../../../../../lib/scheduler-bullmq");
 /**
  * PATCH em /api/agendar/update/[id]
  * - Atualiza o agendamento no Baserow

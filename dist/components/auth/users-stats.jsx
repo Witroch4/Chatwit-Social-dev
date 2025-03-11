@@ -2,8 +2,8 @@
 //components/auth/user-stats.tsx
 "use client";
 Object.defineProperty(exports, "__esModule", { value: true });
-const card_1 = require("@/components/ui/card");
-const separator_1 = require("@/components/ui/separator");
+const card_1 = require("../../components/ui/card");
+const separator_1 = require("../../components/ui/separator");
 const UsersStats = ({ users }) => {
     const totalUsers = users.length;
     const verifiedUsers = users.filter((usr) => usr.emailVerified !== undefined).length;

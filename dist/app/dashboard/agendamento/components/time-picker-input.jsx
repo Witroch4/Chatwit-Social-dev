@@ -16,8 +16,8 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.TimePickerInput = void 0;
-const input_1 = require("@/components/ui/input");
-const utils_1 = require("@/lib/utils");
+const input_1 = require("../../../../components/ui/input");
+const utils_1 = require("../../../../lib/utils");
 const react_1 = __importDefault(require("react"));
 const time_picker_utils_1 = require("./time-picker-utils");
 const TimePickerInput = react_1.default.forwardRef((_a, ref) => {

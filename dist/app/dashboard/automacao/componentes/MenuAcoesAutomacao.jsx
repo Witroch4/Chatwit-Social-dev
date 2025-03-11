@@ -36,13 +36,13 @@ var __importStar = (this && this.__importStar) || (function () {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.default = MenuAcoesAutomacao;
 const react_1 = __importStar(require("react"));
-const button_1 = require("@/components/ui/button");
-const dropdown_menu_1 = require("@/components/ui/dropdown-menu");
-const dialog_1 = require("@/components/ui/dialog");
-const select_1 = require("@/components/ui/select");
+const button_1 = require("../../../../components/ui/button");
+const dropdown_menu_1 = require("../../../../components/ui/dropdown-menu");
+const dialog_1 = require("../../../../components/ui/dialog");
+const select_1 = require("../../../../components/ui/select");
 const lucide_react_1 = require("lucide-react");
-const label_1 = require("@/components/ui/label");
-const input_1 = require("@/components/ui/input");
+const label_1 = require("../../../../components/ui/label");
+const input_1 = require("../../../../components/ui/input");
 function MenuAcoesAutomacao({ automacao, fetchData, pastas, }) {
     // Estado do dropdown
     const [menuOpen, setMenuOpen] = (0, react_1.useState)(false);

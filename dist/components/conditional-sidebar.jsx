@@ -38,7 +38,7 @@ var __importStar = (this && this.__importStar) || (function () {
 Object.defineProperty(exports, "__esModule", { value: true });
 const react_1 = __importStar(require("react"));
 const react_2 = require("next-auth/react");
-const app_sidebar_1 = require("@/components/app-sidebar");
+const app_sidebar_1 = require("../components/app-sidebar");
 const ConditionalSidebar = () => {
     const { data: session, status } = (0, react_2.useSession)();
     const [isMounted, setIsMounted] = (0, react_1.useState)(false);

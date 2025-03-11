@@ -6,17 +6,17 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.default = RegisterForm;
-const button_1 = require("@/components/ui/button");
-const input_1 = require("@/components/ui/input");
+const button_1 = require("../../components/ui/button");
+const input_1 = require("../../components/ui/input");
 const zod_1 = require("@hookform/resolvers/zod");
 const lucide_react_1 = require("lucide-react");
 const link_1 = __importDefault(require("next/link"));
 const navigation_1 = require("next/navigation");
 const react_1 = require("react");
 const react_hook_form_1 = require("react-hook-form");
-const auth_1 = require("@/actions/auth");
-const form_1 = require("@/components/ui/form");
-const auth_2 = require("@/schemas/auth");
+const auth_1 = require("../../actions/auth");
+const form_1 = require("../../components/ui/form");
+const auth_2 = require("../../schemas/auth");
 const auth_card_1 = __importDefault(require("./auth-card"));
 const auth_form_message_1 = __importDefault(require("./auth-form-message"));
 function RegisterForm() {

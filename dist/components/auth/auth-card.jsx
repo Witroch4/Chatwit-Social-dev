@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-const card_1 = require("@/components/ui/card");
+const card_1 = require("../../components/ui/card");
 const AuthCard = ({ title, description, children }) => {
     return (<card_1.Card className="mx-auto max-w-sm min-w-[350px] shadow-md">
 			<card_1.CardHeader>

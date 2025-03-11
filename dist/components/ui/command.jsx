@@ -49,8 +49,8 @@ exports.CommandSeparator = exports.CommandShortcut = exports.CommandItem = expor
 const React = __importStar(require("react"));
 const cmdk_1 = require("cmdk");
 const lucide_react_1 = require("lucide-react");
-const utils_1 = require("@/lib/utils");
-const dialog_1 = require("@/components/ui/dialog");
+const utils_1 = require("../../lib/utils");
+const dialog_1 = require("../../components/ui/dialog");
 const Command = React.forwardRef((_a, ref) => {
     var { className } = _a, props = __rest(_a, ["className"]);
     return (<cmdk_1.Command ref={ref} className={(0, utils_1.cn)("flex h-full w-full flex-col overflow-hidden rounded-md bg-popover text-popover-foreground", className)} {...props}/>);

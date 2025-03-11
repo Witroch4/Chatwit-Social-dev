@@ -38,8 +38,8 @@ exports.ThemeToggle = ThemeToggle;
 const lucide_react_1 = require("lucide-react");
 const next_themes_1 = require("next-themes");
 const React = __importStar(require("react"));
-const button_1 = require("@/components/ui/button");
-const dropdown_menu_1 = require("@/components/ui/dropdown-menu");
+const button_1 = require("../components/ui/button");
+const dropdown_menu_1 = require("../components/ui/dropdown-menu");
 function ThemeToggle() {
     const { setTheme } = (0, next_themes_1.useTheme)();
     return (<dropdown_menu_1.DropdownMenu>

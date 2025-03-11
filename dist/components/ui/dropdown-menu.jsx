@@ -49,7 +49,7 @@ exports.DropdownMenuRadioGroup = exports.DropdownMenuSubTrigger = exports.Dropdo
 const React = __importStar(require("react"));
 const DropdownMenuPrimitive = __importStar(require("@radix-ui/react-dropdown-menu"));
 const lucide_react_1 = require("lucide-react");
-const utils_1 = require("@/lib/utils");
+const utils_1 = require("../../lib/utils");
 const DropdownMenu = DropdownMenuPrimitive.Root;
 exports.DropdownMenu = DropdownMenu;
 const DropdownMenuTrigger = DropdownMenuPrimitive.Trigger;

@@ -5,8 +5,8 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.default = Settings;
 const link_1 = __importDefault(require("next/link"));
-const auth_1 = require("@/auth");
-const user_settings_form_1 = __importDefault(require("@/components/auth/user-settings-form"));
+const auth_1 = require("../../../auth");
+const user_settings_form_1 = __importDefault(require("../../../components/auth/user-settings-form"));
 async function Settings() {
     const session = await (0, auth_1.auth)();
     return (<div className="flex min-h-screen w-full flex-col">

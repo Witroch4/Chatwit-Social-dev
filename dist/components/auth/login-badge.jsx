@@ -40,14 +40,14 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 const react_1 = __importDefault(require("react"));
-const button_1 = require("@/components/ui/button");
+const button_1 = require("../../components/ui/button");
 const link_1 = __importDefault(require("next/link"));
 const lucide_react_1 = require("lucide-react");
 const icons_1 = require("../icons");
 const avatar_1 = require("../ui/avatar");
 const dynamic_1 = __importDefault(require("next/dynamic")); // Importação dinâmica
-const coins_light_json_1 = __importDefault(require("@/public/animations/coins-light.json"));
-const coins_dark_json_1 = __importDefault(require("@/public/animations/coins-dark.json"));
+const coins_light_json_1 = __importDefault(require("../../public/animations/coins-light.json"));
+const coins_dark_json_1 = __importDefault(require("../../public/animations/coins-dark.json"));
 const login_button_1 = __importDefault(require("./login-button"));
 const logout_button_1 = __importDefault(require("./logout-button"));
 const next_themes_1 = require("next-themes");

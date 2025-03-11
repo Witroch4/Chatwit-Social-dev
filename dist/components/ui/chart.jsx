@@ -48,7 +48,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.ChartStyle = exports.ChartLegendContent = exports.ChartLegend = exports.ChartTooltipContent = exports.ChartTooltip = exports.ChartContainer = void 0;
 const React = __importStar(require("react"));
 const RechartsPrimitive = __importStar(require("recharts"));
-const utils_1 = require("@/lib/utils");
+const utils_1 = require("../../lib/utils");
 // Format: { THEME_NAME: CSS_SELECTOR }
 const THEMES = { light: "", dark: ".dark" };
 const ChartContext = React.createContext(null);

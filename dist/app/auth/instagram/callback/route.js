@@ -2,8 +2,8 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.GET = GET;
 const server_1 = require("next/server");
-const auth_1 = require("@/auth"); // Funções de autenticação
-const prisma_1 = require("@/lib/prisma");
+const auth_1 = require("../../../../auth"); // Funções de autenticação
+const prisma_1 = require("../../../../lib/prisma");
 async function GET(request) {
     try {
         // 1. Obter 'code' da query

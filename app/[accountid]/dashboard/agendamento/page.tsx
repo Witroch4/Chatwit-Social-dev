@@ -41,6 +41,10 @@ const AgendamentoDePostagens: React.FC = () => {
   const [legenda, setLegenda] = useState<string>("");
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
 
+  // Estados para controle de tratamento de mídias
+  const [tratarMidiasComoUnica, setTratarMidiasComoUnica] = useState(true);
+  const [tratarMidiasComoIndividuais, setTratarMidiasComoIndividuais] = useState(false);
+
   // Estados que controlam os Popovers do Drawer
   const [drawerOpen, setDrawerOpen] = useState(false);
   const { toast } = useToast();
@@ -92,6 +96,8 @@ const AgendamentoDePostagens: React.FC = () => {
         return;
       }
 
+      console.log(`[Agendamento] Processando ${midiaNames.length} mídias:`, midiaNames);
+
       const tipos = {
         "Post Normal": tipoPostagem.includes("Post Normal"),
         Reels: tipoPostagem.includes("Reels"),
@@ -100,14 +106,46 @@ const AgendamentoDePostagens: React.FC = () => {
         Aleatorio: tipoPostagem.includes("Aleatório"),
       };
 
+      // Verifica se pelo menos um tipo de postagem foi selecionado
+      if (!tipos["Post Normal"] && !tipos.Reels && !tipos.Stories) {
+        toast({
+          title: "Tipo de Postagem Não Selecionado",
+          description: "Por favor, selecione pelo menos um tipo de postagem (Post Normal, Reels ou Stories).",
+          variant: "destructive",
+        });
+        setUploading(false);
+        return;
+      }
+
       const isoDate = dateTime.toISOString();
 
-      // Usa o accountid da URL como providerAccountId
+      // Gera um AgendamentoID único para todas as postagens deste agendamento
+      const agendamentoID = `ag-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+      console.log(`[Agendamento] Criado AgendamentoID: ${agendamentoID}`);
+
+      // Determina se deve tratar cada mídia como postagem individual
+      const isPostagemIndividual = tipos.Aleatorio && tratarMidiasComoIndividuais;
+      console.log(`[Agendamento] Tratando como postagem individual: ${isPostagemIndividual}`);
+
+      // Mesmo quando for postagem individual, criamos apenas um agendamento com todas as mídias
+      console.log(`[Agendamento] Criando um único agendamento com ${uploadedFiles.length} mídias`);
+
       const newRow = {
         Data: isoDate,
         Descrição: legenda,
         Facebook: false,
-        midia: midiaNames.map((name) => ({ name })),
+        midia: uploadedFiles.map((file) => ({
+          name: file.name,
+          url: file.url,
+          thumbnail_url: file.thumbnail_url,
+          mimeType: file.mime_type
+        })),
+        midias: uploadedFiles.map((file) => ({
+          name: file.name,
+          url: file.url,
+          thumbnail_url: file.thumbnail_url,
+          mime_type: file.mime_type
+        })),
         Instagram: true,
         Stories: tipos.Stories,
         Reels: tipos.Reels,
@@ -116,49 +154,65 @@ const AgendamentoDePostagens: React.FC = () => {
         Randomizar: tipos.Aleatorio,
         IGtoken: IGtoken,
         userID: userID,
-        igUserId: accountid, // Usa o accountid da URL
+        igUserId: accountid,
+        TratarComoIndividual: isPostagemIndividual,
+        TratarComoPostagensIndividuais: isPostagemIndividual,
+        AgendamentoID: agendamentoID, // Usa o mesmo AgendamentoID para todas as mídias
       };
 
-      // Faz a requisição para a API usando o accountid da URL
-      const response = await axios.post(`/api/${accountid}/agendar`, newRow, {
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-
-      setUploading(false);
-
-      if (response.status === 200 || response.status === 201) {
-        toast({
-          title: "Agendamento Criado com Sucesso!",
-          description: `Data: ${format(dateTime, "PPP", {
-            locale: ptBR,
-          })} às ${format(dateTime, "HH:mm:ss")}`,
-          action: (
-            <Button
-              variant="link"
-              size="sm"
-              onClick={() => {
-                router.refresh();
-              }}
-            >
-              Ver Agendamento
-            </Button>
-          ),
+      try {
+        const response = await axios.post(`/api/${accountid}/agendar`, newRow, {
+          headers: {
+            "Content-Type": "application/json",
+          },
         });
 
-        // Limpar o formulário após o sucesso
-        setDateTime(new Date());
-        setTipoPostagem([]);
-        setLegenda("");
-        setUploadedFiles([]);
-        setDrawerOpen(false);
+        console.log(`[Agendamento] Agendamento único criado com sucesso, ID: ${response.data.id}`);
 
-        refetch();
-      } else {
+        setUploading(false);
+
+        if (response.status === 200 || response.status === 201) {
+          toast({
+            title: "Agendamento Criado com Sucesso!",
+            description: `Data: ${format(dateTime, "PPP", {
+              locale: ptBR,
+            })} às ${format(dateTime, "HH:mm:ss")}`,
+            action: (
+              <Button
+                variant="link"
+                size="sm"
+                onClick={() => {
+                  router.refresh();
+                }}
+              >
+                Ver Agendamento
+              </Button>
+            ),
+          });
+
+          // Limpar o formulário após o sucesso
+          setDateTime(new Date());
+          setTipoPostagem([]);
+          setLegenda("");
+          setUploadedFiles([]);
+          setDrawerOpen(false);
+
+          refetch();
+        } else {
+          toast({
+            title: "Erro ao Agendar",
+            description: "Ocorreu um erro inesperado. Por favor, tente novamente.",
+            variant: "destructive",
+          });
+        }
+      } catch (error: any) {
+        console.error("[Agendamento] Erro ao criar agendamento único:", error);
+
+        setUploading(false);
+
         toast({
           title: "Erro ao Agendar",
-          description: "Ocorreu um erro inesperado. Por favor, tente novamente.",
+          description: error.response?.data?.error || "Ocorreu um erro ao agendar a postagem.",
           variant: "destructive",
         });
       }
@@ -175,7 +229,6 @@ const AgendamentoDePostagens: React.FC = () => {
         variant: "destructive",
       });
     }
-
   };
 
   // Função que adapta o setter para aceitar SetStateAction completo
@@ -219,6 +272,10 @@ const AgendamentoDePostagens: React.FC = () => {
             handleAgendar={handleAgendar}
             uploading={uploading}
             setDrawerOpen={setDrawerOpen}
+            tratarMidiasComoUnica={tratarMidiasComoUnica}
+            setTratarMidiasComoUnica={setTratarMidiasComoUnica}
+            tratarMidiasComoIndividuais={tratarMidiasComoIndividuais}
+            setTratarMidiasComoIndividuais={setTratarMidiasComoIndividuais}
           />
         </DrawerContent>
       </Drawer>
@@ -250,7 +307,7 @@ const AgendamentoDePostagens: React.FC = () => {
               <AgendamentosList
                 agendamentos={agendamentos}
                 refetch={refetch}
-                userID={userID || ""}
+                accountid={accountid}
               />
             )}
           </>

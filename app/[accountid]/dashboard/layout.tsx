@@ -3,6 +3,7 @@
 import React from "react";
 import { Metadata } from "next";
 import DashboardLayoutClient from "@/components/dashboard-layout-client";
+import ErrorBoundary from "@/components/providers/error-boundary";
 
 export const metadata: Metadata = {
   title: "Dashboard da Conta",
@@ -14,5 +15,9 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  return <DashboardLayoutClient>{children}</DashboardLayoutClient>;
+  return (
+    <ErrorBoundary>
+      <DashboardLayoutClient>{children}</DashboardLayoutClient>
+    </ErrorBoundary>
+  );
 }

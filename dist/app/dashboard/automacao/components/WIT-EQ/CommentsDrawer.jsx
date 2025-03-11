@@ -4,7 +4,7 @@
 //app/dashboard/automacao/components/WIT-EQ/CommentsDrawer.tsx
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.default = CommentsDrawer;
-const skeleton_1 = require("@/components/ui/skeleton");
+const skeleton_1 = require("../../../../../components/ui/skeleton");
 function CommentsDrawer({ open, commentContent, instagramUser, responderPublico, publicReply1, }) {
     // Se "open" for false, retorna null (drawer oculto)
     if (!open)

@@ -43,3 +43,27 @@ Soluções avançadas a um preço acessível para todos os tipos de negócios.
 **4. Suporte Exclusivo**
 Equipe dedicada para garantir que você tenha a melhor experiência.
 
+## Sistema de Notificações Avançado
+
+O ChatWit Social conta com um sistema de notificações robusto e automatizado que mantém você e seus usuários sempre informados:
+
+- **Notificações de Boas-vindas**: Mensagens automáticas para novos usuários que se registram na plataforma.
+- **Alertas de Tokens Expirando**: Notificações proativas quando tokens de acesso às redes sociais estão próximos de expirar.
+- **Processamento em Background**: Sistema de filas que garante o processamento eficiente das notificações sem impactar o desempenho da aplicação.
+- **Painel Administrativo**: Interface intuitiva para gerenciar e testar o sistema de notificações.
+
+### Como Funciona
+
+1. **Verificação Automática**: O sistema verifica periodicamente tokens que estão próximos de expirar (10 dias e 3 dias antes).
+2. **Processamento Assíncrono**: Todas as notificações são processadas em background através de um sistema de filas.
+3. **Notificações Personalizadas**: Cada tipo de notificação é personalizada para o contexto específico.
+4. **Monitoramento**: Administradores podem monitorar e testar o sistema através do painel administrativo.
+
+## Ferramentas para Desenvolvedores
+
+Para desenvolvedores que desejam contribuir ou personalizar o sistema, oferecemos:
+
+- **Scripts de Administração**: Ferramentas para promover usuários a administradores e gerenciar o sistema.
+- **API Documentada**: Endpoints bem documentados para integração com outros sistemas.
+- **Arquitetura Modular**: Código organizado que facilita a manutenção e extensão.
+

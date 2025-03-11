@@ -36,9 +36,9 @@ var __importStar = (this && this.__importStar) || (function () {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.default = NovaAutomacaoDialog;
 const react_1 = __importStar(require("react"));
-const button_1 = require("@/components/ui/button");
-const dialog_1 = require("@/components/ui/dialog");
-const utils_1 = require("@/lib/utils");
+const button_1 = require("../../../../components/ui/button");
+const dialog_1 = require("../../../../components/ui/dialog");
+const utils_1 = require("../../../../lib/utils");
 const navigation_1 = require("next/navigation");
 function NovaAutomacaoDialog() {
     const [open, setOpen] = (0, react_1.useState)(false);

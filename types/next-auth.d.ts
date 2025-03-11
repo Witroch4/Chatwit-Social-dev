@@ -15,6 +15,7 @@ declare module "next-auth" {
       isTwoFactorEnabled: boolean;
       instagramAccessToken?: string;
       providerAccountId?: string; // Adicionado
+      isNewUser?: boolean; // Indica se o usuário acabou de se registrar
       /**
        * Por padrão, TypeScript mescla novas propriedades de interface e sobrescreve as existentes.
        * Neste caso, as propriedades padrão do usuário na sessão serão sobrescritas,
@@ -33,6 +34,7 @@ declare module "next-auth" {
     instagramAccessToken?: string;
     // instagramExpiresAt?: number; // Removido
     providerAccountId?: string; // Adicionado
+    isNewUser?: boolean; // Indica se o usuário acabou de se registrar
   }
 }
 
@@ -46,5 +48,6 @@ declare module "next-auth/jwt" {
     // instagramExpiresAt?: number; // Removido
     providerAccountId?: string; // Adicionado
     role?: UserRole; // Adicionado se você deseja incluir o papel do usuário no JWT
+    isNewUser?: boolean; // Indica se o usuário acabou de se registrar
   }
 }

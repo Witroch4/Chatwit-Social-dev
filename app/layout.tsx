@@ -2,21 +2,50 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
+import { ThemeProvider } from "@/components/providers/theme-provider";
+import { SessionProvider } from "@/components/providers/session-provider";
+import ErrorBoundary from "@/components/providers/error-boundary";
 import { cn } from "@/lib/utils";
-import RootLayoutClient from "@/components/root-layout-client";
+import { Toaster } from "@/components/ui/toaster";
+import { WelcomeNotificationHandler } from "@/components/welcome-notification-handler";
 
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: "ChatWit Social - Gerenciamento de Redes Sociais",
   description: "Plataforma para gerenciamento e automação de redes sociais",
+  icons: {
+    icon: [
+      {
+        url: '/W.svg',
+        href: '/W.svg',
+      }
+    ]
+  }
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
-    <html lang="pt-BR">
+    <html lang="pt-BR" suppressHydrationWarning>
       <body className={cn(inter.className, "min-h-screen")}>
-        <RootLayoutClient>{children}</RootLayoutClient>
+        <ErrorBoundary>
+          <SessionProvider>
+            <ThemeProvider
+              attribute="class"
+              defaultTheme="system"
+              enableSystem
+              disableTransitionOnChange
+            >
+              <WelcomeNotificationHandler />
+              {children}
+            </ThemeProvider>
+          </SessionProvider>
+        </ErrorBoundary>
+        <Toaster />
       </body>
     </html>
   );

@@ -40,7 +40,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.default = PastasEAutomacoes;
 const react_1 = __importStar(require("react"));
-const button_1 = require("@/components/ui/button");
+const button_1 = require("../../../../components/ui/button");
 const MenuAcoesAutomacao_1 = __importDefault(require("./MenuAcoesAutomacao"));
 function PastasEAutomacoes({ pastas, automacoes, fetchData, }) {
     const [openNovaPasta, setOpenNovaPasta] = (0, react_1.useState)(false);

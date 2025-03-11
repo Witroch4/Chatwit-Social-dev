@@ -48,7 +48,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.PopoverContent = exports.PopoverTrigger = exports.Popover = void 0;
 const React = __importStar(require("react"));
 const PopoverPrimitive = __importStar(require("@radix-ui/react-popover"));
-const utils_1 = require("@/lib/utils");
+const utils_1 = require("../../lib/utils");
 const Popover = PopoverPrimitive.Root;
 exports.Popover = Popover;
 const PopoverTrigger = PopoverPrimitive.Trigger;

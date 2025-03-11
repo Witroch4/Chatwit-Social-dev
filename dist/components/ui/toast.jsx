@@ -50,7 +50,7 @@ const React = __importStar(require("react"));
 const ToastPrimitives = __importStar(require("@radix-ui/react-toast"));
 const class_variance_authority_1 = require("class-variance-authority");
 const lucide_react_1 = require("lucide-react");
-const utils_1 = require("@/lib/utils");
+const utils_1 = require("../../lib/utils");
 const ToastProvider = ToastPrimitives.Provider;
 exports.ToastProvider = ToastProvider;
 const ToastViewport = React.forwardRef((_a, ref) => {

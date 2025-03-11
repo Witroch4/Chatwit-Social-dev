@@ -5,12 +5,12 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.changeSettings = void 0;
-const auth_1 = require("@/auth");
-const prisma_1 = require("@/lib/prisma");
-const auth_2 = require("@/schemas/auth");
-const services_1 = require("@/services");
+const auth_1 = require("../../../auth");
+const prisma_1 = require("../../../lib/prisma");
+const auth_2 = require("../../../schemas/auth");
+const services_1 = require("../../../services");
 const bcryptjs_1 = __importDefault(require("bcryptjs"));
-const auth_3 = require("@/auth");
+const auth_3 = require("../../../auth");
 /**
  * This method saves the user's new settings
  * @param {z.infer<typeof UserSettingsSchema>} user - The new user data.

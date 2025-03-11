@@ -2,7 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.default = LoadingState;
 // app/dashboard/automação/components/LoadingState.tsx
-const skeleton_1 = require("@/components/ui/skeleton");
+const skeleton_1 = require("../../../../../components/ui/skeleton");
 function LoadingState() {
     return (<div style={{ padding: "2rem 1rem", maxWidth: "600px", margin: "0 auto", textAlign: "left" }}>
       <skeleton_1.Skeleton className="h-[125px] w-[250px] rounded-xl mb-6"/>

@@ -21,11 +21,19 @@ import { ptBR } from "date-fns/locale";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Agendamento } from "@/types/agendamento";
 
+// Estende o tipo Agendamento para incluir informações de grupo
+interface AgendamentoExtendido extends Agendamento {
+  isGrupo?: boolean;
+  totalNoGrupo?: number;
+  idsNoGrupo?: string[];
+}
+
 interface EditAgendamentoDialogProps {
-  agendamento: Agendamento;
+  agendamento: AgendamentoExtendido;
   isOpen: boolean;
   onClose: () => void;
   refetch: () => void;
+  accountid: string;
 }
 
 const EditAgendamentoDialog: React.FC<EditAgendamentoDialogProps> = ({
@@ -33,10 +41,11 @@ const EditAgendamentoDialog: React.FC<EditAgendamentoDialogProps> = ({
   isOpen,
   onClose,
   refetch,
+  accountid,
 }) => {
   const { toast } = useToast();
 
-  // Estado para data/hora – agendamento.Data vem como string
+  // Estado para data/hora
   const [date, setDate] = useState<Date>(new Date(agendamento.Data));
 
   // Função wrapper para setDate
@@ -46,22 +55,23 @@ const EditAgendamentoDialog: React.FC<EditAgendamentoDialogProps> = ({
     }
   };
 
+  // Verifica se a postagem diária está ativada
   const [tipoPostagem, setTipoPostagem] = useState<string[]>(getTipoPostagemFromAgendamento(agendamento));
-  const [legenda, setLegenda] = useState<string>(agendamento.Descrição);
+  const isPostagemDiaria = tipoPostagem.includes("Diario");
+
+  const [legenda, setLegenda] = useState<string>(agendamento.Descricao || "");
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>(
-    agendamento.midia.map((m) => ({
-      id: m.name,
-      name: m.name,
-      original_name: m.visible_name,
+    agendamento.midias?.map((m) => ({
+      id: m.id,
+      name: m.id,
+      original_name: m.url.split("/").pop() || m.id,
       progress: 100, // Mídias existentes já estão uploadadas
       url: m.url,
-      thumbnails: m.thumbnails,
+      thumbnail_url: m.thumbnail_url,
       mime_type: m.mime_type,
-      is_image: m.is_image,
-      image_width: m.image_width,
-      image_height: m.image_height,
-      uploaded_at: m.uploaded_at,
-    }))
+      is_image: m.mime_type?.startsWith("image/") || false,
+      uploaded_at: m.createdAt,
+    })) || []
   );
   const [uploading, setUploading] = useState<boolean>(false);
 
@@ -87,8 +97,14 @@ const EditAgendamentoDialog: React.FC<EditAgendamentoDialogProps> = ({
     setUploading(true);
 
     try {
-      const midiaNames = uploadedFiles.map((file) => file.name).filter(Boolean) as string[];
-      if (midiaNames.length === 0) {
+      const midias = uploadedFiles.map((file) => ({
+        id: file.name,
+        url: file.url,
+        mime_type: file.mime_type,
+        thumbnail_url: file.thumbnail_url,
+      })).filter(m => m.url && m.mime_type);
+
+      if (midias.length === 0) {
         toast({
           title: "Mídia Não Enviada",
           description: "Por favor, faça upload de pelo menos um arquivo de mídia.",
@@ -110,43 +126,63 @@ const EditAgendamentoDialog: React.FC<EditAgendamentoDialogProps> = ({
 
       const updatedRow = {
         Data: isoDate,
-        Descrição: legenda,
-        midia: uploadedFiles
-          .filter((file) => file.url)
-          .map((file) => ({
-            name: file.name,
-            // Adicione outros campos se necessário
-          })),
-        X: tipos.Aleatorio,
+        Descricao: legenda,
+        midias,
+        midia: midias,
         Instagram: true,
         Stories: tipos.Stories,
         Reels: tipos.Reels,
         PostNormal: tipos["Post Normal"],
         Diario: tipos.Diario,
         Randomizar: tipos.Aleatorio,
-        IGtoken: agendamento.IGtoken,
-        userID: agendamento.userID,
+        userId: agendamento.userId,
+        accountId: agendamento.accountId,
       };
 
-      const response = await axios.patch(`/api/agendar/update/${agendamento.id}`, updatedRow, {
-        headers: { "Content-Type": "application/json" },
-      });
+      // Se for um grupo, atualiza todos os agendamentos do grupo
+      if (agendamento.isGrupo && agendamento.id) {
+        const response = await axios.patch(
+          `/api/${accountid}/agendar/update-grupo/${agendamento.id}`,
+          updatedRow,
+          {
+            headers: { "Content-Type": "application/json" },
+          }
+        );
 
-      setUploading(false);
+        setUploading(false);
 
-      if (response.status === 200) {
-        toast({
-          title: "Agendamento Atualizado com Sucesso!",
-          description: `Data: ${format(date, "PPP 'às' p", { locale: ptBR })}`,
-        });
-        refetch();
-        onClose();
+        if (response.status === 200) {
+          toast({
+            title: "Grupo de Agendamentos Atualizado com Sucesso!",
+            description: `Foram atualizados ${response.data.count} agendamentos.`,
+          });
+          refetch();
+          onClose();
+        } else {
+          throw new Error("Erro ao atualizar grupo de agendamentos");
+        }
       } else {
-        toast({
-          title: "Erro ao Atualizar Agendamento",
-          description: "Ocorreu um erro inesperado. Por favor, tente novamente.",
-          variant: "destructive",
-        });
+        // Atualiza um único agendamento
+        const response = await axios.patch(
+          `/api/${accountid}/agendar/update/${agendamento.id}`,
+          updatedRow,
+          {
+            headers: { "Content-Type": "application/json" },
+          }
+        );
+
+        setUploading(false);
+
+        if (response.status === 200) {
+          toast({
+            title: "Agendamento Atualizado com Sucesso!",
+            description: `Data: ${format(date, "PPP 'às' p", { locale: ptBR })}`,
+          });
+          refetch();
+          onClose();
+        } else {
+          throw new Error("Erro ao atualizar agendamento");
+        }
       }
     } catch (error: any) {
       setUploading(false);
@@ -171,7 +207,11 @@ const EditAgendamentoDialog: React.FC<EditAgendamentoDialogProps> = ({
         <ScrollArea className="max-h-[calc(100vh-250px)]">
           <div className="flex flex-col space-y-4 pr-4">
             {/* Use o wrapper handleDateChange */}
-            <DateTimePicker date={date} setDate={handleDateChange} />
+            <DateTimePicker
+              date={date}
+              setDate={handleDateChange}
+              isPostagemDiaria={isPostagemDiaria}
+            />
             <LegendaInput legenda={legenda} setLegenda={setLegenda} />
             <FileUpload uploadedFiles={uploadedFiles} setUploadedFiles={setUploadedFiles} />
             <PostTypeSelector tipoPostagem={tipoPostagem} setTipoPostagem={setTipoPostagem} />

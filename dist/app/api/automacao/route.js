@@ -7,8 +7,8 @@ exports.GET = GET;
 exports.POST = POST;
 // app/api/automacao/route.ts
 const server_1 = require("next/server");
-const prisma_1 = require("@/lib/prisma");
-const auth_1 = require("@/auth");
+const prisma_1 = require("../../../lib/prisma");
+const auth_1 = require("../../../auth");
 const crypto_1 = __importDefault(require("crypto"));
 async function GET() {
     var _a;

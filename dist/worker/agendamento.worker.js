@@ -8,10 +8,17 @@ const bullmq_1 = require("bullmq");
 const axios_1 = __importDefault(require("axios"));
 const dotenv_1 = __importDefault(require("dotenv"));
 const node_cron_1 = __importDefault(require("node-cron"));
-const redis_1 = require("@/lib/redis");
-const scheduler_bullmq_1 = require("@/lib/scheduler-bullmq");
+const redis_1 = require("../lib/redis");
+const scheduler_bullmq_1 = require("../lib/scheduler-bullmq");
 dotenv_1.default.config();
-const WEBHOOK_URL = process.env.WEBHOOK_URL || 'https://autofluxofilaapi.witdev.com.br/...';
+// Corrigir a URL do webhook (garantir que o protocolo esteja correto)
+let webhookUrl = process.env.WEBHOOK_URL || 'https://autofluxofilaapi.witdev.com.br/webhook/5f439037-6e1a-4d53-80ae-1cc0c4633c51';
+// Garantir que a URL começa com 'https://' (corrigir 'https://')
+if (webhookUrl.startsWith('https://')) {
+    webhookUrl = 'https://' + webhookUrl.substring(8);
+    console.log('[BullMQ] URL do webhook corrigida:', webhookUrl);
+}
+const WEBHOOK_URL = webhookUrl;
 const AGENDAMENTO_QUEUE_NAME = 'agendamento';
 /**
  * Inicializa o JobScheduler (usado para jobs atrasados, re-tentativas, etc.)

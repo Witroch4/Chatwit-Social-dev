@@ -49,7 +49,7 @@ exports.InputOTPSeparator = exports.InputOTPSlot = exports.InputOTPGroup = expor
 const React = __importStar(require("react"));
 const input_otp_1 = require("input-otp");
 const lucide_react_1 = require("lucide-react");
-const utils_1 = require("@/lib/utils");
+const utils_1 = require("../../lib/utils");
 const InputOTP = React.forwardRef((_a, ref) => {
     var { className, containerClassName } = _a, props = __rest(_a, ["className", "containerClassName"]);
     return (<input_otp_1.OTPInput ref={ref} containerClassName={(0, utils_1.cn)("flex items-center gap-2 has-[:disabled]:opacity-50", containerClassName)} className={(0, utils_1.cn)("disabled:cursor-not-allowed", className)} {...props}/>);

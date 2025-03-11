@@ -88,6 +88,20 @@ interface PageParams {
   [key: string]: string | string[]; // adiciona índice de assinatura necessário
 }
 
+interface PostSelectionProps {
+  anyMediaSelected: boolean;
+  setAnyMediaSelected: (value: boolean) => void;
+  selectedPost: InstagramMediaItem | null;
+  setSelectedPost: (post: InstagramMediaItem | null) => void;
+  instagramMedia: InstagramMediaItem[];
+  openDialog: boolean;
+  setOpenDialog: (value: boolean) => void;
+  disabled?: boolean;
+  className?: string;
+  onSelectPost?: () => void;
+  children?: React.ReactNode;
+}
+
 export default function EditPage() {
   const { data: session, status } = useSession();
   const { toast } = useToast();
@@ -105,6 +119,9 @@ export default function EditPage() {
   const [error, setError] = useState<string | null>(null);
   const [instagramUser, setInstagramUser] = useState<InstagramUserData | null>(null);
   const [instagramMedia, setInstagramMedia] = useState<InstagramMediaItem[]>([]);
+  const [hasMore, setHasMore] = useState(true);
+  const [nextPageToken, setNextPageToken] = useState<string | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
 
   // Estados para dados da automação
   const [loadingAuto, setLoadingAuto] = useState(true);
@@ -159,6 +176,47 @@ export default function EditPage() {
   const [toggleValue, setToggleValue] = useState<"publicar" | "comentarios" | "dm">("publicar");
   const [commentContent, setCommentContent] = useState("");
 
+  // Função para carregar mais publicações
+  const loadMorePosts = async () => {
+    if (loadingMore || !hasMore || !providerAccountId) return;
+
+    try {
+      setLoadingMore(true);
+      const url = `/api/instagram/posts?providerAccountId=${providerAccountId}${nextPageToken ? `&after=${nextPageToken}` : ''}`;
+      const res = await fetch(url);
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || "Erro ao buscar dados do Instagram");
+      }
+
+      const data = await res.json();
+      const newMedia = [...instagramMedia, ...(data.media || [])];
+      setInstagramMedia(newMedia);
+      setNextPageToken(data.paging?.cursors?.after || null);
+      setHasMore(!!data.paging?.next);
+
+      // Se estamos procurando por uma mídia específica, verificar se ela está nos novos posts
+      if (automacaoData?.selectedMediaId) {
+        const foundPost = data.media?.find((media: InstagramMediaItem) => media.id === automacaoData.selectedMediaId);
+        if (foundPost) {
+          setSelectedPost(foundPost);
+          setCommentContent(foundPost.caption || "");
+          setToggleValue("comentarios");
+        }
+      }
+    } catch (err: any) {
+      console.error("Erro ao carregar mais publicações:", err);
+      toast({
+        title: "Erro",
+        description: "Não foi possível carregar mais publicações.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+
   // Carregar dados do Instagram
   useEffect(() => {
     const fetchInstagramData = async () => {
@@ -174,6 +232,8 @@ export default function EditPage() {
           const data = await res.json();
           setInstagramUser(data.user);
           setInstagramMedia(data.media || []);
+          setNextPageToken(data.paging?.cursors?.after || null);
+          setHasMore(!!data.paging?.next);
           setLoading(false);
         } catch (err: any) {
           console.error("Erro ao conectar com o Instagram:", err);
@@ -187,6 +247,31 @@ export default function EditPage() {
 
     fetchInstagramData();
   }, [status, providerAccountId]);
+
+  // Configurar o Intersection Observer para paginação infinita
+  useEffect(() => {
+    if (!hasMore || loadingMore) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          loadMorePosts();
+        }
+      },
+      { threshold: 0.5 }
+    );
+
+    const loadMoreTrigger = document.getElementById('load-more-trigger');
+    if (loadMoreTrigger) {
+      observer.observe(loadMoreTrigger);
+    }
+
+    return () => {
+      if (loadMoreTrigger) {
+        observer.unobserve(loadMoreTrigger);
+      }
+    };
+  }, [hasMore, loadingMore]);
 
   // Carregar dados da automação
   useEffect(() => {
@@ -251,6 +336,7 @@ export default function EditPage() {
       console.log("Buscando mídia selecionada:", automacaoData.selectedMediaId);
       console.log("Mídias disponíveis:", instagramMedia.map(m => m.id));
 
+      // Primeiro, procurar nas mídias já carregadas
       const foundPost = instagramMedia.find(media => media.id === automacaoData.selectedMediaId);
       console.log("Mídia encontrada:", foundPost);
 
@@ -258,7 +344,11 @@ export default function EditPage() {
         setSelectedPost(foundPost);
         // Se encontrou o post, também define o conteúdo do comentário para o preview
         setCommentContent(foundPost.caption || "");
+        setToggleValue("comentarios");
         console.log("Post selecionado definido:", foundPost);
+      } else {
+        // Se não encontrou o post nas mídias carregadas, tentar carregar mais
+        loadMorePosts();
       }
     }
   }, [automacaoData, instagramMedia]);
@@ -373,6 +463,60 @@ export default function EditPage() {
   }
 
   async function handleClickEdit() {
+    if (isEditing) {
+      // Se estamos cancelando a edição, restaurar os dados originais da automação
+      if (automacaoData) {
+        // Restaurar seleção de mídia
+        setAnyMediaSelected(automacaoData.anyMediaSelected);
+
+        // Restaurar post selecionado se houver um ID de mídia salvo
+        if (automacaoData.selectedMediaId) {
+          const foundPost = instagramMedia.find(media => media.id === automacaoData.selectedMediaId);
+          if (foundPost) {
+            setSelectedPost(foundPost);
+            setCommentContent(foundPost.caption || "");
+            setToggleValue("comentarios");
+          } else {
+            // Se não encontrou o post nas mídias carregadas, tentar carregar mais
+            setSelectedPost(null);
+            loadMorePosts();
+          }
+        } else {
+          setSelectedPost(null);
+        }
+
+        // Restaurar outros campos
+        setAnyword(automacaoData.anyword);
+        setInputPalavra(automacaoData.palavrasChave || "");
+        setDmWelcomeMessage(automacaoData.fraseBoasVindas || "");
+        setDmQuickReply(automacaoData.quickReplyTexto || "");
+        setDmSecondMessage(automacaoData.mensagemEtapa3 || "");
+        setDmLink(automacaoData.linkEtapa3 || "");
+        setDmButtonLabel(automacaoData.legendaBotaoEtapa3 || "");
+        setSwitchResponderComentario(automacaoData.responderPublico);
+        setSwitchPedirEmail(automacaoData.pedirEmailPro);
+        setEmailPrompt(automacaoData.emailPrompt || "");
+        setSwitchPedirParaSeguir(automacaoData.pedirParaSeguirPro);
+        setFollowPrompt(automacaoData.followPrompt || "");
+        setSwitchEntrarEmContato(automacaoData.contatoSemClique);
+        setNoClickPrompt(automacaoData.noClickPrompt || "");
+        setIsLive(automacaoData.live);
+
+        // Restaurar respostas públicas se existirem
+        if (automacaoData.publicReply) {
+          try {
+            const replies = JSON.parse(automacaoData.publicReply);
+            if (Array.isArray(replies) && replies.length >= 3) {
+              setPublicReply1(replies[0]);
+              setPublicReply2(replies[1]);
+              setPublicReply3(replies[2]);
+            }
+          } catch (e) {
+            console.error("Erro ao analisar respostas públicas:", e);
+          }
+        }
+      }
+    }
     setIsEditing((prev) => !prev);
   }
 
@@ -450,9 +594,19 @@ export default function EditPage() {
             // Selecione manualmente um post
             if (selectedPost) {
               setCommentContent(selectedPost.caption || "");
+              setToggleValue("comentarios");
             }
           }}
-        />
+        >
+          <div style={{ width: "100%", marginBottom: "10px" }}>
+            {loadingMore && (
+              <div className="text-center py-4">
+                <span className="text-sm text-muted-foreground">Carregando mais publicações...</span>
+              </div>
+            )}
+            {hasMore && <div id="load-more-trigger" className="h-10" />}
+          </div>
+        </PostSelection>
 
         <PalavraExpressaoSelection
           anyword={anyword}

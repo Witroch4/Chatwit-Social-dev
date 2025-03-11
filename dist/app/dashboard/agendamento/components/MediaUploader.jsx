@@ -7,7 +7,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 const react_1 = __importDefault(require("react"));
-const FileUpload_1 = __importDefault(require("@/components/custom/FileUpload"));
+const FileUpload_1 = __importDefault(require("../../../../components/custom/FileUpload"));
 const MediaUploader = ({ uploadedFiles, setUploadedFiles }) => {
     return (<div>
       <label className="block text-sm font-medium mb-1">Upload de Arquivo</label>

@@ -46,7 +46,10 @@ const LoginBadge = ({ user }: Props) => {
             <CircleUser className="h-5 w-5" />
           </AvatarFallback>
         </Avatar>
-        <span className="font-medium text-foreground">{user.name ?? "Minha Conta"}</span>
+        <div className="flex flex-col">
+          <span className="font-medium text-foreground">{user.name ?? "Minha Conta"}</span>
+          <span className="text-xs text-muted-foreground">{user.email ?? ""}</span>
+        </div>
       </div>
       <hr className="w-full border-muted-foreground/20" />
       <div className="flex flex-col gap-1 w-full text-sm">

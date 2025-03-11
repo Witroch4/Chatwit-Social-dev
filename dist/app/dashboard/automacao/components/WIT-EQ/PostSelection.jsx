@@ -2,11 +2,11 @@
 // app/dashboard/automacao/components/WIT-EQ/PostSelection.tsx
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.default = PostSelection;
-const radio_group_1 = require("@/components/ui/radio-group");
-const label_1 = require("@/components/ui/label");
-const skeleton_1 = require("@/components/ui/skeleton");
-const dialog_1 = require("@/components/ui/dialog");
-const button_1 = require("@/components/ui/button");
+const radio_group_1 = require("../../../../../components/ui/radio-group");
+const label_1 = require("../../../../../components/ui/label");
+const skeleton_1 = require("../../../../../components/ui/skeleton");
+const dialog_1 = require("../../../../../components/ui/dialog");
+const button_1 = require("../../../../../components/ui/button");
 function PostSelection({ selectedOptionPostagem, setSelectedOptionPostagem, selectedPost, setSelectedPost, ultimasPostagens, instagramMedia, openDialog, setOpenDialog, onSelectPost, disabled = false, // Valor padrão como false
 className = "", }) {
     // Verifica se é Reels (ajuste se sua lógica for diferente)

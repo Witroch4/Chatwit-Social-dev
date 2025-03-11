@@ -5,10 +5,10 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.verifyToken = exports.sendAccountVerificationEmail = void 0;
-const prisma_1 = require("@/lib/prisma");
-const mail_1 = __importDefault(require("@/lib/mail"));
-const services_1 = require("@/services");
-const auth_1 = require("@/services/auth");
+const prisma_1 = require("../../../lib/prisma");
+const mail_1 = __importDefault(require("../../../lib/mail"));
+const services_1 = require("../../../services");
+const auth_1 = require("../../../services/auth");
 /**
  * This method uses Resend to send an email to the user to verify
  * the ownership of the email by the user.

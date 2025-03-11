@@ -43,8 +43,8 @@ const react_1 = __importStar(require("react"));
 const react_2 = require("next-auth/react");
 const link_1 = __importDefault(require("next/link"));
 const navigation_1 = require("next/navigation");
-const button_1 = require("@/components/ui/button");
-const dialog_1 = require("@/components/ui/dialog");
+const button_1 = require("../../components/ui/button");
+const dialog_1 = require("../../components/ui/dialog");
 const stripe_js_1 = require("@stripe/stripe-js");
 const react_stripe_js_1 = require("@stripe/react-stripe-js");
 function Card({ title, description, tag, popular, ia }) {

@@ -49,7 +49,7 @@ exports.RadioGroupItem = exports.RadioGroup = void 0;
 const React = __importStar(require("react"));
 const RadioGroupPrimitive = __importStar(require("@radix-ui/react-radio-group"));
 const lucide_react_1 = require("lucide-react");
-const utils_1 = require("@/lib/utils");
+const utils_1 = require("../../lib/utils");
 const RadioGroup = React.forwardRef((_a, ref) => {
     var { className } = _a, props = __rest(_a, ["className"]);
     return (<RadioGroupPrimitive.Root className={(0, utils_1.cn)("grid gap-2", className)} {...props} ref={ref}/>);

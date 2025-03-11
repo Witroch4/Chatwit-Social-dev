@@ -1,13 +1,7 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
 import { useParams } from "next/navigation";
-
-interface Agendamento {
-  id: string;
-  Data: string;
-  Descrição: string;
-  // Adicione outros campos conforme necessário
-}
+import { Agendamento } from "@/types/agendamento";
 
 /**
  * Hook para buscar agendamentos usando o accountid da URL
@@ -31,8 +25,8 @@ const useAgendamentos = (userID: string | undefined) => {
       const response = await axios.get(`/api/${accountid}/agendar`);
       console.log("Resposta da API:", response.data);
 
-      // O Baserow geralmente retorna { count, next, previous, results: [ ... ] }
-      setAgendamentos(response.data.results || []);
+      // A API retorna diretamente o array de agendamentos
+      setAgendamentos(response.data || []);
       setError(null);
     } catch (err: any) {
       console.error("Erro ao buscar agendamentos:", err);

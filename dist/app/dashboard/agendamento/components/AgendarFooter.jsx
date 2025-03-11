@@ -6,8 +6,8 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 const react_1 = __importDefault(require("react"));
-const button_1 = require("@/components/ui/button");
-const drawer_1 = require("@/components/ui/drawer");
+const button_1 = require("../../../../components/ui/button");
+const drawer_1 = require("../../../../components/ui/drawer");
 const AgendarFooter = ({ onAgendar, uploading }) => {
     return (<div className="p-4 flex justify-end space-x-2">
       <button_1.Button onClick={onAgendar} disabled={uploading}>

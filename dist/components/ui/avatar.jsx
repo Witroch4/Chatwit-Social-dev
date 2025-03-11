@@ -48,7 +48,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.AvatarFallback = exports.AvatarImage = exports.Avatar = void 0;
 const React = __importStar(require("react"));
 const AvatarPrimitive = __importStar(require("@radix-ui/react-avatar"));
-const utils_1 = require("@/lib/utils");
+const utils_1 = require("../../lib/utils");
 const Avatar = React.forwardRef((_a, ref) => {
     var { className } = _a, props = __rest(_a, ["className"]);
     return (<AvatarPrimitive.Root ref={ref} className={(0, utils_1.cn)("relative flex h-10 w-10 shrink-0 overflow-hidden rounded-full", className)} {...props}/>);

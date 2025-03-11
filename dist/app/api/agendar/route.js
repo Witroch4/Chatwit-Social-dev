@@ -8,7 +8,7 @@ exports.GET = GET;
 exports.POST = POST;
 const server_1 = require("next/server");
 const axios_1 = __importDefault(require("axios"));
-const scheduler_bullmq_1 = require("@/lib/scheduler-bullmq");
+const scheduler_bullmq_1 = require("../../../lib/scheduler-bullmq");
 /**
  * Handler para GET em /api/agendar
  * - Lista agendamentos de um determinado userID (passado via query param ou header)

@@ -1,7 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.editorActionReducer = void 0;
-const actions_1 = require("@/types/web-site-builder/actions");
+const actions_1 = require("../../../../types/web-site-builder/actions");
 /**
  * Creates the reducer funcdtion for the Website builder.
  *
@@ -16,27 +16,39 @@ const editorActionReducer = (state, action) => {
             const { element: newElement, containerId } = action.payload;
             if (!containerId) {
                 const newState = {
-                    editor: Object.assign(Object.assign({}, state.editor), { elements: [...state.editor.elements, newElement] }),
+                    editor: {
+                        ...state.editor,
+                        elements: [...state.editor.elements, newElement],
+                    },
                 };
                 return newState;
             }
             const copyElements = cloneDeep(state.editor.elements);
             addElementById(copyElements, containerId, newElement);
             const newState = {
-                editor: Object.assign(Object.assign({}, state.editor), { elements: copyElements }),
+                editor: {
+                    ...state.editor,
+                    elements: copyElements,
+                },
             };
             return newState;
         }
         case actions_1.ActionType.SelectElement: {
             const selectedElement = action.payload.element;
             const newState = {
-                editor: Object.assign(Object.assign({}, state.editor), { selectedElement }),
+                editor: {
+                    ...state.editor,
+                    selectedElement,
+                },
             };
             return newState;
         }
         case actions_1.ActionType.UnselectElement: {
             const newState = {
-                editor: Object.assign(Object.assign({}, state.editor), { selectedElement: undefined }),
+                editor: {
+                    ...state.editor,
+                    selectedElement: undefined,
+                },
             };
             return newState;
         }
@@ -46,7 +58,10 @@ const editorActionReducer = (state, action) => {
             const currentElements = [...state.editor.elements];
             const updateElements = currentElements.filter((el) => el.id !== elementId);
             const newState = {
-                editor: Object.assign(Object.assign({}, state.editor), { elements: [...updateElements] }),
+                editor: {
+                    ...state.editor,
+                    elements: [...updateElements],
+                },
             };
             return newState;
         }
@@ -56,7 +71,10 @@ const editorActionReducer = (state, action) => {
             const index = newElements.findIndex((el) => el.id === updatedElement.id);
             newElements[index] = updatedElement;
             const newState = {
-                editor: Object.assign(Object.assign({}, state.editor), { elements: [...newElements] }),
+                editor: {
+                    ...state.editor,
+                    elements: [...newElements],
+                },
             };
             return newState;
         }

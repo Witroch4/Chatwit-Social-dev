@@ -3,8 +3,8 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.GET = GET;
 const server_1 = require("next/server");
-const auth_1 = require("@/auth"); // Certifique-se de que esse arquivo exporta { auth, handlers, ... } conforme a nova configuração do NextAuth v5
-const prisma_1 = require("@/lib/prisma");
+const auth_1 = require("../../../../auth"); // Certifique-se de que esse arquivo exporta { auth, handlers, ... } conforme a nova configuração do NextAuth v5
+const prisma_1 = require("../../../../lib/prisma");
 async function GET(request) {
     var _a;
     // Obtenha a sessão usando o novo método auth()

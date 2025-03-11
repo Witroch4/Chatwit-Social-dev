@@ -7,7 +7,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.default = PreviewPhoneMockup;
 const react_1 = __importDefault(require("react"));
-const skeleton_1 = require("@/components/ui/skeleton");
+const skeleton_1 = require("../../../../components/ui/skeleton");
 const lucide_react_1 = require("lucide-react");
 const CommentsDrawer_1 = __importDefault(require("./WIT-EQ/CommentsDrawer"));
 // Função auxiliar para truncar texto

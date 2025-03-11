@@ -42,14 +42,14 @@ exports.default = AutomacaoPage;
 const react_1 = __importStar(require("react"));
 const react_2 = require("next-auth/react");
 const navigation_1 = require("next/navigation");
-const separator_1 = require("@/components/ui/separator");
+const separator_1 = require("../../../components/ui/separator");
 const dotlottie_react_1 = require("@lottiefiles/dotlottie-react");
 const PastasEAutomacoes_1 = __importDefault(require("./componentes/PastasEAutomacoes"));
 const NovaAutomacaoDialog_1 = __importDefault(require("./componentes/NovaAutomacaoDialog"));
-const button_1 = require("@/components/ui/button"); // Import necessário para o botão "Nova Pasta"
-const dialog_1 = require("@/components/ui/dialog");
-const input_1 = require("@/components/ui/input");
-const label_1 = require("@/components/ui/label");
+const button_1 = require("../../../components/ui/button"); // Import necessário para o botão "Nova Pasta"
+const dialog_1 = require("../../../components/ui/dialog");
+const input_1 = require("../../../components/ui/input");
+const label_1 = require("../../../components/ui/label");
 function AutomacaoPage() {
     var _a;
     const { data: session, status } = (0, react_2.useSession)();

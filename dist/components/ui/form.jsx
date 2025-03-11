@@ -48,8 +48,8 @@ exports.FormField = exports.FormMessage = exports.FormDescription = exports.Form
 const React = __importStar(require("react"));
 const react_slot_1 = require("@radix-ui/react-slot");
 const react_hook_form_1 = require("react-hook-form");
-const utils_1 = require("@/lib/utils");
-const label_1 = require("@/components/ui/label");
+const utils_1 = require("../../lib/utils");
+const label_1 = require("../../components/ui/label");
 const Form = react_hook_form_1.FormProvider;
 exports.Form = Form;
 const FormFieldContext = React.createContext({});

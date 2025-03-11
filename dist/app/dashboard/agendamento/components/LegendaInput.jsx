@@ -39,10 +39,10 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 const react_1 = __importStar(require("react"));
-const textarea_1 = require("@/components/ui/textarea");
-const button_1 = require("@/components/ui/button");
+const textarea_1 = require("../../../../components/ui/textarea");
+const button_1 = require("../../../../components/ui/button");
 const dotlottie_react_1 = require("@lottiefiles/dotlottie-react");
-const popover_1 = require("@/components/ui/popover");
+const popover_1 = require("../../../../components/ui/popover");
 const EmojiPicker_1 = __importDefault(require("./EmojiPicker"));
 const LegendaInput = ({ legenda, setLegenda }) => {
     const legendaRef = (0, react_1.useRef)(null);

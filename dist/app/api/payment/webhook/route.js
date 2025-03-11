@@ -8,7 +8,7 @@ exports.config = void 0;
 exports.POST = POST;
 const server_1 = require("next/server");
 const stripe_1 = __importDefault(require("stripe"));
-const prisma_1 = require("@/lib/prisma"); // Certifique-se de que essa importação esteja correta
+const prisma_1 = require("../../../../lib/prisma"); // Certifique-se de que essa importação esteja correta
 // Usa uma chave dummy se STRIPE_SECRET_KEY não estiver definida
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY || "dummy_stripe_secret";
 if (stripeSecretKey === "dummy_stripe_secret") {

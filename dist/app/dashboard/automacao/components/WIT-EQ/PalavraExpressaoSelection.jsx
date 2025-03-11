@@ -4,10 +4,10 @@
 // app/dashboard/automacao/components/PalavraExpressaoSelection.tsx
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.default = PalavraExpressaoSelection;
-const radio_group_1 = require("@/components/ui/radio-group");
-const label_1 = require("@/components/ui/label");
-const input_1 = require("@/components/ui/input");
-const button_1 = require("@/components/ui/button");
+const radio_group_1 = require("../../../../../components/ui/radio-group");
+const label_1 = require("../../../../../components/ui/label");
+const input_1 = require("../../../../../components/ui/input");
+const button_1 = require("../../../../../components/ui/button");
 const react_1 = require("react");
 function PalavraExpressaoSelection({ selectedOptionPalavra, setSelectedOptionPalavra, inputPalavra, setInputPalavra, disabled = false, // Valor padrão como false
 className = "", }) {

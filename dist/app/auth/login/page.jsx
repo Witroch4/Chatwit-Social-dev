@@ -40,7 +40,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 const react_1 = __importStar(require("react"));
-const login_form_1 = __importDefault(require("@/components/auth/login-form"));
+const login_form_1 = __importDefault(require("../../../components/auth/login-form"));
 const Login = () => {
     return (<react_1.Suspense fallback={<div>Carregando...</div>}>
       <div className="flex items-center justify-center min-h-screen bg-gray-100">

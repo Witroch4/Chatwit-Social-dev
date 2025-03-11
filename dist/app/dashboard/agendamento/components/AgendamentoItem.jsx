@@ -40,10 +40,10 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const react_1 = __importStar(require("react"));
 const date_fns_1 = require("date-fns");
 const locale_1 = require("date-fns/locale");
-const button_1 = require("@/components/ui/button");
+const button_1 = require("../../../../components/ui/button");
 const EditAgendamentoDialog_1 = __importDefault(require("./EditAgendamentoDialog"));
 const axios_1 = __importDefault(require("axios"));
-const use_toast_1 = require("@/hooks/use-toast");
+const use_toast_1 = require("../../../../hooks/use-toast");
 const AgendamentoItem = ({ agendamento, onExcluir, refetch, userID }) => {
     const { toast } = (0, use_toast_1.useToast)();
     const [isEditOpen, setIsEditOpen] = (0, react_1.useState)(false);

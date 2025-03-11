@@ -5,7 +5,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.default = PaymentConfirmationPage;
 const react_1 = require("react");
 const navigation_1 = require("next/navigation");
-const button_1 = require("@/components/ui/button");
+const button_1 = require("../../../components/ui/button");
 function PaymentConfirmationPage() {
     const [status, setStatus] = (0, react_1.useState)(null);
     const [customerEmail, setCustomerEmail] = (0, react_1.useState)("");

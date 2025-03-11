@@ -98,10 +98,17 @@ export function AppSidebar() {
     if (session?.user?.id) {
       const fetchAccounts = async () => {
         try {
-          const response = await fetch("/api/auth/instagram/accounts");
+          console.log("Buscando contas do Instagram...");
+          const response = await fetch("/api/auth/instagram/accounts", {
+            cache: "no-store",
+            headers: {
+              "Cache-Control": "no-cache"
+            }
+          });
 
           if (response.ok) {
             const data = await response.json();
+            console.log("Contas do Instagram encontradas:", data);
             if (data.accounts && Array.isArray(data.accounts)) {
               setConnectedAccounts(
                 data.accounts.map((account: any) => ({
@@ -113,40 +120,47 @@ export function AppSidebar() {
                   isMain: account.isMain,
                 }))
               );
+            } else {
+              console.warn("Resposta da API não contém contas válidas:", data);
+              setFallbackAccount();
             }
           } else {
-            console.error("Erro ao buscar contas conectadas");
-            if (session?.user?.instagramAccessToken && session?.user?.providerAccountId) {
-              setConnectedAccounts([
-                {
-                  id: session.user.providerAccountId,
-                  provider: "instagram",
-                  name: "Instagram Principal",
-                  providerAccountId: session.user.providerAccountId,
-                  connected: true,
-                  isMain: true,
-                },
-              ]);
-            } else {
-              setConnectedAccounts([]);
-            }
+            console.error("Erro ao buscar contas conectadas:", response.status, response.statusText);
+            setFallbackAccount();
           }
         } catch (error) {
           console.error("Erro ao buscar contas do Instagram:", error);
-          if (session?.user?.instagramAccessToken && session?.user?.providerAccountId) {
-            setConnectedAccounts([
-              {
-                id: session.user.providerAccountId,
-                provider: "instagram",
-                name: "Instagram Principal",
-                providerAccountId: session.user.providerAccountId,
-                connected: true,
-                isMain: true,
-              },
-            ]);
-          } else {
-            setConnectedAccounts([]);
-          }
+          setFallbackAccount();
+        }
+      };
+
+      // Função para definir uma conta fallback quando ocorrem erros
+      const setFallbackAccount = () => {
+        if (session?.user?.instagramAccessToken && session?.user?.providerAccountId) {
+          console.log("Usando conta fallback do Instagram");
+          setConnectedAccounts([
+            {
+              id: session.user.providerAccountId,
+              provider: "instagram",
+              name: "Instagram Principal",
+              providerAccountId: session.user.providerAccountId,
+              connected: true,
+              isMain: true,
+            },
+          ]);
+        } else {
+          console.warn("Não foi possível encontrar informações de conta no session");
+          // Tenta criar uma conta fictícia para garantir que a sidebar seja renderizada
+          setConnectedAccounts([
+            {
+              id: "fallback",
+              provider: "instagram",
+              name: "Instagram",
+              providerAccountId: "fallback",
+              connected: true,
+              isMain: true,
+            },
+          ]);
         }
       };
 
@@ -273,7 +287,6 @@ export function AppSidebar() {
               {state !== "collapsed" && (
                 <div className="flex flex-col">
                   <span className="font-medium text-sm">{session?.user?.name ?? "Usuário"}</span>
-                  <span className="text-xs text-muted-foreground">{session?.user?.email ?? ""}</span>
                 </div>
               )}
             </div>
@@ -602,13 +615,13 @@ export function AppSidebar() {
                     <SidebarMenuItem>
                       <SidebarMenuButton asChild>
                         <Link
-                          href="/dashboard/calendario"
+                          href="/admin"
                           className={`flex items-center ${
                             state === "collapsed" ? "justify-start pl-4" : "justify-start pl-2"
                           }`}
                         >
                           <Users className="mr-2" />
-                          {state !== "collapsed" && <span>Admin User</span>}
+                          {state !== "collapsed" && <span>Admin Dashboard</span>}
                         </Link>
                       </SidebarMenuButton>
                     </SidebarMenuItem>

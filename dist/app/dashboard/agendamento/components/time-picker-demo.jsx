@@ -39,7 +39,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.TimePickerDemo = TimePickerDemo;
 const React = __importStar(require("react"));
 const lucide_react_1 = require("lucide-react");
-const label_1 = require("@/components/ui/label");
+const label_1 = require("../../../../components/ui/label");
 const time_picker_input_1 = require("./time-picker-input");
 function TimePickerDemo({ date, setDate }) {
     const minuteRef = React.useRef(null);

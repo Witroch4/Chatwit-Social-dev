@@ -35,6 +35,7 @@ model User {
   accounts               Account[]
   createdAt              DateTime        @default(now())
   updatedAt              DateTime        @updatedAt
+  isNew                  Boolean         @default(true)
 
   // Relação com assinaturas
   subscriptions          Subscription[]
@@ -44,6 +45,12 @@ model User {
 
   // Relação com Pastas
   pastas                 Pasta[]
+
+  // Relação com Notificações
+  notifications          Notification[]
+
+  // Novo modelo para Agendamentos
+  agendamentos           Agendamento[]
 }
 
 model Account {
@@ -52,12 +59,12 @@ model Account {
   type              String
   provider          String
   providerAccountId String
-  refresh_token     String?
-  access_token      String?
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
   expires_at        Int?
   token_type        String?
   scope             String?
-  id_token          String?
+  id_token          String? @db.Text
   session_state     String?
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
@@ -67,9 +74,13 @@ model Account {
   automacoes        Automacao[]
   user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  // Novo modelo para Agendamentos
+  agendamentos      Agendamento[]
+
   @@unique([provider, providerAccountId])
   @@index([userId])
   @@index([providerAccountId])
+  @@map("accounts")
 }
 
 model VerificationToken {
@@ -209,4 +220,63 @@ model Subscription {
   canceledAt            DateTime?
   createdAt             DateTime             @default(now())
   updatedAt             DateTime             @updatedAt
+}
+
+// Modelo para o sistema de notificações
+model Notification {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title       String
+  message     String
+  isRead      Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([userId])
+}
+
+// Novo modelo para Agendamento
+model Agendamento {
+  id                         String    @id @default(cuid())
+  userId                     String    // ID do usuário responsável pelo agendamento
+  user                       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accountId                  String    // ID da conta vinculada ao agendamento (Instagram, Facebook, etc.)
+  account                    Account   @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  Data                       DateTime  // Data e hora do agendamento
+  Descricao                  String?   // Descrição da postagem
+  Facebook                   Boolean   @default(false)
+  Instagram                  Boolean   @default(false)
+  Linkedin                   Boolean   @default(false)
+  X                          Boolean   @default(false)
+  Stories                    Boolean   @default(false)
+  Reels                      Boolean   @default(false)
+  PostNormal                 Boolean   @default(false)
+  Diario                     Boolean   @default(false)
+  Randomizar                 Boolean   @default(false)
+  TratarComoUnicoPost        Boolean   @default(false) // Todas as mídias em um único post
+  TratarComoPostagensIndividuais Boolean @default(false) // Cada mídia postada individualmente
+  Concluido_FB               Boolean   @default(false)
+  Concluido_IG               Boolean   @default(false)
+  Concluido_LK               Boolean   @default(false)
+  Concluido_X                Boolean   @default(false)
+  createdAt                  DateTime  @default(now())
+
+  // Relação com mídias
+  midias                     Midia[]
+}
+
+// Novo modelo para Midia
+model Midia {
+  id            String      @id @default(cuid())
+  agendamento   Agendamento @relation(fields: [agendamentoId], references: [id], onDelete: Cascade)
+  agendamentoId String
+  url           String      // URL da mídia no MinIO
+  mime_type     String      // Tipo da mídia (ex.: image/jpeg, video/mp4)
+  thumbnail_url String?     // URL da thumbnail no MinIO (opcional)
+  contador      Int         @default(0) // Número de vezes que a mídia foi enviada
+  createdAt     DateTime    @default(now())
+
+  @@index([agendamentoId])
 }

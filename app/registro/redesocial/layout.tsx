@@ -1,8 +1,10 @@
 import { Metadata } from "next";
+import Image from "next/image";
+import Link from "next/link";
 
 export const metadata: Metadata = {
-  title: "Conectar Redes Sociais | Chatwit-Social",
-  description: "Conecte suas contas de Instagram e outras redes sociais para automatizar interações.",
+  title: "Conectar Redes Sociais | ChatWit Social",
+  description: "Conecte suas contas de Instagram e outras redes sociais para automatizar interações e aumentar seu engajamento.",
 };
 
 export default function RedeSocialLayout({
@@ -11,12 +13,16 @@ export default function RedeSocialLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="container max-w-5xl mx-auto py-8 px-4">
-      <div className="flex justify-center mb-8">
-        <a href="/" className="flex items-center">
-          <img src="/W.svg" alt="Chatwit-Social Logo" className="h-10 w-10" />
-          <span className="ml-2 text-2xl font-bold">Chatwit-Social</span>
-        </a>
+    <div className="container max-w-6xl mx-auto py-6 px-4">
+      <div className="flex justify-center mb-6">
+        <Link href="/" className="flex items-center gap-3 hover:opacity-90 transition-opacity">
+          <div className="bg-gradient-to-r from-blue-600 to-cyan-500 rounded-full p-2">
+            <Image src="/W.svg" alt="ChatWit Social Logo" width={32} height={32} className="h-8 w-8" />
+          </div>
+          <span className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-cyan-500 bg-clip-text text-transparent">
+            ChatWit Social
+          </span>
+        </Link>
       </div>
       {children}
     </div>

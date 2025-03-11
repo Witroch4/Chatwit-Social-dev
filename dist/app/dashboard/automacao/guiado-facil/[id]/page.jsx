@@ -18,15 +18,15 @@ const PostSelection_1 = __importDefault(require("../../components/WIT-EQ/PostSel
 const PalavraExpressaoSelection_1 = __importDefault(require("../../components/WIT-EQ/PalavraExpressaoSelection"));
 const PreviewPhoneMockup_1 = __importDefault(require("../../components/PreviewPhoneMockup"));
 const ToggleActions_1 = __importDefault(require("../../components/WIT-EQ/ToggleActions"));
-const use_toast_1 = require("@/hooks/use-toast");
-const checkbox_1 = require("@/components/ui/checkbox");
-const switch_1 = require("@/components/ui/switch");
-const label_1 = require("@/components/ui/label");
-const input_1 = require("@/components/ui/input");
-const textarea_1 = require("@/components/ui/textarea");
-const button_1 = require("@/components/ui/button");
-const separator_1 = require("@/components/ui/separator");
-const tooltip_1 = require("@/components/ui/tooltip");
+const use_toast_1 = require("../../../../../hooks/use-toast");
+const checkbox_1 = require("../../../../../components/ui/checkbox");
+const switch_1 = require("../../../../../components/ui/switch");
+const label_1 = require("../../../../../components/ui/label");
+const input_1 = require("../../../../../components/ui/input");
+const textarea_1 = require("../../../../../components/ui/textarea");
+const button_1 = require("../../../../../components/ui/button");
+const separator_1 = require("../../../../../components/ui/separator");
+const tooltip_1 = require("../../../../../components/ui/tooltip");
 function GuiadoFacilEditPage() {
     var _a;
     const { id } = (0, navigation_1.useParams)();

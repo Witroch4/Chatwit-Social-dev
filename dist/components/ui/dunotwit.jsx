@@ -38,8 +38,8 @@ exports.Component = Component;
 const React = __importStar(require("react"));
 const lucide_react_1 = require("lucide-react");
 const recharts_1 = require("recharts");
-const card_1 = require("@/components/ui/card");
-const chart_1 = require("@/components/ui/chart");
+const card_1 = require("../../components/ui/card");
+const chart_1 = require("../../components/ui/chart");
 const chartData = [
     { browser: "chrome", visitors: 275, fill: "var(--color-chrome)" },
     { browser: "safari", visitors: 200, fill: "var(--color-safari)" },

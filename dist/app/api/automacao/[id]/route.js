@@ -5,8 +5,8 @@ exports.PATCH = PATCH;
 exports.DELETE = DELETE;
 // app/api/automacao/[id]/route.ts
 const server_1 = require("next/server");
-const prisma_1 = require("@/lib/prisma");
-const auth_1 = require("@/auth");
+const prisma_1 = require("../../../../lib/prisma");
+const auth_1 = require("../../../../auth");
 const uuid_1 = require("uuid");
 // ======================== GET ========================
 async function GET(request, context) {

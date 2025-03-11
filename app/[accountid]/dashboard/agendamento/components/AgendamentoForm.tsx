@@ -1,7 +1,7 @@
 //app/[accountid]/dashboard/agendamento/components/AgendamentoForm.tsx
 "use client";
 
-import React from "react";
+import React, { useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import {
   DrawerHeader,
@@ -27,6 +27,10 @@ interface AgendamentoFormProps {
   handleAgendar: () => void;
   uploading: boolean;
   setDrawerOpen: (open: boolean) => void;
+  tratarMidiasComoUnica: boolean;
+  setTratarMidiasComoUnica: React.Dispatch<React.SetStateAction<boolean>>;
+  tratarMidiasComoIndividuais: boolean;
+  setTratarMidiasComoIndividuais: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
 const AgendamentoForm: React.FC<AgendamentoFormProps> = ({
@@ -41,7 +45,16 @@ const AgendamentoForm: React.FC<AgendamentoFormProps> = ({
   handleAgendar,
   uploading,
   setDrawerOpen,
+  tratarMidiasComoUnica,
+  setTratarMidiasComoUnica,
+  tratarMidiasComoIndividuais,
+  setTratarMidiasComoIndividuais,
 }) => {
+  // Verifica se a postagem diária está ativada
+  const isPostagemDiaria = useMemo(() => {
+    return tipoPostagem.includes("Diario");
+  }, [tipoPostagem]);
+
   return (
     <div className="flex flex-col h-full">
       <DrawerHeader>
@@ -51,35 +64,37 @@ const AgendamentoForm: React.FC<AgendamentoFormProps> = ({
         </DrawerDescription>
       </DrawerHeader>
 
-      <div className="flex flex-1 p-4 space-x-4">
-        {/* Coluna 1: Data e Hora */}
-        <div className="w-full sm:w-1/3 flex flex-col space-y-4">
+      <div className="flex flex-1 p-4 flex-col md:flex-row md:space-x-4 space-y-4 md:space-y-0">
+        {/* Coluna 1: Tipo de Postagem e Data/Hora */}
+        <div className="w-full md:w-1/3 flex flex-col space-y-6">
+          <PostTypeSelector
+            tipoPostagem={tipoPostagem}
+            setTipoPostagem={setTipoPostagem}
+            tratarMidiasComoUnica={tratarMidiasComoUnica}
+            setTratarMidiasComoUnica={setTratarMidiasComoUnica}
+            tratarMidiasComoIndividuais={tratarMidiasComoIndividuais}
+            setTratarMidiasComoIndividuais={setTratarMidiasComoIndividuais}
+          />
+
           <DateTimePicker
             date={dateTime ?? new Date()}
             setDate={(d: Date | undefined) => {
               if (d !== undefined) setDateTime(d);
             }}
+            isPostagemDiaria={isPostagemDiaria}
           />
         </div>
 
         {/* Coluna 2: Legenda */}
-        <div className="w-full sm:w-1/3 flex flex-col space-y-4 mt-4 sm:mt-0">
+        <div className="w-full md:w-1/3 flex flex-col space-y-4">
           <LegendaInput legenda={legenda} setLegenda={setLegenda} />
         </div>
 
         {/* Coluna 3: Upload de Mídia */}
-        <div className="w-full sm:w-1/3 flex flex-col space-y-4 mt-4 sm:mt-0">
+        <div className="w-full md:w-1/3 flex flex-col space-y-4">
           <MediaUploader
             uploadedFiles={uploadedFiles}
             setUploadedFiles={setUploadedFiles}
-          />
-        </div>
-
-        {/* Coluna 4: Checkboxes */}
-        <div className="w-full sm:w-1/3 flex flex-col space-y-4 mt-4 sm:mt-0">
-          <PostTypeSelector
-            tipoPostagem={tipoPostagem}
-            setTipoPostagem={setTipoPostagem}
           />
         </div>
       </div>

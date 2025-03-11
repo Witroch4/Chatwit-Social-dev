@@ -5,54 +5,51 @@ import { prisma } from "@/lib/prisma";
 export async function GET(request: NextRequest) {
   try {
     const session = await auth();
+    console.log("API de contas - Sessão:", session?.user?.id || "Não autenticado");
 
     if (!session?.user) {
-      return NextResponse.json(
-        { error: "Não autorizado" },
-        { status: 401 }
-      );
+      console.log("API de contas - Usuário não autenticado");
+      return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
     }
+
+    console.log("API de contas - Buscando contas para usuário:", session.user.id);
 
     const accounts = await prisma.account.findMany({
       where: {
         userId: session.user.id,
-        provider: "instagram"
+        provider: "instagram",
       },
       select: {
         id: true,
         providerAccountId: true,
         access_token: true,
+        igUsername: true,
+        igUserId: true,
+        isMain: true,
         createdAt: true,
         updatedAt: true,
-        igUserId: true,
-        igUsername: true,
-        isMain: true
       },
-      orderBy: [
-        { createdAt: 'asc' } // Ordenar por data de criação (mais antigas primeiro)
-      ]
     });
 
-    // Mapear os resultados para garantir que todos os campos necessários estejam presentes
-    const mappedAccounts = accounts.map(account => ({
+    console.log("API de contas - Contas encontradas:", accounts.length);
+
+    const mappedAccounts = accounts.map((account) => ({
       id: account.id,
       providerAccountId: account.providerAccountId,
       access_token: account.access_token,
-      igUsername: account.igUsername || "Instagram",
-      igUserId: account.igUserId || account.providerAccountId,
+      igUsername: account.igUsername || null,
+      igUserId: account.igUserId || null,
       isMain: account.isMain || false,
       createdAt: account.createdAt,
-      updatedAt: account.updatedAt
+      updatedAt: account.updatedAt,
     }));
 
-    return NextResponse.json({
-      accounts: mappedAccounts,
-      totalAccounts: mappedAccounts.length
-    });
+    // Retornar no formato esperado pelo frontend
+    return NextResponse.json({ accounts: mappedAccounts });
   } catch (error) {
     console.error("Erro ao buscar contas do Instagram:", error);
     return NextResponse.json(
-      { error: "Ocorreu um erro ao buscar as contas do Instagram" },
+      { error: "Erro ao buscar contas do Instagram" },
       { status: 500 }
     );
   }

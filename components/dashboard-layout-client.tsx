@@ -25,13 +25,26 @@ export default function DashboardLayoutClient({ children }: DashboardLayoutClien
     // mesmo que a autenticação seja rápida
     const timer = setTimeout(() => {
       setIsLoading(false);
-    }, 300);
+    }, 800); // Aumentado para 800ms para dar mais tempo para carregar
 
     return () => clearTimeout(timer);
   }, []);
 
   // Determina se deve mostrar o esqueleto
   const showSkeleton = !isMounted || isLoading || status === 'loading';
+
+  // Força uma nova renderização quando o status da sessão mudar
+  useEffect(() => {
+    if (status === 'authenticated') {
+      // Adiciona um pequeno atraso para garantir que outros componentes tenham tempo de se inicializar
+      const timer = setTimeout(() => {
+        console.log('Sessão autenticada, forçando nova renderização');
+        setIsLoading(false);
+      }, 300);
+
+      return () => clearTimeout(timer);
+    }
+  }, [status]);
 
   return (
     <SidebarProvider defaultOpen={true}>

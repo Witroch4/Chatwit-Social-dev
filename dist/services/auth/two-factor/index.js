@@ -1,8 +1,8 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.createTwoFactorAuthToken = exports.findTwoFactorAuthTokeByToken = exports.deleteTwoFactorAuthTokenById = exports.isTwoFactorAutenticationEnabled = exports.findTwoFactorAuthTokenByEmail = void 0;
-const prisma_1 = require("@/lib/prisma");
-const utils_1 = require("@/lib/utils");
+const prisma_1 = require("../../../lib/prisma");
+const utils_1 = require("../../../lib/utils");
 const findTwoFactorAuthTokenByEmail = async (email) => {
     const token = await prisma_1.prisma.twoFactorToken.findUnique({
         where: {

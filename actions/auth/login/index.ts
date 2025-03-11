@@ -86,10 +86,21 @@ export const login = async (credentials: z.infer<typeof CredentialsSchema>) => {
 			}
 		}
 
+		// Obter o URL base de redirecionamento da variável de ambiente
+		const baseRedirect = process.env.AUTH_LOGIN_REDIRECT || "/registro/redesocial";
+
+		// Verificar se o URL já contém parâmetros de consulta
+		const hasQueryParams = baseRedirect.includes('?');
+
+		// Adicionar o parâmetro fromLogin=true de forma adequada
+		const loginRedirect = hasQueryParams
+			? `${baseRedirect}&fromLogin=true`
+			: `${baseRedirect}?fromLogin=true`;
+
 		const resp = await signIn("credentials", {
 			email,
 			password,
-			redirectTo: process.env.AUTH_LOGIN_REDIRECT,
+			redirectTo: loginRedirect,
 		});
 	} catch (err) {
 		if (err instanceof AuthError) {

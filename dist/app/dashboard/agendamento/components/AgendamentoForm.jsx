@@ -5,7 +5,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 const react_1 = __importDefault(require("react"));
-const drawer_1 = require("@/components/ui/drawer");
+const drawer_1 = require("../../../../components/ui/drawer");
 const date_time_picker_1 = require("./date-time-picker");
 const LegendaInput_1 = __importDefault(require("./LegendaInput"));
 const MediaUploader_1 = __importDefault(require("./MediaUploader"));

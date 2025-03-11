@@ -9,9 +9,10 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Usuário não autenticado." }, { status: 401 });
     }
 
-    // Pegar o providerAccountId da URL
+    // Pegar o providerAccountId e after (token de paginação) da URL
     const { searchParams } = new URL(request.url);
     const providerAccountId = searchParams.get("providerAccountId");
+    const after = searchParams.get("after") || null;
 
     if (!providerAccountId) {
       return NextResponse.json(
@@ -63,10 +64,15 @@ export async function GET(request: NextRequest) {
 
     const userData = await userRes.json();
 
-    // Buscar posts do Instagram
-    const mediaRes = await fetch(
-      `https://graph.instagram.com/me/media?fields=id,caption,media_url,media_type,thumbnail_url,media_product_type,like_count,comments_count&access_token=${account.access_token}`
-    );
+    // Buscar posts do Instagram com paginação
+    let mediaUrl = `https://graph.instagram.com/me/media?fields=id,caption,media_url,media_type,thumbnail_url,media_product_type,like_count,comments_count&limit=25&access_token=${account.access_token}`;
+
+    // Adicionar token de paginação se existir
+    if (after) {
+      mediaUrl += `&after=${after}`;
+    }
+
+    const mediaRes = await fetch(mediaUrl);
 
     if (!mediaRes.ok) {
       const errorText = await mediaRes.text();
@@ -82,6 +88,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       user: userData,
       media: mediaData.data || [],
+      paging: mediaData.paging || null
     });
   } catch (error: any) {
     console.error("[GET /api/instagram/posts] Erro:", error);

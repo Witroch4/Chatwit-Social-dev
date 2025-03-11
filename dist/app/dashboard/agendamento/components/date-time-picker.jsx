@@ -39,10 +39,10 @@ const React = __importStar(require("react"));
 const date_fns_1 = require("date-fns");
 const locale_1 = require("date-fns/locale");
 const lucide_react_1 = require("lucide-react");
-const utils_1 = require("@/lib/utils");
-const button_1 = require("@/components/ui/button");
-const calendar_1 = require("@/components/ui/calendar");
-const popover_1 = require("@/components/ui/popover");
+const utils_1 = require("../../../../lib/utils");
+const button_1 = require("../../../../components/ui/button");
+const calendar_1 = require("../../../../components/ui/calendar");
+const popover_1 = require("../../../../components/ui/popover");
 const time_picker_demo_1 = require("./time-picker-demo");
 function DateTimePicker({ date, setDate }) {
     const handleSelect = (selectedDay) => {

@@ -30,31 +30,11 @@ export interface UploadedFile {
   id: string;
   file?: File; // Tornado opcional para mídias existentes
   progress: number;
-  url?: string;
-  thumbnails?: {
-    tiny: {
-      url: string;
-      width: number | null;
-      height: number;
-    };
-    small: {
-      url: string;
-      width: number;
-      height: number;
-    };
-    card_cover?: {
-      url: string;
-      width: number;
-      height: number;
-    };
-  };
+  url?: string; // URL da imagem original
+  thumbnail_url?: string; // URL da thumbnail
   mime_type?: string;
-  is_image?: boolean;
-  image_width?: number;
-  image_height?: number;
-  uploaded_at?: string;
   name?: string; // Nome técnico único
-  original_name?: string; // Nome amigável para exibição
+  original_name?: string; // Nome original do arquivo
   visible_name?: string; // Nome amigável para exibição
 }
 
@@ -105,21 +85,18 @@ export default function FileUpload({ uploadedFiles, setUploadedFiles }: FileUplo
           color: ImageColor.bgColor,
         };
       }
-
       if (file.type.includes(FileTypes.Pdf)) {
         return {
           icon: <FileIcon size={40} className={PdfColor.fillColor} />,
           color: PdfColor.bgColor,
         };
       }
-
       if (file.type.includes(FileTypes.Audio)) {
         return {
           icon: <AudioWaveform size={40} className={AudioColor.fillColor} />,
           color: AudioColor.bgColor,
         };
       }
-
       if (file.type.includes(FileTypes.Video)) {
         return {
           icon: <Video size={40} className={VideoColor.fillColor} />,
@@ -133,21 +110,18 @@ export default function FileUpload({ uploadedFiles, setUploadedFiles }: FileUplo
           color: ImageColor.bgColor,
         };
       }
-
       if (mime_type.includes(FileTypes.Pdf)) {
         return {
           icon: <FileIcon size={40} className={PdfColor.fillColor} />,
           color: PdfColor.bgColor,
         };
       }
-
       if (mime_type.includes(FileTypes.Audio)) {
         return {
           icon: <AudioWaveform size={40} className={AudioColor.fillColor} />,
           color: AudioColor.bgColor,
         };
       }
-
       if (mime_type.includes(FileTypes.Video)) {
         return {
           icon: <Video size={40} className={VideoColor.fillColor} />,
@@ -155,7 +129,6 @@ export default function FileUpload({ uploadedFiles, setUploadedFiles }: FileUplo
         };
       }
     }
-
     return {
       icon: <FolderArchive size={40} className={OtherColor.fillColor} />,
       color: OtherColor.bgColor,
@@ -206,7 +179,7 @@ export default function FileUpload({ uploadedFiles, setUploadedFiles }: FileUplo
         },
       });
 
-      // Atualizar o arquivo com as informações retornadas pelo Baserow
+      // Atualizar o arquivo com as informações retornadas pelo MinIO
       setUploadedFiles((prev) =>
         prev.map((file) =>
           file.id === uploadedFile.id
@@ -214,26 +187,22 @@ export default function FileUpload({ uploadedFiles, setUploadedFiles }: FileUplo
                 ...file,
                 progress: 100,
                 url: response.data.url,
-                thumbnails: response.data.thumbnails,
+                thumbnail_url: response.data.thumbnail_url,
                 mime_type: response.data.mime_type,
-                is_image: response.data.is_image,
-                image_width: response.data.image_width,
-                image_height: response.data.image_height,
-                uploaded_at: response.data.uploaded_at,
-                name: response.data.name, // Nome técnico único
-                original_name: response.data.original_name,
-                visible_name: response.data.visible_name, // Nome amigável para exibição
+                name: response.data.fileName || uploadedFile.file?.name || 'arquivo',
+                original_name: uploadedFile.file?.name || 'arquivo',
+                visible_name: uploadedFile.file?.name || 'arquivo',
               }
             : file
         )
       );
 
-      toast(`Upload de ${uploadedFile.file?.name} concluído!`, {
+      toast(`Upload de ${uploadedFile.file?.name || 'arquivo'} concluído!`, {
         description: `Arquivo disponível em ${response.data.url}`,
       });
     } catch (error: any) {
-      console.error(`Erro ao fazer upload de ${uploadedFile.file?.name}:`, error);
-      toast(`Erro ao fazer upload de ${uploadedFile.file?.name}.`);
+      console.error(`Erro ao fazer upload de ${uploadedFile.file?.name || 'arquivo'}:`, error);
+      toast(`Erro ao fazer upload de ${uploadedFile.file?.name || 'arquivo'}.`);
 
       // Remover o arquivo da lista em caso de erro
       setUploadedFiles((prev) => prev.filter((file) => file.id !== uploadedFile.id));
@@ -258,16 +227,14 @@ export default function FileUpload({ uploadedFiles, setUploadedFiles }: FileUplo
               <div className="border p-2 rounded-md max-w-min mx-auto">
                 <UploadCloud size={20} />
               </div>
-
               <p className="mt-2 text-sm text-gray-600">
                 <span className="font-semibold">Arraste os arquivos</span>
               </p>
               <p className="text-xs text-gray-500">
-                Clique para enviar arquivos &#40;arquivos devem ter menos de 10 MB &#41;
+                Clique para enviar arquivos &#40;arquivos devem ter menos de 10 MB&#41;
               </p>
             </div>
           </label>
-
           <Input
             {...getInputProps()}
             id="dropzone-file"
@@ -297,7 +264,6 @@ export default function FileUpload({ uploadedFiles, setUploadedFiles }: FileUplo
                         <div className="text-white">
                           {getFileIconAndColor(file.file, file.mime_type).icon}
                         </div>
-
                         <div className="w-full ml-2 space-y-1">
                           <div className="text-sm flex justify-between">
                             <p className="text-muted-foreground ">
@@ -343,10 +309,10 @@ export default function FileUpload({ uploadedFiles, setUploadedFiles }: FileUplo
                       <div className="flex items-center flex-1 p-2">
                         <Tooltip>
                           <TooltipTrigger asChild>
-                            {file.thumbnails?.small?.url ? (
+                            {file.mime_type?.includes('image') ? (
                               <img
-                                src={file.thumbnails.small.url}
-                                alt={file.original_name ||file.visible_name|| "Mídia"}
+                                src={file.thumbnail_url || file.url}
+                                alt={file.original_name || file.visible_name || "Mídia"}
                                 className="w-12 h-12 object-cover rounded-md cursor-pointer"
                               />
                             ) : (
@@ -356,14 +322,14 @@ export default function FileUpload({ uploadedFiles, setUploadedFiles }: FileUplo
                             )}
                           </TooltipTrigger>
                           <TooltipContent>
-                            <p>{file.original_name ||file.visible_name|| "Mídia"}</p>
+                            <p>{file.original_name || file.visible_name || "Mídia"}</p>
                           </TooltipContent>
                         </Tooltip>
                       </div>
                       <button
                         onClick={() => handleRemoveUploadedFile(file.id)}
                         className="bg-red-500 text-white transition-all items-center justify-center cursor-pointer px-2 hidden group-hover:flex"
-                        aria-label={`Remover ${file.original_name ||file.visible_name|| "Mídia"}`}
+                        aria-label={`Remover ${file.original_name || file.visible_name || "Mídia"}`}
                       >
                         <X size={20} />
                       </button>

@@ -12,10 +12,11 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import { User, LogOut, Settings, Bell, HelpCircle, PanelLeft, PanelRightClose } from "lucide-react";
+import { User, LogOut, Settings, HelpCircle, PanelLeft, PanelRightClose } from "lucide-react";
 import Link from "next/link";
 import { Button } from "./ui/button";
 import { useEffect, useState } from "react";
+import { NotificationDropdown } from "./notifications/notification-dropdown";
 
 const Navbar = () => {
   const { data: session } = useSession();
@@ -59,11 +60,7 @@ const Navbar = () => {
         </div>
 
         <div className="flex items-center space-x-4">
-          <Button variant="ghost" size="icon" className="relative">
-            <Bell className="h-5 w-5" />
-            <span className="sr-only">Notificações</span>
-            <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-primary"></span>
-          </Button>
+          <NotificationDropdown />
 
           <Button variant="ghost" size="icon">
             <HelpCircle className="h-5 w-5" />

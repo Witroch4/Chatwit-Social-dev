@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-const change_password_form_1 = require("@/components/auth/change-password-form");
+const change_password_form_1 = require("../../../components/auth/change-password-form");
 const react_1 = __importStar(require("react"));
 const ChangePassword = () => {
     return (<div className="flex flex-col w-full min-h-full items-center justify-center">

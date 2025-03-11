@@ -71,6 +71,9 @@ export default function UserPage() {
   const [error, setError] = useState<string | null>(null);
   const [instagramUser, setInstagramUser] = useState<InstagramUserData | null>(null);
   const [instagramMedia, setInstagramMedia] = useState<InstagramMediaItem[]>([]);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const [nextPageToken, setNextPageToken] = useState<string | null>(null);
 
   // Etapa 2: DM de Boas-Vindas
   const [dmWelcomeMessage, setDmWelcomeMessage] = useState(
@@ -127,6 +130,8 @@ export default function UserPage() {
           const data = await res.json();
           setInstagramUser(data.user);
           setInstagramMedia(data.media || []);
+          setNextPageToken(data.paging?.cursors?.after || null);
+          setHasMore(!!data.paging?.next);
           setLoading(false);
         } catch (err: any) {
           console.error("Erro ao conectar com o Instagram:", err);
@@ -140,6 +145,57 @@ export default function UserPage() {
 
     fetchInstagramData();
   }, [status, providerAccountId]);
+
+  // Função para carregar mais posts
+  const loadMorePosts = async () => {
+    if (loadingMore || !hasMore || !providerAccountId) return;
+
+    try {
+      setLoadingMore(true);
+      const url = `/api/instagram/posts?providerAccountId=${providerAccountId}${nextPageToken ? `&after=${nextPageToken}` : ''}`;
+      const res = await fetch(url);
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || "Erro ao buscar dados do Instagram");
+      }
+
+      const data = await res.json();
+      setInstagramMedia(prev => [...prev, ...(data.media || [])]);
+      setNextPageToken(data.paging?.cursors?.after || null);
+      setHasMore(!!data.paging?.next);
+    } catch (err: any) {
+      console.error("Erro ao carregar mais publicações:", err);
+      setError(err.message || "Erro ao carregar mais publicações.");
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+
+  // Configurar o Intersection Observer para carregar mais posts
+  useEffect(() => {
+    if (!hasMore || loadingMore) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          loadMorePosts();
+        }
+      },
+      { threshold: 0.5 }
+    );
+
+    const loadMoreTrigger = document.getElementById('load-more-trigger');
+    if (loadMoreTrigger) {
+      observer.observe(loadMoreTrigger);
+    }
+
+    return () => {
+      if (loadMoreTrigger) {
+        observer.unobserve(loadMoreTrigger);
+      }
+    };
+  }, [hasMore, loadingMore]);
 
   if (status === "loading" || loading) return <LoadingState />;
   if (status === "unauthenticated") return <UnauthenticatedState />;
@@ -281,7 +337,23 @@ export default function UserPage() {
           instagramMedia={instagramMedia}
           openDialog={openDialog}
           setOpenDialog={setOpenDialog}
-        />
+          onSelectPost={() => {
+            // Selecione manualmente um post
+            if (selectedPost) {
+              setCommentContent(selectedPost.caption || "");
+              setToggleValue("comentarios");
+            }
+          }}
+        >
+          <div style={{ width: "100%", marginBottom: "10px" }}>
+            {loadingMore && (
+              <div className="text-center py-4">
+                <span className="text-sm text-muted-foreground">Carregando mais publicações...</span>
+              </div>
+            )}
+            {hasMore && <div id="load-more-trigger" className="h-10" />}
+          </div>
+        </PostSelection>
 
         <PalavraExpressaoSelection
           anyword={anyword}

@@ -6,7 +6,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 const react_1 = __importDefault(require("react"));
-const checkbox_1 = require("@/components/ui/checkbox");
+const checkbox_1 = require("../../../../components/ui/checkbox");
 const postTypes = ["Aleatório", "Diario", "Post Normal", "Reels", "Stories"];
 const PostTypeSelector = ({ tipoPostagem, setTipoPostagem }) => {
     const handleCheckChange = (value) => {

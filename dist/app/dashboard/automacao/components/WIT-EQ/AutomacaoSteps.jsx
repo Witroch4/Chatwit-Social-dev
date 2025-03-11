@@ -8,7 +8,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.default = AutomacaoSteps;
 const react_1 = require("react");
-const button_1 = require("@/components/ui/button");
+const button_1 = require("../../../../../components/ui/button");
 const PreviewPhoneMockup_1 = __importDefault(require("../PreviewPhoneMockup"));
 function AutomacaoSteps({ instagramUser, selectedPost, }) {
     // Controla a etapa atual

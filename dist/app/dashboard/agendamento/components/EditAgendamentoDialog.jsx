@@ -38,17 +38,17 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 const react_1 = __importStar(require("react"));
-const dialog_1 = require("@/components/ui/dialog");
-const button_1 = require("@/components/ui/button");
+const dialog_1 = require("../../../../components/ui/dialog");
+const button_1 = require("../../../../components/ui/button");
 const date_time_picker_1 = require("./date-time-picker");
 const LegendaInput_1 = __importDefault(require("./LegendaInput"));
-const FileUpload_1 = __importDefault(require("@/components/custom/FileUpload"));
+const FileUpload_1 = __importDefault(require("../../../../components/custom/FileUpload"));
 const PostTypeSelector_1 = __importDefault(require("./PostTypeSelector"));
 const axios_1 = __importDefault(require("axios"));
-const use_toast_1 = require("@/hooks/use-toast");
+const use_toast_1 = require("../../../../hooks/use-toast");
 const date_fns_1 = require("date-fns");
 const locale_1 = require("date-fns/locale");
-const scroll_area_1 = require("@/components/ui/scroll-area");
+const scroll_area_1 = require("../../../../components/ui/scroll-area");
 const EditAgendamentoDialog = ({ agendamento, isOpen, onClose, refetch, }) => {
     const { toast } = (0, use_toast_1.useToast)();
     // Estado para data/hora – agendamento.Data vem como string

@@ -34,7 +34,7 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
 // File: C:\Users\wital\OneDrive\01_Importantes_Negocios\WITALO_DEV\NextWit\faceApp\app\api\auth\[...nextauth]\route.ts
-const entry = __importStar(require("@/app/api/auth/[...nextauth]/route"));
+const entry = __importStar(require("../../../../../app/api/auth/[...nextauth]/route"));
 // Check that the entry is a valid entry
 checkFields();
 // Check the prop type of the entry function

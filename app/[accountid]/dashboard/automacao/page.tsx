@@ -145,14 +145,16 @@ export default function AutomacaoPage() {
         <Separator className="my-4" />
 
         {loading && (
-          <div className="flex flex-col items-center justify-center py-8">
-            <DotLottieReact
-              src="/lottie/loading.lottie"
-              style={{ width: 120, height: 120 }}
-            />
-            <p className="text-muted-foreground mt-4">Carregando...</p>
-          </div>
-        )}
+                      <div className="flex justify-center items-center">
+                        <DotLottieReact
+                          src="/animations/loading.lottie"
+                          autoplay
+                          loop={true}
+                          style={{ width: 150, height: 150 }}
+                          aria-label="Carregando agendamentos"
+                        />
+                      </div>
+                    )}
 
         {error && (
           <div className="flex flex-col items-center justify-center py-8">

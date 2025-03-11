@@ -41,12 +41,12 @@ const react_1 = __importStar(require("react"));
 const react_2 = require("next-auth/react");
 const date_fns_1 = require("date-fns");
 const locale_1 = require("date-fns/locale");
-const calendar_1 = require("@/components/ui/calendar");
-const dialog_1 = require("@/components/ui/dialog");
-const button_1 = require("@/components/ui/button");
+const calendar_1 = require("../../../components/ui/calendar");
+const dialog_1 = require("../../../components/ui/dialog");
+const button_1 = require("../../../components/ui/button");
 const dotlottie_react_1 = require("@lottiefiles/dotlottie-react");
-const useAgendamentos_1 = __importDefault(require("@/hooks/useAgendamentos"));
-const use_toast_1 = require("@/hooks/use-toast");
+const useAgendamentos_1 = __importDefault(require("../../../hooks/useAgendamentos"));
+const use_toast_1 = require("../../../hooks/use-toast");
 const axios_1 = __importDefault(require("axios"));
 const navigation_1 = require("next/navigation");
 const CalendarioPage = () => {

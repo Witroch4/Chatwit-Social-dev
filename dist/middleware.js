@@ -2,7 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.config = void 0;
 // middleware.ts
-const auth_1 = require("@/auth"); // Importe o auth já configurado
+const auth_1 = require("./auth"); // Importe o auth já configurado
 const server_1 = require("next/server");
 const routes_1 = require("./config/routes");
 const route_1 = require("./lib/route");

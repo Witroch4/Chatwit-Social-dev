@@ -9,9 +9,10 @@ const AGENDAMENTO_QUEUE_NAME = 'agendamento';
  * Interface dos dados que serão passados ao job.
  */
 export interface IAgendamentoJobData {
-  Data: string;
-  userID: string;
-  baserowId: string; // ID do Baserow + prefixo "ag-job-<BASEROW_TABLE_ID>-<rowId>"
+  baserowId: string; // ID formatado como "ag-job-<id>"
+  Data: string;      // Data/hora em formato ISO
+  userID: string;    // ID do usuário responsável pelo agendamento
+  Diario?: boolean;  // Indica se é uma postagem diária
 }
 
 /**
@@ -20,12 +21,12 @@ export interface IAgendamentoJobData {
 export const agendamentoQueue = new Queue<IAgendamentoJobData, any, string>(AGENDAMENTO_QUEUE_NAME, {
   connection,
   defaultJobOptions: {
-    removeOnComplete: true,
-    removeOnFail: false,
     attempts: 3,
     backoff: {
       type: 'exponential',
-      delay: 1000,
+      delay: 5000,
     },
-  },
+    removeOnComplete: true,
+    removeOnFail: false,
+  }
 });

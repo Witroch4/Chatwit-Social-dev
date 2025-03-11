@@ -3,7 +3,7 @@
 import * as React from "react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { CalendarIcon } from "lucide-react";
+import { CalendarIcon, Clock } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -18,9 +18,10 @@ import { TimePickerDemo } from "./time-picker-demo";
 interface DateTimePickerProps {
   date: Date;
   setDate: (date: Date | undefined) => void;
+  isPostagemDiaria?: boolean;
 }
 
-export function DateTimePicker({ date, setDate }: DateTimePickerProps) {
+export function DateTimePicker({ date, setDate, isPostagemDiaria = false }: DateTimePickerProps) {
   const handleSelect = (selectedDay: Date | undefined) => {
     if (!selectedDay) return;
 
@@ -48,7 +49,7 @@ export function DateTimePicker({ date, setDate }: DateTimePickerProps) {
   return (
     <div className="space-y-2">
       <label className="block text-sm font-medium text-gray-700">
-        Escolha Data e Hora
+        {isPostagemDiaria ? "Escolha a Hora" : "Escolha Data e Hora"}
       </label>
 
       <Popover>
@@ -60,10 +61,21 @@ export function DateTimePicker({ date, setDate }: DateTimePickerProps) {
               !date && "text-muted-foreground"
             )}
           >
-            <CalendarIcon className="mr-2 h-4 w-4" />
-            {date
-              ? format(date, "dd/MM/yyyy HH:mm:ss", { locale: ptBR })
-              : <span>Selecionar data e hora</span>}
+            {isPostagemDiaria ? (
+              <>
+                <Clock className="mr-2 h-4 w-4" />
+                {date
+                  ? format(date, "HH:mm:ss", { locale: ptBR })
+                  : <span>Selecionar hora</span>}
+              </>
+            ) : (
+              <>
+                <CalendarIcon className="mr-2 h-4 w-4" />
+                {date
+                  ? format(date, "dd/MM/yyyy HH:mm:ss", { locale: ptBR })
+                  : <span>Selecionar data e hora</span>}
+              </>
+            )}
           </Button>
         </PopoverTrigger>
         {/* Adicione as classes 'z-50' e 'pointer-events-auto' */}
@@ -71,15 +83,17 @@ export function DateTimePicker({ date, setDate }: DateTimePickerProps) {
           className="w-auto p-0 z-50 pointer-events-auto"
           align="start"
         >
-          <Calendar
-            mode="single"
-            selected={date}
-            onSelect={handleSelect}
-            initialFocus
-            locale={ptBR}
-            className="border border-gray-300 rounded-md"
-          />
-          <div className="p-3 border-t border-border">
+          {!isPostagemDiaria && (
+            <Calendar
+              mode="single"
+              selected={date}
+              onSelect={handleSelect}
+              initialFocus
+              locale={ptBR}
+              className="border border-gray-300 rounded-md"
+            />
+          )}
+          <div className={cn("p-3", !isPostagemDiaria && "border-t border-border")}>
             <TimePickerDemo setDate={setDate} date={date} />
           </div>
         </PopoverContent>

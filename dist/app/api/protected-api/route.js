@@ -1,7 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.GET = exports.config = void 0;
-const auth_1 = require("@/auth");
+const auth_1 = require("../../../auth");
 const server_1 = require("next/server");
 exports.config = {
     runtime: 'nodejs',

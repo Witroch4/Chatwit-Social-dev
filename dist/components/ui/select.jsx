@@ -49,7 +49,7 @@ exports.SelectScrollDownButton = exports.SelectScrollUpButton = exports.SelectSe
 const React = __importStar(require("react"));
 const SelectPrimitive = __importStar(require("@radix-ui/react-select"));
 const lucide_react_1 = require("lucide-react");
-const utils_1 = require("@/lib/utils");
+const utils_1 = require("../../lib/utils");
 const Select = SelectPrimitive.Root;
 exports.Select = Select;
 const SelectGroup = SelectPrimitive.Group;

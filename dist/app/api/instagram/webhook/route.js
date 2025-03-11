@@ -8,7 +8,7 @@ exports.POST = POST;
 // app/api/instagram/webhook/route.ts
 //https://moving-eagle-bright.ngrok-free.app/api/instagram/webhook
 const server_1 = require("next/server");
-const instagram_webhook_queue_1 = require("@/lib/queue/instagram-webhook.queue");
+const instagram_webhook_queue_1 = require("../../../../lib/queue/instagram-webhook.queue");
 const crypto_1 = __importDefault(require("crypto"));
 const dotenv_1 = __importDefault(require("dotenv"));
 dotenv_1.default.config();

@@ -48,7 +48,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.DrawerDescription = exports.DrawerTitle = exports.DrawerFooter = exports.DrawerHeader = exports.DrawerContent = exports.DrawerClose = exports.DrawerTrigger = exports.DrawerOverlay = exports.DrawerPortal = exports.Drawer = void 0;
 const React = __importStar(require("react"));
 const vaul_1 = require("vaul");
-const utils_1 = require("@/lib/utils");
+const utils_1 = require("../../lib/utils");
 const Drawer = (_a) => {
     var { shouldScaleBackground = true } = _a, props = __rest(_a, ["shouldScaleBackground"]);
     return (<vaul_1.Drawer.Root shouldScaleBackground={shouldScaleBackground} {...props}/>);

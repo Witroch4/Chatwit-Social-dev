@@ -4,10 +4,10 @@
 //actions\auth\login\index.ts
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.login = void 0;
-const auth_1 = require("@/auth");
-const auth_2 = require("@/schemas/auth");
-const services_1 = require("@/services");
-const auth_3 = require("@/services/auth");
+const auth_1 = require("../../../auth");
+const auth_2 = require("../../../schemas/auth");
+const services_1 = require("../../../services");
+const auth_3 = require("../../../services/auth");
 const next_auth_1 = require("next-auth");
 const email_verification_1 = require("../email-verification");
 const two_factor_1 = require("../two-factor");

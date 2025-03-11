@@ -49,7 +49,7 @@ exports.Checkbox = void 0;
 const React = __importStar(require("react"));
 const CheckboxPrimitive = __importStar(require("@radix-ui/react-checkbox"));
 const lucide_react_1 = require("lucide-react");
-const utils_1 = require("@/lib/utils");
+const utils_1 = require("../../lib/utils");
 const Checkbox = React.forwardRef((_a, ref) => {
     var { className } = _a, props = __rest(_a, ["className"]);
     return (<CheckboxPrimitive.Root ref={ref} className={(0, utils_1.cn)("peer h-4 w-4 shrink-0 rounded-sm border border-primary ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground", className)} {...props}>

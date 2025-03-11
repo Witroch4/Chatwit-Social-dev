@@ -7,6 +7,7 @@ import { ThemeToggle } from "./theme-toggle";
 import { useSession, signIn } from "next-auth/react";
 import { usePathname } from "next/navigation";
 import Link from 'next/link';
+import { NotificationDropdown } from './notifications/notification-dropdown';
 
 const NavbarGeral = () => {
   const { data: session } = useSession();
@@ -33,6 +34,9 @@ const NavbarGeral = () => {
           />
         </Link>
         <div className="flex items-center space-x-4">
+          {session?.user && (
+            <NotificationDropdown />
+          )}
           {!session?.user && pathname !== "/auth/login" && (
             <button
               onClick={() => signIn()}

@@ -48,7 +48,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.TooltipProvider = exports.TooltipContent = exports.TooltipTrigger = exports.Tooltip = void 0;
 const React = __importStar(require("react"));
 const TooltipPrimitive = __importStar(require("@radix-ui/react-tooltip"));
-const utils_1 = require("@/lib/utils");
+const utils_1 = require("../../lib/utils");
 const TooltipProvider = TooltipPrimitive.Provider;
 exports.TooltipProvider = TooltipProvider;
 const Tooltip = TooltipPrimitive.Root;
