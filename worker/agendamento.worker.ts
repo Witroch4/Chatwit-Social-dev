@@ -3,73 +3,70 @@
 import { Worker, Job } from 'bullmq';
 import axios from 'axios';
 import dotenv from 'dotenv';
-import cron from 'node-cron';
 import { connection } from '@/lib/redis';
-import { processarAgendamentosPendentes } from '@/lib/scheduler-bullmq';
-import { IAgendamentoJobData } from '@/lib/queue/agendamento.queue';
+import { prepareWebhookData } from '@/lib/agendamento.service';
+import { scheduleAgendamentoJob, IAgendamentoJobData } from '@/lib/queue/agendamento.queue';
+import { prisma } from '@/lib/prisma';
 import {
   AUTO_NOTIFICATIONS_QUEUE_NAME,
   IAutoNotificationJobData,
   AutoNotificationType,
   addCheckExpiringTokensJob
 } from '@/lib/queue/instagram-webhook.queue';
-import { PrismaClient } from '@prisma/client';
-import { prepareWebhookData } from '@/lib/agendamento.service';
+import { Worker as BullMQWorker } from 'bullmq';
+import cron from 'node-cron';
 
 dotenv.config();
-const prisma = new PrismaClient();
 
-// Configuração da URL do webhook
-let webhookUrl = process.env.WEBHOOK_URL || 'https://autofluxofilaapi.witdev.com.br/webhook/5f439037-6e1a-4d53-80ae-1cc0c4633c51';
+const webhookUrl = process.env.WEBHOOK_URL || 'https://default-webhook-url.com';
 
-// Garantir que a URL começa com 'https://'
-if (webhookUrl.startsWith('https://')) {
-  webhookUrl = 'https://' + webhookUrl.substring(8);
-  console.log('[BullMQ] URL do webhook corrigida:', webhookUrl);
-}
-
-// Configuração do worker para processar os jobs de agendamento
-const agendamentoWorker = new Worker<IAgendamentoJobData>(
+// Criação do worker de agendamento
+const agendamentoWorker = new Worker(
   'agendamento',
-  async (job) => {
+  async (job: Job<IAgendamentoJobData>) => {
     console.log(`[BullMQ] Processando job de agendamento: ${job.id}`);
     console.log(`[BullMQ] Dados do job:`, job.data);
 
+    // Extrai o ID do agendamento a partir do baserowId
+    const agendamentoId = job.data.baserowId.split('-').pop() || '';
+
     try {
-      // Usamos o campo baserowId para extrair o ID do agendamento
-      // No novo formato, o baserowId contém o ID do agendamento
-      const agendamentoId = job.data.baserowId.split('-').pop() || '';
+      // Verifica se o agendamento ainda existe no banco
+      const agendamento = await prisma.agendamento.findUnique({
+        where: { id: agendamentoId },
+      });
+
+      if (!agendamento) {
+        console.log(`[BullMQ] Agendamento ${agendamentoId} não encontrado no banco de dados. Job cancelado.`);
+        return { success: false, message: 'Agendamento não encontrado' };
+      }
 
       // Prepara os dados para o webhook
       const webhookData = await prepareWebhookData(agendamentoId);
 
       // Envia o webhook
-      const webhookResponse = await axios.post(webhookUrl, webhookData, {
+      const response = await axios.post(webhookUrl, webhookData, {
         headers: { 'Content-Type': 'application/json' },
       });
 
-      console.log(`[BullMQ] Webhook enviado com sucesso para o agendamento ${agendamentoId}. Resposta: ${webhookResponse.status}`);
+      console.log(`[BullMQ] Webhook enviado com sucesso para o agendamento ${agendamentoId}. Resposta: ${response.status}`);
 
-      // Se for um agendamento diário, reagenda para o próximo dia
+      // Se for um agendamento diário, agenda o próximo job para o dia seguinte
       if (job.data.Diario) {
-        // Calcula a data para o próximo dia (mantém o mesmo horário)
         const jobDate = new Date(job.data.Data);
         const nextDay = new Date(jobDate);
         nextDay.setDate(nextDay.getDate() + 1);
 
         console.log(`[BullMQ] Reagendando job diário para: ${nextDay.toISOString()}`);
 
-        // Atualiza o agendamento no banco de dados, se necessário
-        // Isso pode ser útil para rastrear quando foi a última execução
-
-        // Agenda o próximo job
-        const nextJobData = {
-          ...job.data,
-          Data: nextDay.toISOString(),
-        };
-
-        // Aqui você implementaria a lógica para reagendar o job
-        // Isso depende da sua implementação específica do BullMQ
+        // Agenda o próximo job utilizando a função de agendamento com delay
+        await scheduleAgendamentoJob({
+          id: agendamentoId,
+          Data: nextDay,
+          userId: job.data.userID,
+          accountId: job.data.accountId,
+          Diario: true,
+        });
       }
 
       return { success: true, message: 'Agendamento processado com sucesso' };
@@ -80,6 +77,23 @@ const agendamentoWorker = new Worker<IAgendamentoJobData>(
   },
   { connection }
 );
+
+// Tratamento de eventos do worker
+agendamentoWorker.on('completed', (job) => {
+  console.log(`[BullMQ] Job ${job.id} concluído com sucesso`);
+});
+
+agendamentoWorker.on('failed', (job, error) => {
+  console.error(`[BullMQ] Job ${job?.id} falhou: ${error.message}`);
+});
+
+export async function initAgendamentoWorker() {
+  console.log('[BullMQ] Worker de agendamento iniciado');
+  return agendamentoWorker;
+}
+
+// Exporta o worker para ser usado em outros lugares
+export { agendamentoWorker };
 
 // Worker para processar notificações automáticas
 const autoNotificationsWorker = new Worker<IAutoNotificationJobData>(
@@ -170,18 +184,9 @@ async function handleExpiringTokensNotification(data: IAutoNotificationJobData) 
 /**
  * Inicializa os jobs recorrentes
  */
-async function initJobs() {
+export async function initJobs() {
   try {
     console.log('[BullMQ] Inicializando jobs recorrentes...');
-
-    // Processa agendamentos pendentes a cada minuto
-    cron.schedule('* * * * *', async () => {
-      try {
-        await processarAgendamentosPendentes();
-      } catch (error) {
-        console.error('[BullMQ] Erro ao processar agendamentos pendentes:', error);
-      }
-    });
 
     // Verifica tokens expirando diariamente às 8h
     cron.schedule('0 8 * * *', async () => {
@@ -198,8 +203,8 @@ async function initJobs() {
   }
 }
 
-// Inicializa os jobs recorrentes
-initJobs().catch(console.error);
+// Removida a inicialização automática dos jobs recorrentes
+// initJobs().catch(console.error);
 
 // Tratamento de encerramento gracioso
 process.on('SIGTERM', async () => {

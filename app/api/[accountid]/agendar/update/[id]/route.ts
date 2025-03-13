@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { updateAgendamento } from "@/lib/agendamento.service";
-import { scheduleAgendamentoBullMQ } from "@/lib/scheduler-bullmq";
 
 /**
  * Handler para PATCH em /api/[accountid]/agendar/update/[id]
@@ -137,23 +136,8 @@ export async function PATCH(
     // Atualiza o agendamento
     const agendamento = await updateAgendamento(id, updateData);
 
-    // Se a data foi alterada, reagenda o job no BullMQ
-    if (updatedData.Data) {
-      try {
-        const agendamentoData = {
-          id: agendamento.id,
-          Data: agendamento.Data.toISOString(),
-          userID: session.user.id,
-          Diario: agendamento.Diario,
-        };
-
-        await scheduleAgendamentoBullMQ(agendamentoData);
-        console.log("[Agendar] Job reagendado com sucesso para o agendamento:", agendamento.id);
-      } catch (bullMQError: any) {
-        console.error("[BullMQ] Erro ao reagendar job:", bullMQError.message);
-        // Não falha a requisição por causa de erro no BullMQ
-      }
-    }
+    // O job já foi reagendado dentro do updateAgendamento se a data foi alterada
+    console.log("[Agendar] Agendamento atualizado com sucesso:", agendamento.id);
 
     return NextResponse.json({
       message: "Agendamento atualizado com sucesso.",

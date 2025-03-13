@@ -18,7 +18,7 @@ app.prepare().then(() => {
     handle(req, res, parsedUrl);
   });
 
-  // Armazena conexões ativas para encerramento limpo
+  // Armazena conexões ativas para encerramento limpa
   const connections = new Set();
   server.on("connection", (socket) => {
     connections.add(socket);
@@ -39,15 +39,20 @@ app.prepare().then(() => {
     // ---------------------------------------------------------------
     // SPAWN DOS WORKERS (apenas em desenvolvimento)
     // ---------------------------------------------------------------
-    const workerAgendamento = spawn(
+
+    // Inicializa o Bull Board para monitoramento das filas
+    // O Bull Board agora será responsável por inicializar todos os workers
+    const bullBoardServer = spawn(
       "ts-node",
-      ["-r", "tsconfig-paths/register", "worker/agendamento.worker.ts"],
+      ["-r", "tsconfig-paths/register", "bull-board-server.ts"],
       {
         shell: true,
-        stdio: "inherit", // exibe os logs no console principal
+        stdio: "inherit",
       }
     );
 
+    // Inicializa apenas o worker do Instagram Webhook separadamente
+    // pois ele não é inicializado pelo Bull Board
     const workerInstagram = spawn(
       "ts-node",
       ["-r", "tsconfig-paths/register", "worker/instagram-webhook.worker.ts"],
@@ -94,7 +99,7 @@ app.prepare().then(() => {
         console.log("> [server] Servidor encerrado.");
 
         // Mata os workers e o processo do ngrok
-        workerAgendamento.kill();
+        bullBoardServer.kill();
         workerInstagram.kill();
         ngrokProcess.kill();
 

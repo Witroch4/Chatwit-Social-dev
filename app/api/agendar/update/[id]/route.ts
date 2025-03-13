@@ -28,11 +28,19 @@ export async function PATCH(
       Randomizar,
       IGtoken,
       userID,
+      accountId,
     } = await request.json();
 
     if (!userID) {
       return NextResponse.json(
         { error: 'userID é obrigatório.' },
+        { status: 400 }
+      );
+    }
+
+    if (!accountId) {
+      return NextResponse.json(
+        { error: 'accountId é obrigatório.' },
         { status: 400 }
       );
     }
@@ -92,7 +100,9 @@ export async function PATCH(
       const agendamentoData = {
         id: response.data.id,
         Data: Data || response.data.Data,
-        userID: userID
+        userID: userID,
+        accountId: accountId,
+        Diario: Diario || false
       };
 
       // Verificar se os dados são válidos

@@ -1,123 +1,102 @@
-import { agendamentoQueue, IAgendamentoJobData } from "@/lib/queue/agendamento.queue";
-import { prisma } from "@/lib/prisma";
+import { prisma } from '@/lib/prisma';
+import { scheduleAgendamentoJob, cancelAgendamentoJob } from '@/lib/queue/agendamento.queue';
+
+// Variável para controlar se já inicializamos os agendamentos
+let agendamentosInitialized = false;
 
 /**
- * Agenda um job no BullMQ para um agendamento
+ * Agenda um agendamento no BullMQ
+ * @param data Dados do agendamento
  */
 export async function scheduleAgendamentoBullMQ(data: {
   id: string | number;
   Data: string;
   userID: string;
+  accountId: string;
   Diario?: boolean;
 }) {
   try {
-    const { id, Data, userID, Diario } = data;
+    const agendamentoId = typeof data.id === 'number' ? String(data.id) : data.id;
 
-    // Formata o ID do job para incluir o ID do agendamento
-    const baserowId = `ag-job-${id}`;
-    const jobId = `agendamento-${baserowId}`;
+    // Agenda o job na fila BullMQ
+    await scheduleAgendamentoJob({
+      id: agendamentoId,
+      Data: new Date(data.Data),
+      userId: data.userID,
+      accountId: data.accountId,
+      Diario: data.Diario,
+    });
 
-    // Calcula o delay até a data de agendamento
-    const agendamentoDate = new Date(Data);
-    const now = new Date();
-    const delay = Math.max(0, agendamentoDate.getTime() - now.getTime());
-
-    console.log(`[BullMQ] Agendando job para ${agendamentoDate.toISOString()} (delay: ${delay}ms)`);
-
-    // Adiciona o job à fila
-    const job = await agendamentoQueue.add(
-      jobId,
-      {
-        baserowId,
-        Data,
-        userID,
-        Diario,
-      },
-      {
-        delay,
-        jobId,
-        removeOnComplete: true,
-        removeOnFail: false,
-      }
-    );
-
-    console.log(`[BullMQ] Job agendado com sucesso: ${job.id}`);
-    return job;
+    console.log(`[Scheduler] Agendamento ${agendamentoId} agendado para ${data.Data}`);
+    return { success: true };
   } catch (error) {
-    console.error("[BullMQ] Erro ao agendar job:", error);
-    throw error;
+    console.error('[Scheduler] Erro ao agendar:', error);
+    return { success: false, error };
   }
 }
 
 /**
- * Cancela um job no BullMQ para um agendamento
+ * Cancela um agendamento no BullMQ
+ * @param agendamentoId ID do agendamento a ser cancelado
  */
 export async function cancelAgendamentoBullMQ(agendamentoId: string | number) {
   try {
-    const jobId = `agendamento-ag-job-${agendamentoId}`;
-    const job = await agendamentoQueue.getJob(jobId);
+    const id = typeof agendamentoId === 'number' ? String(agendamentoId) : agendamentoId;
 
-    if (job) {
-      await job.remove();
-      console.log(`[BullMQ] Job cancelado com sucesso: ${jobId}`);
-      return true;
-    } else {
-      console.log(`[BullMQ] Job não encontrado para cancelamento: ${jobId}`);
-      return false;
-    }
+    // Cancela o job na fila BullMQ
+    await cancelAgendamentoJob(id);
+
+    console.log(`[Scheduler] Agendamento ${id} cancelado com sucesso`);
+    return { success: true };
   } catch (error) {
-    console.error("[BullMQ] Erro ao cancelar job:", error);
-    throw error;
+    console.error(`[Scheduler] Erro ao cancelar agendamento ${agendamentoId}:`, error);
+    return { success: false, error };
   }
 }
 
 /**
- * Processa agendamentos pendentes
- * Esta função é chamada periodicamente para verificar agendamentos que estão próximos de vencer
+ * Inicializa os agendamentos existentes no banco de dados
+ * Deve ser chamado na inicialização do servidor
  */
-export async function processarAgendamentosPendentes() {
+export async function initializeExistingAgendamentos() {
+  // Evita inicialização duplicada
+  if (agendamentosInitialized) {
+    console.log('[Scheduler] Agendamentos já foram inicializados anteriormente. Ignorando.');
+    return { success: true, count: 0, alreadyInitialized: true };
+  }
+
   try {
-    console.log("[BullMQ] Processando agendamentos pendentes...");
-
-    // Busca agendamentos que estão próximos de vencer (próximas 24 horas)
-    const now = new Date();
-    const nextDay = new Date(now);
-    nextDay.setDate(now.getDate() + 1);
-
-    const agendamentosPendentes = await prisma.agendamento.findMany({
+    // Busca todos os agendamentos futuros
+    const agendamentos = await prisma.agendamento.findMany({
       where: {
         Data: {
-          gte: now,
-          lt: nextDay,
+          gte: new Date(), // Apenas agendamentos futuros
         },
       },
     });
 
-    console.log(`[BullMQ] Encontrados ${agendamentosPendentes.length} agendamentos pendentes.`);
+    console.log(`[Scheduler] Inicializando ${agendamentos.length} agendamentos existentes`);
 
-    // Agenda jobs para cada agendamento pendente
-    for (const agendamento of agendamentosPendentes) {
-      // Verifica se já existe um job para este agendamento
-      const jobId = `agendamento-ag-job-${agendamento.id}`;
-      const existingJob = await agendamentoQueue.getJob(jobId);
-
-      if (!existingJob) {
-        // Se não existir, agenda um novo job
-        await scheduleAgendamentoBullMQ({
-          id: agendamento.id,
-          Data: agendamento.Data.toISOString(),
-          userID: agendamento.userId,
-          Diario: agendamento.Diario,
-        });
-
-        console.log(`[BullMQ] Agendamento pendente agendado: ${agendamento.id}`);
-      }
+    // Agenda cada um na fila
+    for (const agendamento of agendamentos) {
+      await scheduleAgendamentoJob({
+        id: agendamento.id,
+        Data: agendamento.Data,
+        userId: agendamento.userId,
+        accountId: agendamento.accountId,
+        Diario: agendamento.Diario,
+      });
     }
 
-    return agendamentosPendentes.length;
+    console.log('[Scheduler] Todos os agendamentos existentes foram inicializados');
+
+    // Marca como inicializado
+    agendamentosInitialized = true;
+
+    return { success: true, count: agendamentos.length };
   } catch (error) {
-    console.error("[BullMQ] Erro ao processar agendamentos pendentes:", error);
-    throw error;
+    console.error('[Scheduler] Erro ao inicializar agendamentos existentes:', error);
+    return { success: false, error };
   }
 }
 

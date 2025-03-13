@@ -23,7 +23,7 @@ import { useRouter, useParams } from "next/navigation";
 interface Agendamento {
   id: string;
   Data: string;
-  Descrição: string;
+  Descricao: string;
   // Outros campos se necessário…
 }
 
@@ -163,7 +163,7 @@ export default function CalendarioPage() {
                     {format(new Date(ag.Data), "HH:mm:ss")}
                   </p>
                   <p className="text-sm text-muted-foreground">
-                    {ag.Descrição}
+                    {ag.Descricao}
                   </p>
                 </div>
                 <div className="flex gap-2">

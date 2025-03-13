@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { scheduleAgendamentoBullMQ } from "@/lib/scheduler-bullmq";
 import { createAgendamento, getAgendamentosByAccount } from "@/lib/agendamento.service";
 
 /**
@@ -130,21 +129,8 @@ export async function POST(
       midias,
     });
 
-    // Agenda o job no BullMQ
-    try {
-      const agendamentoData = {
-        id: agendamento.id,
-        Data: agendamento.Data.toISOString(),
-        userID: session.user.id,
-        Diario: agendamento.Diario,
-      };
-
-      await scheduleAgendamentoBullMQ(agendamentoData);
-      console.log("[Agendar] Job agendado com sucesso para o agendamento:", agendamento.id);
-    } catch (bullMQError: any) {
-      console.error("[BullMQ] Erro ao adicionar job:", bullMQError.message);
-      // Não falha a requisição por causa de erro no BullMQ
-    }
+    // O job já foi agendado dentro do createAgendamento
+    console.log("[Agendar] Job agendado com sucesso para o agendamento:", agendamento.id);
 
     return NextResponse.json(agendamento, { status: 201 });
   } catch (error: any) {

@@ -1,6 +1,7 @@
-import { prisma } from "@/lib/prisma";
-import { Agendamento, Midia } from "@prisma/client";
-import { uploadToMinIO, uploadMultipleToMinIO } from "./minio";
+import { prisma } from '@/lib/prisma';
+import { Agendamento, Midia } from '@prisma/client';
+import { uploadToMinIO } from './minio';
+import { scheduleAgendamentoJob, cancelAgendamentoJob } from '@/lib/queue/agendamento.queue';
 
 /**
  * Interface para criação de um agendamento
@@ -59,48 +60,14 @@ export interface UpdateAgendamentoDTO {
  * Cria um novo agendamento
  */
 export async function createAgendamento(data: CreateAgendamentoDTO): Promise<Agendamento> {
-  console.log("[AgendamentoService] Criando agendamento:", data);
-
   try {
-    // Processa as mídias (upload ou uso direto da URL)
-    const midiasData = await Promise.all(
-      data.midias.map(async (midia) => {
-        // Se a URL já foi fornecida, usa-a diretamente
-        if (midia.url) {
-          // Garante que o mime_type nunca seja undefined
-          const mimeType = midia.mimeType || inferMimeTypeFromUrl(midia.url);
-
-          return {
-            url: correctMinioUrl(midia.url),
-            mime_type: mimeType,
-            thumbnail_url: midia.thumbnail_url ? correctMinioUrl(midia.thumbnail_url) : null,
-          };
-        }
-
-        // Caso contrário, faz upload para o MinIO
-        const uploadedMidia = await uploadToMinIO(
-          midia.buffer,
-          midia.fileName,
-          midia.mimeType
-        );
-
-        return {
-          url: correctMinioUrl(uploadedMidia.url),
-          mime_type: uploadedMidia.mime_type,
-          thumbnail_url: null, // Não temos thumbnail para uploads diretos aqui
-        };
-      })
-    );
-
-    console.log("[AgendamentoService] Mídias processadas:", midiasData);
-
-    // Cria o agendamento no Prisma
+    // Cria o agendamento no banco de dados
     const agendamento = await prisma.agendamento.create({
       data: {
         userId: data.userId,
         accountId: data.accountId,
         Data: data.Data,
-        Descricao: data.Descricao || "",
+        Descricao: data.Descricao,
         Facebook: data.Facebook || false,
         Instagram: data.Instagram || false,
         Linkedin: data.Linkedin || false,
@@ -112,23 +79,51 @@ export async function createAgendamento(data: CreateAgendamentoDTO): Promise<Age
         Randomizar: data.Randomizar || false,
         TratarComoUnicoPost: data.TratarComoUnicoPost || false,
         TratarComoPostagensIndividuais: data.TratarComoPostagensIndividuais || false,
-        midias: {
-          create: midiasData.map(midia => ({
-            url: midia.url,
-            mime_type: midia.mime_type || "application/octet-stream", // Garante um valor padrão
-            thumbnail_url: midia.thumbnail_url,
-          })),
-        },
-      },
-      include: {
-        midias: true,
       },
     });
 
-    console.log("[AgendamentoService] Agendamento criado com sucesso:", agendamento.id);
+    console.log(`[AgendamentoService] Agendamento criado: ${agendamento.id}`);
+
+    // Processa e salva as mídias
+    const midiasPromises = data.midias.map(async (midia) => {
+      let url = midia.url;
+      let thumbnail_url = midia.thumbnail_url;
+
+      // Se não tiver URL, faz upload para o MinIO
+      if (!url) {
+        const uploadResult = await uploadToMinIO(midia.buffer, midia.fileName, midia.mimeType);
+        url = uploadResult.url;
+        // Não temos thumbnail automática no upload atual
+      }
+
+      // Cria o registro da mídia no banco
+      return prisma.midia.create({
+        data: {
+          agendamentoId: agendamento.id,
+          url,
+          mime_type: midia.mimeType,
+          thumbnail_url: thumbnail_url || null,
+          contador: 0,
+        },
+      });
+    });
+
+    // Aguarda todas as mídias serem processadas
+    const midias = await Promise.all(midiasPromises);
+    console.log(`[AgendamentoService] ${midias.length} mídias salvas para o agendamento ${agendamento.id}`);
+
+    // Agenda o job na fila BullMQ
+    await scheduleAgendamentoJob({
+      id: agendamento.id,
+      Data: agendamento.Data,
+      userId: agendamento.userId,
+      accountId: agendamento.accountId,
+      Diario: agendamento.Diario,
+    });
+
     return agendamento;
   } catch (error) {
-    console.error("[AgendamentoService] Erro ao criar agendamento:", error);
+    console.error('[AgendamentoService] Erro ao criar agendamento:', error);
     throw error;
   }
 }
@@ -250,79 +245,93 @@ export async function getAgendamentosByAccount(accountId: string): Promise<Agend
  * Atualiza um agendamento
  */
 export async function updateAgendamento(id: string, data: UpdateAgendamentoDTO): Promise<Agendamento> {
-  console.log("[AgendamentoService] Atualizando agendamento:", id, data);
-
   try {
-    // Se houver novas mídias, primeiro exclui as antigas
-    if (data.midias && data.midias.length > 0) {
-      await prisma.midia.deleteMany({
-        where: { agendamentoId: id },
-      });
+    // Busca o agendamento atual
+    const existingAgendamento = await prisma.agendamento.findUnique({
+      where: { id },
+      include: { midias: true },
+    });
 
-      // Prepara os dados para criar as novas mídias
-      const midiaCreateData = {
-        create: data.midias.map(midia => ({
-          url: correctMinioUrl(midia.url),
-          mime_type: midia.mime_type || inferMimeTypeFromUrl(midia.url),
-          thumbnail_url: midia.thumbnail_url ? correctMinioUrl(midia.thumbnail_url) : null,
-        })),
-      };
-
-      // Atualiza o agendamento com as novas mídias
-      const agendamento = await prisma.agendamento.update({
-        where: { id },
-        data: {
-          ...(data.Data !== undefined && { Data: data.Data }),
-          ...(data.Descricao !== undefined && { Descricao: data.Descricao }),
-          ...(data.Facebook !== undefined && { Facebook: data.Facebook }),
-          ...(data.Instagram !== undefined && { Instagram: data.Instagram }),
-          ...(data.Linkedin !== undefined && { Linkedin: data.Linkedin }),
-          ...(data.X !== undefined && { X: data.X }),
-          ...(data.Stories !== undefined && { Stories: data.Stories }),
-          ...(data.Reels !== undefined && { Reels: data.Reels }),
-          ...(data.PostNormal !== undefined && { PostNormal: data.PostNormal }),
-          ...(data.Diario !== undefined && { Diario: data.Diario }),
-          ...(data.Randomizar !== undefined && { Randomizar: data.Randomizar }),
-          ...(data.TratarComoUnicoPost !== undefined && { TratarComoUnicoPost: data.TratarComoUnicoPost }),
-          ...(data.TratarComoPostagensIndividuais !== undefined && { TratarComoPostagensIndividuais: data.TratarComoPostagensIndividuais }),
-          midias: midiaCreateData,
-        },
-        include: {
-          midias: true,
-        },
-      });
-
-      console.log("[AgendamentoService] Agendamento atualizado com sucesso:", agendamento.id);
-      return agendamento;
-    } else {
-      // Se não houver novas mídias, apenas atualiza os outros campos
-      const agendamento = await prisma.agendamento.update({
-        where: { id },
-        data: {
-          ...(data.Data !== undefined && { Data: data.Data }),
-          ...(data.Descricao !== undefined && { Descricao: data.Descricao }),
-          ...(data.Facebook !== undefined && { Facebook: data.Facebook }),
-          ...(data.Instagram !== undefined && { Instagram: data.Instagram }),
-          ...(data.Linkedin !== undefined && { Linkedin: data.Linkedin }),
-          ...(data.X !== undefined && { X: data.X }),
-          ...(data.Stories !== undefined && { Stories: data.Stories }),
-          ...(data.Reels !== undefined && { Reels: data.Reels }),
-          ...(data.PostNormal !== undefined && { PostNormal: data.PostNormal }),
-          ...(data.Diario !== undefined && { Diario: data.Diario }),
-          ...(data.Randomizar !== undefined && { Randomizar: data.Randomizar }),
-          ...(data.TratarComoUnicoPost !== undefined && { TratarComoUnicoPost: data.TratarComoUnicoPost }),
-          ...(data.TratarComoPostagensIndividuais !== undefined && { TratarComoPostagensIndividuais: data.TratarComoPostagensIndividuais }),
-        },
-        include: {
-          midias: true,
-        },
-      });
-
-      console.log("[AgendamentoService] Agendamento atualizado com sucesso:", agendamento.id);
-      return agendamento;
+    if (!existingAgendamento) {
+      throw new Error(`Agendamento não encontrado: ${id}`);
     }
+
+    // Prepara os dados para atualização
+    const updateData: any = {};
+
+    // Atualiza apenas os campos fornecidos
+    if (data.Data !== undefined) updateData.Data = data.Data;
+    if (data.Descricao !== undefined) updateData.Descricao = data.Descricao;
+    if (data.Facebook !== undefined) updateData.Facebook = data.Facebook;
+    if (data.Instagram !== undefined) updateData.Instagram = data.Instagram;
+    if (data.Linkedin !== undefined) updateData.Linkedin = data.Linkedin;
+    if (data.X !== undefined) updateData.X = data.X;
+    if (data.Stories !== undefined) updateData.Stories = data.Stories;
+    if (data.Reels !== undefined) updateData.Reels = data.Reels;
+    if (data.PostNormal !== undefined) updateData.PostNormal = data.PostNormal;
+    if (data.Diario !== undefined) updateData.Diario = data.Diario;
+    if (data.Randomizar !== undefined) updateData.Randomizar = data.Randomizar;
+    if (data.TratarComoUnicoPost !== undefined) updateData.TratarComoUnicoPost = data.TratarComoUnicoPost;
+    if (data.TratarComoPostagensIndividuais !== undefined) updateData.TratarComoPostagensIndividuais = data.TratarComoPostagensIndividuais;
+
+    // Atualiza o agendamento
+    const updatedAgendamento = await prisma.agendamento.update({
+      where: { id },
+      data: updateData,
+    });
+
+    // Se houver mídias para atualizar
+    if (data.midias && data.midias.length > 0) {
+      // Obtém IDs das mídias existentes
+      const existingMidiaIds = existingAgendamento.midias.map((m) => m.id);
+
+      // Identifica mídias a serem mantidas
+      const midiasToKeep = data.midias.filter((m) => m.id && existingMidiaIds.includes(m.id));
+
+      // Identifica IDs das mídias a serem mantidas
+      const midiasToKeepIds = midiasToKeep.map((m) => m.id!);
+
+      // Remove mídias que não estão na lista de mídias a manter
+      await prisma.midia.deleteMany({
+        where: {
+          agendamentoId: id,
+          id: { notIn: midiasToKeepIds },
+        },
+      });
+
+      // Adiciona novas mídias
+      const newMidias = data.midias.filter((m) => !m.id);
+      for (const midia of newMidias) {
+        await prisma.midia.create({
+          data: {
+            agendamentoId: id,
+            url: midia.url,
+            mime_type: midia.mime_type,
+            thumbnail_url: midia.thumbnail_url,
+            contador: 0,
+          },
+        });
+      }
+    }
+
+    // Se a data foi alterada, reagenda o job
+    if (data.Data !== undefined) {
+      // Cancela o job existente
+      await cancelAgendamentoJob(id);
+
+      // Agenda um novo job com a nova data
+      await scheduleAgendamentoJob({
+        id: updatedAgendamento.id,
+        Data: updatedAgendamento.Data,
+        userId: updatedAgendamento.userId,
+        accountId: updatedAgendamento.accountId,
+        Diario: updatedAgendamento.Diario,
+      });
+    }
+
+    return updatedAgendamento;
   } catch (error) {
-    console.error("[AgendamentoService] Erro ao atualizar agendamento:", error);
+    console.error('[AgendamentoService] Erro ao atualizar agendamento:', error);
     throw error;
   }
 }
@@ -332,12 +341,17 @@ export async function updateAgendamento(id: string, data: UpdateAgendamentoDTO):
  */
 export async function deleteAgendamento(id: string): Promise<void> {
   try {
+    // Cancela o job na fila
+    await cancelAgendamentoJob(id);
+
+    // Exclui o agendamento (as mídias serão excluídas em cascata)
     await prisma.agendamento.delete({
       where: { id },
     });
-    console.log("[AgendamentoService] Agendamento excluído com sucesso:", id);
+
+    console.log(`[AgendamentoService] Agendamento ${id} excluído com sucesso`);
   } catch (error) {
-    console.error("[AgendamentoService] Erro ao excluir agendamento:", error);
+    console.error(`[AgendamentoService] Erro ao excluir agendamento ${id}:`, error);
     throw error;
   }
 }
@@ -450,17 +464,6 @@ export async function prepareWebhookData(agendamentoId: string): Promise<any> {
       throw new Error(`Agendamento não encontrado: ${agendamentoId}`);
     }
 
-    // Seleciona a mídia para envio
-    const midia = await selectMidiaForSending(agendamentoId);
-    if (!midia) {
-      throw new Error(`Nenhuma mídia disponível para o agendamento: ${agendamentoId}`);
-    }
-
-    console.log(`[AgendamentoService] Preparando webhook para agendamento ${agendamentoId} com mídia ${midia.id}`);
-
-    // Corrige a URL da mídia para usar o endpoint correto
-    const correctedUrl = correctMinioUrl(midia.url);
-
     // Usa a conta associada diretamente ao agendamento
     const instagramAccount = agendamento.account;
 
@@ -469,17 +472,30 @@ export async function prepareWebhookData(agendamentoId: string): Promise<any> {
       ? instagramAccount.expires_at * 1000 < Date.now()
       : false;
 
+    let midia = null;
+    let allMidias = null;
+
+    // Se for para tratar como postagens individuais, seleciona apenas uma mídia
+    if (agendamento.TratarComoPostagensIndividuais) {
+      midia = await selectMidiaForSending(agendamentoId);
+      if (!midia) {
+        throw new Error(`Nenhuma mídia disponível para o agendamento: ${agendamentoId}`);
+      }
+      console.log(`[AgendamentoService] Preparando webhook para agendamento ${agendamentoId} com mídia única ${midia.id}`);
+    } else {
+      // Se não for para tratar como postagens individuais, envia todas as mídias
+      allMidias = agendamento.midias;
+      console.log(`[AgendamentoService] Preparando webhook para agendamento ${agendamentoId} com ${allMidias.length} mídias para carrossel`);
+    }
+
     // Prepara os dados para o webhook
-    const webhookData = {
+    const webhookData: any = {
       id: agendamento.id,
       userId: agendamento.userId,
       userName: agendamento.user.name,
       userEmail: agendamento.user.email,
       descricao: agendamento.Descricao,
       data: agendamento.Data.toISOString(),
-      midiaUrl: correctedUrl, // Usa a URL corrigida
-      midiaMimeType: midia.mime_type,
-      midiaThumbnailUrl: midia.thumbnail_url ? correctMinioUrl(midia.thumbnail_url) : null,
       instagram: agendamento.Instagram,
       facebook: agendamento.Facebook,
       linkedin: agendamento.Linkedin,
@@ -497,14 +513,44 @@ export async function prepareWebhookData(agendamentoId: string): Promise<any> {
       igUsername: instagramAccount.igUsername,
     };
 
-    console.log(`[AgendamentoService] Webhook preparado para agendamento ${agendamentoId}:`, {
-      id: webhookData.id,
-      midiaUrl: webhookData.midiaUrl,
-      midiaMimeType: webhookData.midiaMimeType,
-      stories: webhookData.stories,
-      reels: webhookData.reels,
-      postNormal: webhookData.postNormal,
-    });
+    // Se for para tratar como postagens individuais, adiciona apenas uma mídia
+    if (agendamento.TratarComoPostagensIndividuais && midia) {
+      webhookData.midiaUrl = correctMinioUrl(midia.url);
+      webhookData.midiaMimeType = midia.mime_type;
+      webhookData.midiaThumbnailUrl = midia.thumbnail_url ? correctMinioUrl(midia.thumbnail_url) : null;
+    } else if (allMidias && allMidias.length > 0) {
+      // Se não for para tratar como postagens individuais, adiciona todas as mídias
+      webhookData.midias = allMidias.map(m => ({
+        url: correctMinioUrl(m.url),
+        mime_type: m.mime_type,
+        thumbnail_url: m.thumbnail_url ? correctMinioUrl(m.thumbnail_url) : null,
+      }));
+
+      // Mantém também o campo midiaUrl para compatibilidade, usando a primeira mídia
+      webhookData.midiaUrl = correctMinioUrl(allMidias[0].url);
+      webhookData.midiaMimeType = allMidias[0].mime_type;
+      webhookData.midiaThumbnailUrl = allMidias[0].thumbnail_url ? correctMinioUrl(allMidias[0].thumbnail_url) : null;
+    }
+
+    // Log dos dados do webhook
+    if (agendamento.TratarComoPostagensIndividuais) {
+      console.log(`[AgendamentoService] Webhook preparado para agendamento ${agendamentoId} (postagem individual):`, {
+        id: webhookData.id,
+        midiaUrl: webhookData.midiaUrl,
+        midiaMimeType: webhookData.midiaMimeType,
+        stories: webhookData.stories,
+        reels: webhookData.reels,
+        postNormal: webhookData.postNormal,
+      });
+    } else {
+      console.log(`[AgendamentoService] Webhook preparado para agendamento ${agendamentoId} (carrossel):`, {
+        id: webhookData.id,
+        totalMidias: webhookData.midias?.length || 0,
+        stories: webhookData.stories,
+        reels: webhookData.reels,
+        postNormal: webhookData.postNormal,
+      });
+    }
 
     return webhookData;
   } catch (error) {
