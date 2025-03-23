@@ -1,5 +1,14 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
+# Arquivos de ambiente (exceto exemplos)
+#.env
+#.env.local
+#.env.development
+#.env.production
+
+# Permitir apenas o arquivo de exemplo
+!.env.example
+
 # dependencies
 /node_modules
 /.pnp
@@ -27,11 +36,10 @@ yarn-error.log*
 
 # local env files
 .env*.local
-.env
+
 # vercel
 .vercel
-docker-compose.yml
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
-prod.env

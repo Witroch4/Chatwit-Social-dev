@@ -119,7 +119,24 @@ async function handleCommentChange(value: any, igUserId: string) {
       const senderId = from.id;
       let lead = await prisma.lead.findUnique({ where: { igSenderId: senderId } });
       if (!lead) {
-        lead = await prisma.lead.create({ data: { igSenderId: senderId } });
+        // Primeiro buscamos a conta pelo igUserId
+        const account = await prisma.account.findFirst({
+          where: { 
+            provider: "instagram",
+            igUserId: igUserId
+          }
+        });
+        
+        if (!account) {
+          throw new Error(`Conta não encontrada para igUserId=${igUserId}`);
+        }
+        
+        lead = await prisma.lead.create({ 
+          data: { 
+            igSenderId: senderId, 
+            accountId: account.id
+          } 
+        });
       }
       let la = await prisma.leadAutomacao.findUnique({
         where: {
@@ -205,7 +222,24 @@ async function handleMessageEvent(msgEvt: any, igUserId: string) {
 
       let lead = await prisma.lead.findUnique({ where: { igSenderId: senderId } });
       if (!lead) {
-        lead = await prisma.lead.create({ data: { igSenderId: senderId } });
+        // Primeiro buscamos a conta pelo igUserId
+        const account = await prisma.account.findFirst({
+          where: { 
+            provider: "instagram",
+            igUserId: igUserId
+          }
+        });
+        
+        if (!account) {
+          throw new Error(`Conta não encontrada para igUserId=${igUserId}`);
+        }
+        
+        lead = await prisma.lead.create({ 
+          data: { 
+            igSenderId: senderId, 
+            accountId: account.id
+          } 
+        });
       }
 
       let la = await prisma.leadAutomacao.findUnique({
@@ -321,8 +355,6 @@ async function handleMessageEvent(msgEvt: any, igUserId: string) {
     console.error("[handleMessageEvent] erro:", err.message);
   }
 }
-
-
 
 /**
  * Envia mensagem pedindo para seguir com quick reply ("Estou seguindo").

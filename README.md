@@ -67,3 +67,39 @@ Para desenvolvedores que desejam contribuir ou personalizar o sistema, oferecemo
 - **API Documentada**: Endpoints bem documentados para integração com outros sistemas.
 - **Arquitetura Modular**: Código organizado que facilita a manutenção e extensão.
 
+## Configuração de Ambiente
+
+O projeto utiliza diferentes arquivos de ambiente para desenvolvimento e produção:
+
+1. **`.env.example`**: Modelo com variáveis necessárias para execução do projeto.
+   
+2. **`.env.development`**: Usado para desenvolvimento local com Docker.
+   - Contém configurações específicas para ambiente de desenvolvimento.
+   - Usado automaticamente pelo docker-compose.yml.
+
+3. **`.env.production`**: Usado em ambiente de produção.
+
+4. **`.env`** e **`.env.local`**: Arquivos usados para configurações específicas do ambiente ou sobreposições.
+
+### Preparando o ambiente de desenvolvimento
+
+Para configurar o ambiente de desenvolvimento:
+
+1. Copie o arquivo `.env.example` para `.env.development`
+   ```bash
+   cp .env.example .env.development
+   ```
+
+2. Edite o arquivo `.env.development` e adicione os valores apropriados.
+
+3. Execute o projeto usando Docker:
+   ```bash
+   docker-compose up
+   ```
+
+### Observações importantes
+
+- As variáveis de ambiente do tipo `NEXT_PUBLIC_*` são expostas no cliente.
+- Nunca comite arquivos `.env`, `.env.local`, `.env.development` ou `.env.production` no repositório.
+- Utilize apenas o `.env.example` como modelo para configuração.
+

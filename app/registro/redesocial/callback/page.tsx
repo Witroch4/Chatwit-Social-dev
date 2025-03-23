@@ -13,6 +13,7 @@ function CallbackPageInner() {
   const [status, setStatus] = useState<"loading" | "success" | "error">("loading");
   const [message, setMessage] = useState<string>("");
   const [isMainAccount, setIsMainAccount] = useState<boolean>(false);
+  const [username, setUsername] = useState<string>("");
 
   useEffect(() => {
     if (!searchParams) return;
@@ -21,10 +22,15 @@ function CallbackPageInner() {
     const error = searchParams.get("error");
     const errorReason = searchParams.get("error_reason");
     const errorDescription = searchParams.get("error_description");
+    const accountAlreadyConnected = searchParams.get("error") === "account_already_connected";
 
-    if (error) {
+    if (error || accountAlreadyConnected) {
       setStatus("error");
-      setMessage(errorDescription || errorReason || "Ocorreu um erro durante a autorização. Tente novamente.");
+      if (accountAlreadyConnected) {
+        setMessage("Esta conta do Instagram já está conectada a outro usuário.");
+      } else {
+        setMessage(errorDescription || errorReason || "Ocorreu um erro durante a autorização. Tente novamente.");
+      }
       return;
     }
 
@@ -37,6 +43,7 @@ function CallbackPageInner() {
     // Enviar o código para a API
     const connectAccount = async () => {
       try {
+        console.log("Enviando código para API de conexão:", code);
         const response = await fetch("/api/auth/instagram/connect", {
           method: "POST",
           headers: {
@@ -46,13 +53,21 @@ function CallbackPageInner() {
         });
 
         const data = await response.json();
+        console.log("Resposta da API de conexão:", data);
 
-        if (response.ok) {
+        if (response.ok && data.success) {
           setStatus("success");
           setMessage("Conta do Instagram conectada com sucesso!");
+          if (data.username) {
+            setUsername(data.username);
+          }
+          
+          // Verificar se é a conta principal
+          setIsMainAccount(data.isMain || false);
+          
           // Redirecionar para o dashboard após 2 segundos
           setTimeout(() => {
-            router.push(`/${data.accountId}/dashboard`);
+            router.push(`/${data.providerAccountId}/dashboard`);
           }, 2000);
         } else {
           setStatus("error");
@@ -98,6 +113,9 @@ function CallbackPageInner() {
           </AlertTitle>
           <AlertDescription className="text-center text-green-700 dark:text-green-400">
             {message}
+            {username && (
+              <p className="mt-1 font-medium">@{username}</p>
+            )}
             {isMainAccount && (
               <div className="flex justify-center mt-1">
                 <Badge

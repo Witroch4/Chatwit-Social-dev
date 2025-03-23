@@ -1,0 +1,328 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { 
+  Card, 
+  CardContent, 
+  CardHeader, 
+  CardTitle,
+  CardDescription,
+  CardFooter
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { useToast } from "@/components/ui/use-toast";
+import { RefreshCw, Search, Info, ChevronDown, BarChart, X } from "lucide-react";
+import { LeadsTabs } from "./components/leads-tabs";
+import { LeadsDashboard } from "./components/dashboard";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
+export default function LeadsChatwitPage() {
+  const [isLoading, setIsLoading] = useState(true);
+  const { toast } = useToast();
+  const [searchQuery, setSearchQuery] = useState("");
+  const [stats, setStats] = useState({
+    totalLeads: 0,
+    totalUsuarios: 0,
+    totalArquivos: 0,
+    pendentes: 0
+  });
+  const [showDashboard, setShowDashboard] = useState(false);
+  const [filterPeriod, setFilterPeriod] = useState("ultimos7");
+  const [refreshCounter, setRefreshCounter] = useState(0);
+
+  useEffect(() => {
+    fetchStats();
+  }, [filterPeriod, refreshCounter]);
+
+  const fetchStats = async () => {
+    setIsLoading(true);
+    try {
+      const response = await fetch("/api/admin/leads-chatwit/stats");
+      const data = await response.json();
+      
+      if (response.ok) {
+        setStats(data.stats);
+      } else {
+        throw new Error(data.error || "Erro ao buscar estatísticas");
+      }
+    } catch (error: any) {
+      console.error("Erro ao buscar estatísticas:", error);
+      toast({
+        title: "Erro",
+        description: error.message || "Não foi possível carregar as estatísticas",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleRefresh = () => {
+    setRefreshCounter(prev => prev + 1);
+    
+    toast({
+      title: "Atualizando",
+      description: "Atualizando dados dos leads...",
+    });
+  };
+
+  const toggleDashboard = () => {
+    setShowDashboard(prev => !prev);
+  };
+
+  return (
+    <div className="max-w-screen-2xl mx-auto px-4 py-6 space-y-6">
+      {/* Cabeçalho */}
+      <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
+        <div>
+          <h1 className="text-3xl font-bold">Gerenciamento de Leads do Chatwit</h1>
+          <p className="text-muted-foreground mt-1">
+            Gerencie leads recebidos via webhook, unifique PDFs e converta documentos
+          </p>
+        </div>
+        
+        <div className="flex items-center gap-2">
+          <Select 
+            defaultValue="ultimos7" 
+            value={filterPeriod}
+            onValueChange={setFilterPeriod}
+          >
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Filtrar por período" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="hoje">Hoje</SelectItem>
+              <SelectItem value="ultimos7">Últimos 7 dias</SelectItem>
+              <SelectItem value="ultimos30">Últimos 30 dias</SelectItem>
+              <SelectItem value="todos">Todos</SelectItem>
+            </SelectContent>
+          </Select>
+          
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button 
+                  variant="outline" 
+                  onClick={handleRefresh}
+                  disabled={isLoading}
+                >
+                  {isLoading ? (
+                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                  )}
+                  Atualizar
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Atualizar dados dos leads</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+          
+          <Sheet>
+            <SheetTrigger asChild>
+              <Button variant="outline">
+                <Info className="h-4 w-4 mr-2" />
+                Ajuda
+              </Button>
+            </SheetTrigger>
+            <SheetContent>
+              <SheetHeader>
+                <SheetTitle>Sistema de Gerenciamento de Leads</SheetTitle>
+                <SheetDescription>
+                  Instruções para utilização do sistema de leads do Chatwit
+                </SheetDescription>
+              </SheetHeader>
+              <div className="mt-6 space-y-4">
+                <div>
+                  <h3 className="text-lg font-semibold">Cadastro de Leads</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Os leads são automaticamente cadastrados através do webhook enviado pelo Chatwit.
+                  </p>
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold">Unificação de PDFs</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Clique em "Unificar" para juntar todos os arquivos PDF do lead em um único documento.
+                    O arquivo será salvo no MinIO após a unificação.
+                  </p>
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold">Conversão para Imagens</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Após unificar, você pode converter o PDF em imagens clicando no botão "Converter em Imagens".
+                    As imagens serão salvas no MinIO automaticamente.
+                  </p>
+                </div>
+              </div>
+            </SheetContent>
+          </Sheet>
+        </div>
+      </div>
+      
+      {/* Cards de Estatísticas */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">Total de Leads</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {isLoading ? (
+              <div className="h-12 w-16 bg-muted animate-pulse rounded-md" />
+            ) : (
+              <>
+                <div className="text-2xl font-bold">{stats.totalLeads}</div>
+                <p className="text-xs text-muted-foreground">Todos os leads cadastrados</p>
+              </>
+            )}
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">Usuários</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {isLoading ? (
+              <div className="h-12 w-16 bg-muted animate-pulse rounded-md" />
+            ) : (
+              <>
+                <div className="text-2xl font-bold">{stats.totalUsuarios}</div>
+                <p className="text-xs text-muted-foreground">Usuários com leads</p>
+              </>
+            )}
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">Arquivos</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {isLoading ? (
+              <div className="h-12 w-16 bg-muted animate-pulse rounded-md" />
+            ) : (
+              <>
+                <div className="text-2xl font-bold">{stats.totalArquivos}</div>
+                <p className="text-xs text-muted-foreground">Total de arquivos recebidos</p>
+              </>
+            )}
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">Pendentes</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {isLoading ? (
+              <div className="h-12 w-16 bg-muted animate-pulse rounded-md" />
+            ) : (
+              <>
+                <div className="text-2xl font-bold">{stats.pendentes}</div>
+                <p className="text-xs text-muted-foreground">Leads não concluídos</p>
+              </>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+      
+      {/* Dashboard / Relatórios */}
+      {showDashboard && (
+        <Card className="shadow-md">
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle>Dashboard de Leads</CardTitle>
+                <CardDescription>
+                  Visualize estatísticas e gráficos de desempenho
+                </CardDescription>
+              </div>
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                onClick={toggleDashboard}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          </CardHeader>
+          
+          <CardContent>
+            <LeadsDashboard isOpen={showDashboard} />
+          </CardContent>
+        </Card>
+      )}
+      
+      {/* Card com a lista de leads */}
+      <Card className="shadow-md">
+        <CardHeader className="pb-2">
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Gerenciamento de Leads Chatwit</CardTitle>
+              <CardDescription>
+                Visualize, gerencie e processe leads recebidos via webhook
+              </CardDescription>
+            </div>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="gap-1"
+              onClick={toggleDashboard}
+            >
+              <BarChart className="h-4 w-4" />
+              <span>Relatórios</span>
+              <ChevronDown className="h-3 w-3 opacity-50" />
+            </Button>
+          </div>
+        </CardHeader>
+
+        <CardContent className="overflow-auto">
+          <div className="mb-4">
+            <div className="relative">
+              <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar por nome, telefone ou usuário..."
+                className="pl-8" 
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <LeadsTabs 
+            isLoading={isLoading} 
+            searchQuery={searchQuery} 
+            refreshCounter={refreshCounter}
+          />
+        </CardContent>
+        
+        <CardFooter className="border-t px-6 py-3 text-xs text-muted-foreground">
+          Os dados são atualizados automaticamente quando novos leads são recebidos via webhook.
+        </CardFooter>
+      </Card>
+    </div>
+  );
+}

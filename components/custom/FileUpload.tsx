@@ -179,30 +179,38 @@ export default function FileUpload({ uploadedFiles, setUploadedFiles }: FileUplo
         },
       });
 
-      // Atualizar o arquivo com as informações retornadas pelo MinIO
-      setUploadedFiles((prev) =>
-        prev.map((file) =>
-          file.id === uploadedFile.id
-            ? {
-                ...file,
-                progress: 100,
-                url: response.data.url,
-                thumbnail_url: response.data.thumbnail_url,
-                mime_type: response.data.mime_type,
-                name: response.data.fileName || uploadedFile.file?.name || 'arquivo',
-                original_name: uploadedFile.file?.name || 'arquivo',
-                visible_name: uploadedFile.file?.name || 'arquivo',
-              }
-            : file
-        )
-      );
+      // Verificar se a resposta foi bem-sucedida
+      if (response.data && !response.data.error) {
+        // Atualizar o arquivo com as informações retornadas pelo MinIO
+        setUploadedFiles((prev) =>
+          prev.map((file) =>
+            file.id === uploadedFile.id
+              ? {
+                  ...file,
+                  progress: 100,
+                  url: response.data.url,
+                  thumbnail_url: response.data.thumbnail_url,
+                  mime_type: response.data.mime_type,
+                  name: response.data.fileName || uploadedFile.file?.name || 'arquivo',
+                  original_name: uploadedFile.file?.name || 'arquivo',
+                  visible_name: uploadedFile.file?.name || 'arquivo',
+                }
+              : file
+          )
+        );
 
-      toast(`Upload de ${uploadedFile.file?.name || 'arquivo'} concluído!`, {
-        description: `Arquivo disponível em ${response.data.url}`,
-      });
+        toast(`Upload de ${uploadedFile.file?.name || 'arquivo'} concluído!`, {
+          description: "Arquivo enviado com sucesso.",
+        });
+      } else {
+        throw new Error(response.data.error || "Erro desconhecido no upload");
+      }
     } catch (error: any) {
       console.error(`Erro ao fazer upload de ${uploadedFile.file?.name || 'arquivo'}:`, error);
-      toast(`Erro ao fazer upload de ${uploadedFile.file?.name || 'arquivo'}.`);
+      
+      toast.error(`Erro ao fazer upload de ${uploadedFile.file?.name || 'arquivo'}.`, {
+        description: error.message || "Não foi possível completar o upload.",
+      });
 
       // Remover o arquivo da lista em caso de erro
       setUploadedFiles((prev) => prev.filter((file) => file.id !== uploadedFile.id));

@@ -1,18 +1,51 @@
-FROM node:22-slim
+FROM node:22-slim AS builder
 
 WORKDIR /src
 
-COPY package*.json ./
-COPY prisma ./prisma
+# 1. Atualiza repositórios e instala dependências do sistema (incluindo ImageMagick e Ghostscript)
+RUN apt-get update && apt-get install -y \
+    imagemagick \
+    ghostscript \
+    graphicsmagick \
+    poppler-utils \
+    build-essential \
+    g++ \
+    libvips-dev \
+    && rm -rf /var/lib/apt/lists/*
 
+# 2. Permite a conversão de PDFs pelo ImageMagick modificando a política de segurança.
+#    Se o arquivo de política estiver em /etc/ImageMagick-6/policy.xml, substitui a linha para "read|write".
+#    Caso contrário, tenta /etc/ImageMagick-7/policy.xml.
+RUN if [ -f /etc/ImageMagick-6/policy.xml ]; then \
+      sed -i 's/<policy domain="coder" rights="none" pattern="PDF" \/>/<policy domain="coder" rights="read|write" pattern="PDF" \/>/' /etc/ImageMagick-6/policy.xml && \
+      sed -i 's/<policy domain="coder" rights="none" pattern="PS" \/>/<policy domain="coder" rights="read|write" pattern="PS" \/>/' /etc/ImageMagick-6/policy.xml && \
+      sed -i 's/<policy domain="coder" rights="none" pattern="EPS" \/>/<policy domain="coder" rights="read|write" pattern="EPS" \/>/' /etc/ImageMagick-6/policy.xml && \
+      sed -i 's/<policy domain="coder" rights="none" pattern="XPS" \/>/<policy domain="coder" rights="read|write" pattern="XPS" \/>/' /etc/ImageMagick-6/policy.xml && \
+      sed -i 's/<policy domain="module" rights="none" pattern="{PS,PDF,XPS}" \/>/<policy domain="module" rights="read|write" pattern="{PS,PDF,XPS}" \/>/' /etc/ImageMagick-6/policy.xml && \
+      echo "Política do ImageMagick-6 atualizada"; \
+    elif [ -f /etc/ImageMagick-7/policy.xml ]; then \
+      sed -i 's/<policy domain="coder" rights="none" pattern="PDF" \/>/<policy domain="coder" rights="read|write" pattern="PDF" \/>/' /etc/ImageMagick-7/policy.xml && \
+      sed -i 's/<policy domain="coder" rights="none" pattern="PS" \/>/<policy domain="coder" rights="read|write" pattern="PS" \/>/' /etc/ImageMagick-7/policy.xml && \
+      sed -i 's/<policy domain="coder" rights="none" pattern="EPS" \/>/<policy domain="coder" rights="read|write" pattern="EPS" \/>/' /etc/ImageMagick-7/policy.xml && \
+      sed -i 's/<policy domain="coder" rights="none" pattern="XPS" \/>/<policy domain="coder" rights="read|write" pattern="XPS" \/>/' /etc/ImageMagick-7/policy.xml && \
+      sed -i 's/<policy domain="module" rights="none" pattern="{PS,PDF,XPS}" \/>/<policy domain="module" rights="read|write" pattern="{PS,PDF,XPS}" \/>/' /etc/ImageMagick-7/policy.xml && \
+      echo "Política do ImageMagick-7 atualizada"; \
+    else \
+      echo "Nenhum arquivo de política do ImageMagick encontrado"; \
+    fi
+
+
+# 3. Copia os arquivos de dependências e instala as dependências do Node.
+#    É fundamental copiar também o package-lock.json para o npm ci funcionar.
+COPY package.json package-lock.json ./
+COPY prisma ./prisma/
+RUN npm ci
+
+# 4. Copia o restante do código-fonte para o container.
 COPY . .
-RUN npm install
-RUN npm i @napi-rs/simple-git-linux-x64-gnu
-RUN npx prisma generate
-EXPOSE 3000
 
-RUN apt-get update ; apt-get install -y apparmor-utils
+# 5. Expõe as portas necessárias.
+EXPOSE 3000 4000 5555
 
-#COPY prisma ./prisma
-
-CMD [ "npm", "run", "dev" ]
+# 6. Comando para iniciar a aplicação em modo de desenvolvimento.
+CMD ["npm", "run", "dev"]

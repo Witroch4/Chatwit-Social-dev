@@ -1,17 +1,17 @@
 // app/api/upload/route.ts
 
 import { NextResponse } from 'next/server';
-import { uploadToMinIO } from '@/lib/minio';
-import sharp from 'sharp';
-
-// Função para corrigir a URL do MinIO
-function correctMinioUrl(url: string): string {
-  // Substitui objstore.witdev.com.br por objstoreapi.witdev.com.br
-  return url.replace('objstore.witdev.com.br', 'objstoreapi.witdev.com.br');
-}
+import { uploadToMinIO, correctMinioUrl } from '@/lib/minio';
+import { auth } from '@/auth';
 
 export async function POST(request: Request) {
   try {
+    // Verificar autenticação
+    const session = await auth();
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+    }
+    
     // Extrair o FormData da request
     const formData = await request.formData();
     const file = formData.get('file') as File | null;
@@ -31,49 +31,25 @@ export async function POST(request: Request) {
 
     console.log(`[Upload] Processando arquivo: ${fileName}, tipo: ${mimeType}`);
 
-    // Verifica se é uma imagem para gerar thumbnail
-    let thumbnailResult = null;
+    // Upload do arquivo original para o MinIO com thumbnail automática
+    // A função uploadToMinIO vai gerar a thumbnail internamente
+    const uploadResult = await uploadToMinIO(buffer, fileName, mimeType, true);
 
-    if (mimeType.startsWith('image/')) {
-      try {
-        // Gera thumbnail com 50px de largura (deixar sempre em 50 nao mexer)
-        const thumbnailBuffer = await sharp(buffer)
-          .resize(50, null, { fit: 'inside' })
-          .toBuffer();
-
-        // Nome do arquivo thumbnail
-        const thumbnailName = `thumb_${fileName}`;
-
-        // Upload da thumbnail para o MinIO
-        thumbnailResult = await uploadToMinIO(
-          thumbnailBuffer,
-          thumbnailName,
-          mimeType
-        );
-
-        // Corrige a URL da thumbnail
-        const correctedThumbnailUrl = correctMinioUrl(thumbnailResult.url);
-        console.log(`[Upload] Thumbnail gerada e enviada: ${correctedThumbnailUrl}`);
-      } catch (thumbError) {
-        console.error('Erro ao gerar thumbnail:', thumbError);
-        // Continua com o upload da imagem original mesmo se falhar a thumbnail
-      }
+    // As URLs já estão corretas, pois a função uploadToMinIO agora garante que todas as URLs 
+    // tenham o protocolo HTTPS e usem o endpoint correto.
+    console.log(`[Upload] Arquivo enviado: ${uploadResult.url}`);
+    
+    if (uploadResult.thumbnail_url) {
+      console.log(`[Upload] Thumbnail gerada e enviada: ${uploadResult.thumbnail_url}`);
     }
-
-    // Upload do arquivo original para o MinIO
-    const uploadResult = await uploadToMinIO(buffer, fileName, mimeType);
-
-    // Corrige a URL do arquivo original
-    const correctedUrl = correctMinioUrl(uploadResult.url);
-    console.log(`[Upload] Arquivo enviado: ${correctedUrl}`);
 
     return NextResponse.json(
       {
         fileName,
-        url: correctedUrl,
+        url: uploadResult.url,
         mime_type: uploadResult.mime_type,
         is_image: mimeType.startsWith('image/'),
-        thumbnail_url: thumbnailResult ? correctMinioUrl(thumbnailResult.url) : null,
+        thumbnail_url: uploadResult.thumbnail_url,
         size: buffer.length,
         uploaded_at: new Date().toISOString(),
       },
@@ -89,4 +65,14 @@ export async function POST(request: Request) {
       { status: 500 }
     );
   }
+}
+
+/**
+ * API não permite GET
+ */
+export async function GET() {
+  return NextResponse.json(
+    { error: 'Método não permitido' },
+    { status: 405 }
+  );
 }

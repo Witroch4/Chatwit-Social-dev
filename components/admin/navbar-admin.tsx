@@ -10,7 +10,7 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import { User, LogOut, Settings, HelpCircle, Home } from "lucide-react";
+import { User, LogOut, Settings, HelpCircle, Home, MessageSquare } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { useEffect, useState } from "react";
@@ -35,7 +35,7 @@ const NavbarAdmin = () => {
   return (
     <header className="sticky top-0 left-0 right-0 h-16 border-b bg-background z-40">
       <div className="flex items-center justify-between h-full px-4">
-        <div className="flex items-center">
+        <div className="flex items-center space-x-2">
           <Link href="/admin" className="flex items-center">
             <Button variant="ghost" size="icon" className="h-8 w-8 mr-2">
               <Home className="h-5 w-5" />
@@ -44,6 +44,13 @@ const NavbarAdmin = () => {
             <h1 className="text-xl font-semibold hidden md:block">
               Painel Administrativo
             </h1>
+          </Link>
+          
+          <Link href="/admin/leads-chatwit">
+            <Button variant="ghost" className="hidden md:flex items-center gap-2">
+              <MessageSquare className="h-5 w-5" />
+              <span>Leads Chatwit</span>
+            </Button>
           </Link>
         </div>
 

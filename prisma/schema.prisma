@@ -74,6 +74,10 @@ model Account {
   automacoes        Automacao[]
   user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  // Relações para o chat
+  leads             Lead[]
+  chats             Chat[]
+
   // Novo modelo para Agendamentos
   agendamentos      Agendamento[]
 
@@ -170,9 +174,18 @@ model Lead {
   seguidor    Boolean  @default(false)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  name        String?  // Nome do lead
+  avatar      String?  // URL do avatar do lead
+  lastMessage DateTime? // Data da última mensagem
+  isOnline    Boolean  @default(false) // Status online/offline
+  accountId   String   // ID da conta do Instagram
+  account     Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
 
-  // Relação com LeadAutomacao
+  // Relações
   automacoesLead LeadAutomacao[]
+  chats         Chat[]
+
+  @@index([accountId])
 }
 
 /**
@@ -279,4 +292,93 @@ model Midia {
   createdAt     DateTime    @default(now())
 
   @@index([agendamentoId])
+}
+
+model Chat {
+  id        String   @id @default(cuid())
+  leadId    String
+  lead      Lead     @relation(fields: [leadId], references: [igSenderId], onDelete: Cascade)
+  accountId String
+  account   Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  messages  Message[]
+
+  @@unique([leadId, accountId])
+  @@index([accountId])
+}
+
+model Message {
+  id        String   @id @default(cuid())
+  chatId    String
+  chat      Chat     @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  content   String
+  isFromLead Boolean @default(true) // true = mensagem do lead, false = mensagem do usuário
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([chatId])
+}
+
+// Modelos para o sistema de Gestão de Leads (Chatwit)
+
+model UsuarioChatwit {
+  id            String        @id @default(cuid())
+  userId        Int           // ID do usuário no sistema externo
+  name          String
+  availableName String?
+  accountId     Int
+  accountName   String
+  channel       String        // Ex: "Whatsapp"
+  inboxId       Int?
+  inboxName     String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  // Relação com leads
+  leads         LeadChatwit[]
+}
+
+model LeadChatwit {
+  id                String        @id @default(cuid())
+  sourceId          String        // ID do lead no sistema externo (ex: número de telefone)
+  name              String?
+  nomeReal          String?       // Nome real do lead (editável)
+  phoneNumber       String?
+  email             String?       // Email do lead (editável)
+  thumbnail         String?       // URL da thumbnail
+  concluido         Boolean       @default(false)
+  anotacoes         String?       @db.Text
+  pdfUnificado      String?       // URL do PDF unificado
+  imagensConvertidas String?      // Lista de URLs das imagens convertidas (JSON)
+  leadUrl           String?       // URL para abrir o chat no Chatwit
+  fezRecurso        Boolean       @default(false) // Indica se o lead fez recurso
+  datasRecurso      String?       // Lista de datas de recursos em formato JSON
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  // Relação com usuário
+  usuarioId     String
+  usuario       UsuarioChatwit @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  // Relação com arquivos
+  arquivos      ArquivoLeadChatwit[]
+
+  @@index([usuarioId])
+  @@unique([usuarioId, sourceId]) // Garante que não haja duplicação de lead por usuário
+}
+
+model ArquivoLeadChatwit {
+  id            String      @id @default(cuid())
+  fileType      String      // "image" ou "pdf"
+  dataUrl       String      // URL do arquivo
+  pdfConvertido String?     // URL do PDF convertido (se for imagem)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  // Relação com lead
+  leadId        String
+  lead          LeadChatwit @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@index([leadId])
 }

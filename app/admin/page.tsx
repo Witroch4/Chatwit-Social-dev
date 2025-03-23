@@ -100,6 +100,9 @@ export default function AdminPage() {
           <Button asChild variant="outline">
             <Link href="/admin/notifications">Gerenciar Notificações</Link>
           </Button>
+          <Button asChild variant="outline">
+            <Link href="/admin/leads-chatwit">Gerenciar Leads Chatwit</Link>
+          </Button>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

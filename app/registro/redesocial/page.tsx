@@ -41,8 +41,15 @@ export default function RedeSocialPage() {
   const [sessionChecked, setSessionChecked] = useState(false);
 
   // URL de autorização do Instagram
+  const redirectUri = process.env.NEXT_PUBLIC_INSTAGRAM_REDIRECT_URI || `${window.location.origin}/registro/redesocial/callback`;
+  
+  // Depuração do redirectUri
+  useEffect(() => {
+    console.log(`redirectUri na página de registro: ${redirectUri}`);
+  }, [redirectUri]);
+  
   const instagramAuthUrl = `https://www.instagram.com/oauth/authorize?enable_fb_login=0&force_authentication=1&client_id=${process.env.NEXT_PUBLIC_INSTAGRAM_APP_ID}&redirect_uri=${encodeURIComponent(
-    process.env.NEXT_PUBLIC_INSTAGRAM_REDIRECT_URI || `${window.location.origin}/registro/redesocial/callback`
+    redirectUri
   )}&response_type=code&scope=instagram_business_basic,instagram_business_manage_messages,instagram_business_manage_comments,instagram_business_content_publish`;
 
   // Função para enviar notificação de boas-vindas

@@ -70,8 +70,15 @@ export function AppSidebar() {
   const isLoading = status === "loading";
 
   // URL de autorização com enable_fb_login=0 e force_authentication=1
+  const redirectUri = process.env.NEXT_PUBLIC_INSTAGRAM_REDIRECT_URI!;
+  
+  // Depuração do redirectUri
+  useEffect(() => {
+    console.log(`redirectUri no app-sidebar: ${redirectUri}`);
+  }, [redirectUri]);
+  
   const instagramAuthUrl = `https://www.instagram.com/oauth/authorize?enable_fb_login=0&force_authentication=1&client_id=${process.env.NEXT_PUBLIC_INSTAGRAM_APP_ID}&redirect_uri=${encodeURIComponent(
-    process.env.NEXT_PUBLIC_INSTAGRAM_REDIRECT_URI!
+    redirectUri
   )}&response_type=code&scope=instagram_business_basic,instagram_business_manage_messages,instagram_business_manage_comments,instagram_business_content_publish`;
 
   const isInstagramConnected = !!session?.user?.instagramAccessToken;

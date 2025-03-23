@@ -1,4 +1,4 @@
-version: "3.7"
+
 
 services:
   chatwit_social_app:
@@ -9,13 +9,16 @@ services:
     environment:
       - NODE_ENV=production
       - DATABASE_URL=${DATABASE_URL}
+      - DATABASE_URL_FACEAPP=${DATABASE_URL_FACEAPP}
+      - DATABASE_URL_FACEAPPDEV=${DATABASE_URL_FACEAPPDEV}
       - AUTH_SECRET=${AUTH_SECRET}
-      #- AUTH_LOGIN_REDIRECT=${AUTH_LOGIN_REDIRECT}
+      - AUTH_LOGIN_REDIRECT=${AUTH_LOGIN_REDIRECT}
       - AUTH_TRUST_HOST=${AUTH_TRUST_HOST}
       - INSTAGRAM_SCOPE=${INSTAGRAM_SCOPE}
       - NEXT_PUBLIC_INSTAGRAM_APP_ID=${NEXT_PUBLIC_INSTAGRAM_APP_ID}
       - INSTAGRAM_APP_SECRET=${INSTAGRAM_APP_SECRET}
       - NEXT_PUBLIC_INSTAGRAM_REDIRECT_URI=${NEXT_PUBLIC_INSTAGRAM_REDIRECT_URI}
+      - IG_VERIFY_TOKEN=${IG_VERIFY_TOKEN}
       - IG_GRAPH_API_BASE=${IG_GRAPH_API_BASE}
       - FACEBOOK_CLIENT_ID=${FACEBOOK_CLIENT_ID}
       - FACEBOOK_CLIENT_SECRET=${FACEBOOK_CLIENT_SECRET}
@@ -33,13 +36,12 @@ services:
       - OTP_SUBJECT=${OTP_SUBJECT}
       - RESET_PASSWORD_URL=${RESET_PASSWORD_URL}
       - RESET_PASSWORD_SUBJECT=${RESET_PASSWORD_SUBJECT}
-      - IG_VERIFY_TOKEN=${IG_VERIFY_TOKEN}
       - ROOT_PATH=${ROOT_PATH}
       - BASEROW_TOKEN=${BASEROW_TOKEN}
       - BASEROW_UPLOAD_URL=${BASEROW_UPLOAD_URL}
       - BASEROW_TABLE_ID=${BASEROW_TABLE_ID}
-      - REDIS_HOST=${REDIS_HOST}
-      - REDIS_PORT=${REDIS_PORT}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
       - REDIS_PASSWORD=${REDIS_PASSWORD}
       - REDIS_USE_TLS=${REDIS_USE_TLS}
       - WEBHOOK_URL=${WEBHOOK_URL}
@@ -49,6 +51,15 @@ services:
       - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
       - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}
       - STRIPE_PRICE_ID=${STRIPE_PRICE_ID}
+      - S3AccessKey=${S3AccessKe}
+      - S3SecretKey=${S3SecretKey}
+      - S3Bucket=${S3Bucket}
+      - S3Endpoint=${S3Endpoint}
+      - ILOVEPDF_PUBLIC_KEY=${ILOVEPDF_PUBLIC_KEY}
+      - ILOVEPDF_SECRET_KEY=${ILOVEPDF_SECRET_KEY}
+    volumes:
+      - chatwit_temp:/app/temp
+      ##- chatwit_public:/app
     deploy:
       mode: replicated
       replicas: 1
@@ -83,12 +94,14 @@ services:
 
   worker_agendamento:
     image: witrocha/chatwit-social:latest
-    command: node worker/agendamento.worker.js  # Inicia o worker de agendamento (certifique-se de que o código esteja compilado para JS)
+    command: node dist/worker/agendamento.worker.js  # Caminho atualizado para o arquivo JS compilado
     networks:
       - minha_rede
     environment:
       - NODE_ENV=production
       - DATABASE_URL=${DATABASE_URL}
+      - DATABASE_URL_FACEAPP=${DATABASE_URL_FACEAPP}
+      - DATABASE_URL_FACEAPPDEV=${DATABASE_URL_FACEAPPDEV}
       - AUTH_SECRET=${AUTH_SECRET}
       - AUTH_LOGIN_REDIRECT=${AUTH_LOGIN_REDIRECT}
       - AUTH_TRUST_HOST=${AUTH_TRUST_HOST}
@@ -96,6 +109,7 @@ services:
       - NEXT_PUBLIC_INSTAGRAM_APP_ID=${NEXT_PUBLIC_INSTAGRAM_APP_ID}
       - INSTAGRAM_APP_SECRET=${INSTAGRAM_APP_SECRET}
       - NEXT_PUBLIC_INSTAGRAM_REDIRECT_URI=${NEXT_PUBLIC_INSTAGRAM_REDIRECT_URI}
+      - IG_VERIFY_TOKEN=${IG_VERIFY_TOKEN}
       - IG_GRAPH_API_BASE=${IG_GRAPH_API_BASE}
       - FACEBOOK_CLIENT_ID=${FACEBOOK_CLIENT_ID}
       - FACEBOOK_CLIENT_SECRET=${FACEBOOK_CLIENT_SECRET}
@@ -113,13 +127,12 @@ services:
       - OTP_SUBJECT=${OTP_SUBJECT}
       - RESET_PASSWORD_URL=${RESET_PASSWORD_URL}
       - RESET_PASSWORD_SUBJECT=${RESET_PASSWORD_SUBJECT}
-      - IG_VERIFY_TOKEN=${IG_VERIFY_TOKEN}
       - ROOT_PATH=${ROOT_PATH}
       - BASEROW_TOKEN=${BASEROW_TOKEN}
       - BASEROW_UPLOAD_URL=${BASEROW_UPLOAD_URL}
       - BASEROW_TABLE_ID=${BASEROW_TABLE_ID}
-      - REDIS_HOST=${REDIS_HOST}
-      - REDIS_PORT=${REDIS_PORT}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
       - REDIS_PASSWORD=${REDIS_PASSWORD}
       - REDIS_USE_TLS=${REDIS_USE_TLS}
       - WEBHOOK_URL=${WEBHOOK_URL}
@@ -129,6 +142,15 @@ services:
       - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
       - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}
       - STRIPE_PRICE_ID=${STRIPE_PRICE_ID}
+      - S3AccessKey=${S3AccessKe}
+      - S3SecretKey=${S3SecretKey}
+      - S3Bucket=${S3Bucket}
+      - S3Endpoint=${S3Endpoint}
+      - ILOVEPDF_PUBLIC_KEY=${ILOVEPDF_PUBLIC_KEY}
+      - ILOVEPDF_SECRET_KEY=${ILOVEPDF_SECRET_KEY}
+    volumes:
+      - chatwit_temp:/app/temp
+      #- chatwit_public:/app
     deploy:
       mode: replicated
       replicas: 1
@@ -147,12 +169,14 @@ services:
 
   worker_instagram:
     image: witrocha/chatwit-social:latest
-    command: node worker/instagram-webhook.worker.js  # Inicia o worker do Instagram webhook (certifique-se de que o código esteja compilado para JS)
+    command: node dist/worker/instagram-webhook.worker.js  # Caminho atualizado para o arquivo JS compilado
     networks:
       - minha_rede
     environment:
       - NODE_ENV=production
       - DATABASE_URL=${DATABASE_URL}
+      - DATABASE_URL_FACEAPP=${DATABASE_URL_FACEAPP}
+      - DATABASE_URL_FACEAPPDEV=${DATABASE_URL_FACEAPPDEV}
       - AUTH_SECRET=${AUTH_SECRET}
       - AUTH_LOGIN_REDIRECT=${AUTH_LOGIN_REDIRECT}
       - AUTH_TRUST_HOST=${AUTH_TRUST_HOST}
@@ -160,6 +184,7 @@ services:
       - NEXT_PUBLIC_INSTAGRAM_APP_ID=${NEXT_PUBLIC_INSTAGRAM_APP_ID}
       - INSTAGRAM_APP_SECRET=${INSTAGRAM_APP_SECRET}
       - NEXT_PUBLIC_INSTAGRAM_REDIRECT_URI=${NEXT_PUBLIC_INSTAGRAM_REDIRECT_URI}
+      - IG_VERIFY_TOKEN=${IG_VERIFY_TOKEN}
       - IG_GRAPH_API_BASE=${IG_GRAPH_API_BASE}
       - FACEBOOK_CLIENT_ID=${FACEBOOK_CLIENT_ID}
       - FACEBOOK_CLIENT_SECRET=${FACEBOOK_CLIENT_SECRET}
@@ -177,13 +202,12 @@ services:
       - OTP_SUBJECT=${OTP_SUBJECT}
       - RESET_PASSWORD_URL=${RESET_PASSWORD_URL}
       - RESET_PASSWORD_SUBJECT=${RESET_PASSWORD_SUBJECT}
-      - IG_VERIFY_TOKEN=${IG_VERIFY_TOKEN}
       - ROOT_PATH=${ROOT_PATH}
       - BASEROW_TOKEN=${BASEROW_TOKEN}
       - BASEROW_UPLOAD_URL=${BASEROW_UPLOAD_URL}
       - BASEROW_TABLE_ID=${BASEROW_TABLE_ID}
-      - REDIS_HOST=${REDIS_HOST}
-      - REDIS_PORT=${REDIS_PORT}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
       - REDIS_PASSWORD=${REDIS_PASSWORD}
       - REDIS_USE_TLS=${REDIS_USE_TLS}
       - WEBHOOK_URL=${WEBHOOK_URL}
@@ -193,6 +217,15 @@ services:
       - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
       - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}
       - STRIPE_PRICE_ID=${STRIPE_PRICE_ID}
+      - S3AccessKey=${S3AccessKe}
+      - S3SecretKey=${S3SecretKey}
+      - S3Bucket=${S3Bucket}
+      - S3Endpoint=${S3Endpoint}
+      - ILOVEPDF_PUBLIC_KEY=${ILOVEPDF_PUBLIC_KEY}
+      - ILOVEPDF_SECRET_KEY=${ILOVEPDF_SECRET_KEY}
+    volumes:
+      - chatwit_temp:/app/temp
+      #- chatwit_public:/app
     deploy:
       mode: replicated
       replicas: 1
@@ -209,6 +242,16 @@ services:
         max-size: "10m"
         max-file: "3"
 
+ 
+
+volumes:
+  chatwit_temp:
+    external: true
+    name: chatwit_temp
+  #chatwit_public:
+    ###name: chatwit_public
+
 networks:
   minha_rede:
     external: true
+    name: minha_rede
