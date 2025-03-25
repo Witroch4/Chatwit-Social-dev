@@ -17,13 +17,16 @@ import {
 } from "@/components/ui/context-menu";
 import { ReactNode } from "react";
 
-export type ContextType = 'geral' | 'pdf' | 'imagem' | 'arquivo';
+export type ContextType = 'geral' | 'pdf' | 'imagem' | 'arquivo' | 'manuscrito';
 export type ContextAction = 
   | 'atualizarLista' 
   | 'abrirLead' 
   | 'reunificarArquivos' 
   | 'reconverterImagem' 
-  | 'excluirArquivo';
+  | 'excluirArquivo'
+  | 'reenviarManuscrito'
+  | 'excluirManuscrito'
+  | 'editarManuscrito';
 
 interface LeadContextMenuProps {
   contextType: ContextType;
@@ -70,6 +73,31 @@ export function LeadContextMenu({ contextType, onAction, children, data }: LeadC
               Reconverter para Imagem
             </ContextMenuItem>
             <ContextMenuSeparator />
+          </>
+        )}
+
+        {/* Opções para manuscrito */}
+        {contextType === 'manuscrito' && (
+          <>
+            {data.manuscritoProcessado && (
+              <ContextMenuItem onClick={() => onAction('editarManuscrito', data)}>
+                Editar Manuscrito
+              </ContextMenuItem>
+            )}
+            <ContextMenuItem onClick={() => onAction('reenviarManuscrito', data)}>
+              Reenviar Manuscrito
+            </ContextMenuItem>
+            {data.manuscritoProcessado && (
+              <>
+                <ContextMenuSeparator />
+                <ContextMenuItem 
+                  onClick={() => onAction('excluirManuscrito', data)}
+                  className="text-red-500 focus:text-red-500 focus:bg-red-50"
+                >
+                  Excluir Manuscrito
+                </ContextMenuItem>
+              </>
+            )}
           </>
         )}
 

@@ -4,7 +4,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.instagramWebhookWorker = void 0;
-//worker\instagram-webhook.worker.ts
+//worker\automacao.worker.ts
 const bullmq_1 = require("bullmq");
 const redis_1 = require("../lib/redis");
 const dotenv_1 = __importDefault(require("dotenv"));

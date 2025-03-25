@@ -20,37 +20,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
-
-interface ArquivoLeadChatwit {
-  id: string;
-  fileType: string;
-  dataUrl: string;
-  pdfConvertido?: string | null;
-  createdAt: string;
-}
-
-interface LeadChatwit {
-  id: string;
-  name?: string | null;
-  nomeReal?: string | null;
-  phoneNumber?: string | null;
-  thumbnail?: string | null;
-  sourceId: string;
-  email?: string | null;
-  anotacoes?: string | null;
-  leadUrl?: string | null;
-  usuario: {
-    id: string;
-    name: string;
-    channel: string;
-  };
-  arquivos: ArquivoLeadChatwit[];
-  pdfUnificado?: string | null;
-  concluido: boolean;
-  fezRecurso: boolean;
-  createdAt: string;
-  datasRecurso?: string | null;
-}
+import { LeadChatwit } from "../types";
 
 interface DialogDetalheLeadProps {
   lead: LeadChatwit;
@@ -65,20 +35,20 @@ export function DialogDetalheLead({
   open,
   onOpenChange,
   onEdit,
-  isSaving = false
+  isSaving = false,
 }: DialogDetalheLeadProps) {
   const [editMode, setEditMode] = useState<Record<string, boolean>>({
     nomeReal: false,
     email: false,
     datasRecurso: false,
   });
-  
+
   const [formData, setFormData] = useState({
     nomeReal: lead?.nomeReal || "",
     email: lead?.email || "",
     anotacoes: lead?.anotacoes || "",
     concluido: lead?.concluido || false,
-    fezRecurso: lead?.fezRecurso || false
+    fezRecurso: lead?.fezRecurso || false,
   });
 
   const [datasRecurso, setDatasRecurso] = useState<Date[]>(() => {
@@ -86,29 +56,26 @@ export function DialogDetalheLead({
       return lead?.datasRecurso
         ? JSON.parse(lead.datasRecurso).map((dateStr: string) => new Date(dateStr))
         : [];
-    } catch (error) {
+    } catch {
       return [];
     }
   });
-  
+
   const [showFullImage, setShowFullImage] = useState(false);
   const [editingAnotacoes, setEditingAnotacoes] = useState(false);
   const [showDatasRecurso, setShowDatasRecurso] = useState(false);
-  
+
   const displayName = lead?.name || "Lead sem nome";
-  
+
   function formatCreatedDate() {
     if (!lead?.createdAt) return "Data não disponível";
-
     if (typeof lead.createdAt !== "string" || lead.createdAt.trim() === "") {
       return "Data não disponível";
     }
-
     const date = new Date(lead.createdAt);
     if (isNaN(date.getTime())) {
       return "Data inválida";
     }
-
     return format(date, "dd/MM/yyyy HH:mm", { locale: ptBR });
   }
 
@@ -120,8 +87,20 @@ export function DialogDetalheLead({
   }
 
   async function handleStatusChange(name: string, checked: boolean) {
+    // Atualiza local
     setFormData((prev) => ({ ...prev, [name]: checked }));
-    await onEdit({ id: lead.id, [name]: checked });
+
+    try {
+      // Salva no backend com flag _internal
+      await onEdit({
+        id: lead.id,
+        [name]: checked,
+        _internal: true,
+      });
+    } catch {
+      // Em caso de erro, reverte
+      setFormData((prev) => ({ ...prev, [name]: !checked }));
+    }
   }
 
   function toggleEditMode(field: string) {
@@ -130,15 +109,40 @@ export function DialogDetalheLead({
 
   async function saveField(field: string) {
     if (field === "nomeReal" || field === "email") {
-      await onEdit({ id: lead.id, [field]: formData[field as keyof typeof formData] });
+      try {
+        // Atualiza estado local
+        setFormData((prev) => ({ ...prev, [field]: formData[field as keyof typeof formData] }));
+        // Salva no backend
+        await onEdit({
+          id: lead.id,
+          [field]: formData[field as keyof typeof formData],
+          _internal: true,
+        });
+        // Fecha modo edição
+        setEditMode((prev) => ({ ...prev, [field]: false }));
+      } catch {
+        // Reverte
+        setFormData((prev) => ({ ...prev, [field]: lead[field as keyof typeof lead] || "" }));
+      }
     }
-    setEditMode((prev) => ({ ...prev, [field]: false }));
   }
 
-  // Adiciona uma data de recurso ao array, caso ainda não exista
+  async function handleSaveAnotacoes() {
+    try {
+      const newAnotacoes = formData.anotacoes;
+      await onEdit({
+        id: lead.id,
+        anotacoes: newAnotacoes,
+        _internal: true,
+      });
+      setEditingAnotacoes(false);
+    } catch {
+      setFormData((prev) => ({ ...prev, anotacoes: lead.anotacoes || "" }));
+    }
+  }
+
   async function handleAddRecursoDate(date: Date | undefined) {
     if (!date) return;
-
     const exists = datasRecurso.some(
       (d) =>
         d.getDate() === date.getDate() &&
@@ -150,26 +154,33 @@ export function DialogDetalheLead({
       const newDates = [...datasRecurso, date];
       setDatasRecurso(newDates);
 
-      const datesAsString = JSON.stringify(newDates.map((d) => d.toISOString()));
-      await onEdit({
-        id: lead.id,
-        datasRecurso: datesAsString,
-        fezRecurso: true,
-      });
+      try {
+        await onEdit({
+          id: lead.id,
+          datasRecurso: JSON.stringify(newDates.map((d) => d.toISOString())),
+          fezRecurso: true,
+          _internal: true,
+        });
+      } catch {
+        setDatasRecurso(datasRecurso);
+      }
     }
   }
 
-  // Remove uma data de recurso do array
   async function handleRemoveRecursoDate(index: number) {
     const newDates = datasRecurso.filter((_, i) => i !== index);
     setDatasRecurso(newDates);
 
-    const datesAsString = JSON.stringify(newDates.map((d) => d.toISOString()));
-    await onEdit({
-      id: lead.id,
-      datasRecurso: datesAsString,
-      fezRecurso: newDates.length > 0,
-    });
+    try {
+      await onEdit({
+        id: lead.id,
+        datasRecurso: JSON.stringify(newDates.map((d) => d.toISOString())),
+        fezRecurso: newDates.length > 0,
+        _internal: true,
+      });
+    } catch {
+      setDatasRecurso(datasRecurso);
+    }
   }
 
   function openChatwitChat() {
@@ -185,12 +196,6 @@ export function DialogDetalheLead({
     }
   }
 
-  async function handleSaveAnotacoes() {
-    await onEdit({ id: lead.id, anotacoes: formData.anotacoes });
-    setEditingAnotacoes(false);
-  }
-
-  // Atualiza state se o lead mudar
   useEffect(() => {
     if (lead) {
       setFormData({
@@ -200,13 +205,12 @@ export function DialogDetalheLead({
         concluido: lead.concluido || false,
         fezRecurso: lead.fezRecurso || false,
       });
-
       try {
         const dates = lead.datasRecurso
           ? JSON.parse(lead.datasRecurso).map((dateStr: string) => new Date(dateStr))
           : [];
         setDatasRecurso(dates);
-      } catch (error) {
+      } catch {
         setDatasRecurso([]);
       }
     }
@@ -241,7 +245,7 @@ export function DialogDetalheLead({
           </DialogHeader>
 
           <div className="grid grid-cols-2 gap-6">
-            {/* Coluna da esquerda */}
+            {/* COLUNA ESQUERDA */}
             <div className="space-y-4">
               <div>
                 <div className="text-sm font-medium text-muted-foreground mb-1 flex items-center gap-1">
@@ -256,7 +260,7 @@ export function DialogDetalheLead({
                 </div>
               </div>
 
-              {/* Nome real - edição */}
+              {/* Nome Real (editável) */}
               <div className="flex items-center justify-between">
                 <div className="text-sm font-medium text-muted-foreground mb-1">Nome Real</div>
                 <Button
@@ -286,19 +290,22 @@ export function DialogDetalheLead({
                       e.stopPropagation();
                       saveField("nomeReal");
                     }}
+                    disabled={isSaving}
                   >
-                    Salvar
+                    {isSaving ? "Salvando..." : "Salvar"}
                   </Button>
                 </div>
               ) : (
-                <div>{lead?.nomeReal || "Não informado"}</div>
+                <div>{formData.nomeReal || "Não informado"}</div>
               )}
 
+              {/* Telefone */}
               <div>
                 <div className="text-sm font-medium text-muted-foreground mb-1">Telefone</div>
                 <div>{lead?.phoneNumber || "Não informado"}</div>
               </div>
 
+              {/* WhatsApp */}
               <div>
                 <div className="text-sm font-medium text-muted-foreground mb-1">WhatsApp</div>
                 {lead?.phoneNumber && (
@@ -308,7 +315,7 @@ export function DialogDetalheLead({
                 )}
               </div>
 
-              {/* Email - edição */}
+              {/* Email (editável) */}
               <div className="flex items-center justify-between">
                 <div className="text-sm font-medium text-muted-foreground mb-1">Email</div>
                 <Button
@@ -338,26 +345,28 @@ export function DialogDetalheLead({
                       e.stopPropagation();
                       saveField("email");
                     }}
+                    disabled={isSaving}
                   >
-                    Salvar
+                    {isSaving ? "Salvando..." : "Salvar"}
                   </Button>
                 </div>
               ) : (
                 <div>{formData.email || "Não informado"}</div>
               )}
 
+              {/* Data de criação */}
               <div>
-                <div className="text-sm font-medium text-muted-foreground mb-1">
-                  Data de Criação
-                </div>
+                <div className="text-sm font-medium text-muted-foreground mb-1">Data de Criação</div>
                 <div>{formattedDate}</div>
               </div>
 
+              {/* ID do lead */}
               <div>
                 <div className="text-sm font-medium text-muted-foreground mb-1">ID do Lead</div>
                 <div className="bg-muted px-2 py-1 rounded text-sm font-mono">{lead?.id}</div>
               </div>
 
+              {/* Link para o Chat */}
               <div>
                 <div className="text-sm font-medium text-muted-foreground mb-1">
                   Link para o Chat
@@ -370,7 +379,7 @@ export function DialogDetalheLead({
                 )}
               </div>
 
-              {/* Status Switches */}
+              {/* Switches de status */}
               <div className="pt-2 border-t">
                 <div className="flex items-center gap-2 mb-2">
                   <Switch
@@ -392,7 +401,6 @@ export function DialogDetalheLead({
                     Fez Recurso {formData.fezRecurso ? "Sim" : "Não"}
                   </Label>
                 </div>
-
                 {formData.fezRecurso && (
                   <div className="mt-2">
                     <Button
@@ -408,8 +416,9 @@ export function DialogDetalheLead({
               </div>
             </div>
 
-            {/* Coluna da direita */}
+            {/* COLUNA DIREITA */}
             <div className="space-y-4">
+              {/* Imagem de perfil */}
               <div>
                 <div className="text-sm font-medium text-muted-foreground mb-2">
                   Imagem do Perfil
@@ -440,6 +449,7 @@ export function DialogDetalheLead({
                 )}
               </div>
 
+              {/* Status */}
               <div>
                 <div className="text-sm font-medium text-muted-foreground mb-1">Status</div>
                 <div className="flex gap-2">
@@ -452,6 +462,7 @@ export function DialogDetalheLead({
                 </div>
               </div>
 
+              {/* Datas de recurso */}
               <div className="flex items-center justify-between">
                 <div className="text-sm font-medium text-muted-foreground">Datas dos Recursos</div>
                 {datasRecurso.length > 0 && (
@@ -465,7 +476,6 @@ export function DialogDetalheLead({
                   </Button>
                 )}
               </div>
-
               <div>
                 {datasRecurso.length > 0 ? (
                   <div className="flex flex-wrap gap-2">
@@ -484,7 +494,7 @@ export function DialogDetalheLead({
                 )}
               </div>
 
-              {/* Campo de anotações */}
+              {/* Anotações */}
               <div className="pt-2">
                 <div className="flex items-center justify-between">
                   <div className="text-sm font-medium text-muted-foreground mb-1">Anotações</div>
@@ -584,8 +594,8 @@ export function DialogDetalheLead({
                   mode="single"
                   locale={ptBR}
                   onSelect={handleAddRecursoDate}
-                  showOutsideDays  // <--- adicionados
-                  fixedWeeks       // <--- adicionados
+                  showOutsideDays
+                  fixedWeeks
                   className="rounded-md border"
                 />
               </div>
@@ -628,7 +638,7 @@ export function DialogDetalheLead({
         </DialogContent>
       </Dialog>
 
-      {/* Estilos globais para o calendário (você pode manter ou remover o min-height se desejar) */}
+      {/* Estilos extras para o calendário */}
       <style jsx global>{`
         .calendar-container .rdp-months {
           justify-content: center;
@@ -638,18 +648,9 @@ export function DialogDetalheLead({
           align-items: center;
           justify-content: space-between;
           height: 40px;
-          min-height: 40px;
-          max-height: 40px;
           margin-bottom: 8px;
           padding: 0 8px;
         }
-        .calendar-container .rdp-nav {
-          white-space: nowrap;
-        }
-        /* Se quiser ainda garantir um mínimo de altura, pode manter, mas agora nem deve ser necessário */
-        /* .calendar-container .rdp-table {
-          min-height: 220px;
-        } */
       `}</style>
     </>
   );

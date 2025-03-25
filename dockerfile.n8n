@@ -1,0 +1,12 @@
+# dockerfile.n8n Use a imagem oficial do n8n como base
+FROM n8nio/n8n:1.85.0
+
+# Usuário root para instalar pacotes
+USER root
+
+# Instale o axios ou axios-ntlm
+RUN npm install axios axios-ntlm
+
+# Retorne ao usuário 'node' por razões de segurança
+USER node
+

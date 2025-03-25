@@ -16,12 +16,25 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "@/components/ui/chart";
-import { useToast } from "@/components/ui/use-toast";
+import { toast, useToast } from "@/hooks/use-toast";
+import { ToastAction } from "@/components/ui/toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Area, AreaChart, BarChart, CartesianGrid, XAxis, Bar, Pie, PieChart, Label } from "recharts";
 
 interface DashboardProps {
   isOpen: boolean;
+}
+
+interface ChartData {
+  leadsPorMes: Array<{
+    month: string;
+    leadsTotal: number;
+    leadsConcluidos: number;
+  }>;
+  leadsPorCanal: Array<{
+    channel: string;
+    leads: number;
+  }>;
 }
 
 const areaChartConfig = {
@@ -43,7 +56,7 @@ export function LeadsDashboard({ isOpen }: DashboardProps) {
     totalArquivos: 0,
     pendentes: 0
   });
-  const [chartData, setChartData] = useState({
+  const [chartData, setChartData] = useState<ChartData>({
     leadsPorMes: [],
     leadsPorCanal: []
   });

@@ -55,7 +55,7 @@ app.prepare().then(() => {
     // pois ele não é inicializado pelo Bull Board
     const workerInstagram = spawn(
       "ts-node",
-      ["-r", "tsconfig-paths/register", "worker/instagram-webhook.worker.ts"],
+      ["-r", "tsconfig-paths/register", "worker/automacao.worker.ts"],
       {
         shell: true,
         stdio: "inherit",

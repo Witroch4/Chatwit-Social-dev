@@ -43,7 +43,7 @@ app.prepare().then(() => {
   // Iniciar o processo do worker
   const worker = spawn(
     "ts-node",
-    ["-r", "tsconfig-paths/register", "worker/agendamento.worker.ts"],
+    ["-r", "tsconfig-paths/register", "worker/webhook.worker.ts"],
     {
       stdio: "inherit",
       env: process.env,

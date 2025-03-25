@@ -94,7 +94,7 @@ services:
 
   worker_agendamento:
     image: witrocha/chatwit-social:latest
-    command: node dist/worker/agendamento.worker.js  # Caminho atualizado para o arquivo JS compilado
+    command: node dist/worker/webhook.worker.js  # Caminho atualizado para o arquivo JS compilado
     networks:
       - minha_rede
     environment:
@@ -169,7 +169,7 @@ services:
 
   worker_instagram:
     image: witrocha/chatwit-social:latest
-    command: node dist/worker/instagram-webhook.worker.js  # Caminho atualizado para o arquivo JS compilado
+    command: node dist/worker/automacao.worker.js  # Caminho atualizado para o arquivo JS compilado
     networks:
       - minha_rede
     environment:

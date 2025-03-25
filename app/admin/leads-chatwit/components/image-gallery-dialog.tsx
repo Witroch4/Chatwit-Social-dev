@@ -8,7 +8,8 @@ import {
   DialogFooter
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { useToast } from "@/components/ui/use-toast";
+import { toast, useToast } from "@/hooks/use-toast";
+import { ToastAction } from "@/components/ui/toast";
 import { Download, ExternalLink, ChevronLeft, ChevronRight, RefreshCw, X } from "lucide-react";
 import { downloadImagesAsZip } from "../utils/download-zip";
 

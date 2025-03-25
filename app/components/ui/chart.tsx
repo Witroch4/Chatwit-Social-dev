@@ -4,6 +4,7 @@ import * as React from "react"
 import { useId } from "react"
 import { cn } from "@/lib/utils"
 import { ResponsiveContainer, Tooltip, TooltipProps } from "recharts"
+import { AxisDomain } from "recharts/types/util/types"
 
 export interface ChartConfig {
   [key: string]: {
@@ -12,7 +13,8 @@ export interface ChartConfig {
   }
 }
 
-interface ChartContextValue extends ChartConfig {
+interface ChartContextValue {
+  config: ChartConfig
   hiddenKeys: string[]
   toggleKey: (key: string) => void
 }
@@ -30,7 +32,7 @@ export function ChartContainer({
   maxHeight = 350,
 }: {
   config: ChartConfig
-  children: React.ReactNode
+  children: React.ReactElement
   className?: string
   hideLegend?: boolean
   hideToolbar?: boolean
@@ -51,7 +53,7 @@ export function ChartContainer({
   return (
     <ChartContext.Provider
       value={{
-        ...config,
+        config,
         hiddenKeys,
         toggleKey,
       }}
@@ -94,7 +96,7 @@ export function ChartLegend() {
     throw new Error("ChartLegend should be used within ChartContainer")
   }
 
-  const { hiddenKeys, toggleKey, ...config } = context
+  const { config, hiddenKeys, toggleKey } = context
 
   return (
     <div className="flex items-center gap-4 flex-wrap overflow-x-auto py-1">
@@ -124,17 +126,17 @@ export function ChartLegend() {
   )
 }
 
-export function ChartTooltipContent({
+export function ChartTooltipContent<TValue extends number | string>({
   active,
   payload,
   label,
-  className,
   formatter,
   labelFormatter,
   hideLabel = false,
   indicator = "line",
-}: TooltipProps & {
-  formatter?: (value: number, name: string, entry: any, index: number) => React.ReactNode
+  ...props
+}: TooltipProps<TValue, string> & {
+  formatter?: (value: TValue, name: string, entry: any, index: number) => React.ReactNode
   labelFormatter?: (label: string) => React.ReactNode
   hideLabel?: boolean
   indicator?: "line" | "dot" | "dashed"
@@ -145,15 +147,15 @@ export function ChartTooltipContent({
     throw new Error("ChartTooltipContent should be used within ChartContainer")
   }
 
-  const { hiddenKeys, ...config } = context
+  const { config, hiddenKeys } = context
 
   if (!active || !payload?.length) {
     return null
   }
 
-  const filteredPayload = payload.filter(
+  const filteredPayload = payload?.filter(
     ({ dataKey }) => !hiddenKeys.includes(String(dataKey))
-  )
+  ) || []
 
   if (!filteredPayload.length) {
     return null
@@ -162,8 +164,7 @@ export function ChartTooltipContent({
   return (
     <div
       className={cn(
-        "rounded-lg border bg-background p-2 shadow-md animate-in fade-in-50 data-[side=bottom]:slide-in-from-top-1 data-[side=left]:slide-in-from-right-1 data-[side=right]:slide-in-from-left-1 data-[side=top]:slide-in-from-bottom-1",
-        className
+        "rounded-lg border bg-background p-2 shadow-md animate-in fade-in-50 data-[side=bottom]:slide-in-from-top-1 data-[side=left]:slide-in-from-right-1 data-[side=right]:slide-in-from-left-1 data-[side=top]:slide-in-from-bottom-1"
       )}
     >
       {!hideLabel && (
@@ -173,8 +174,8 @@ export function ChartTooltipContent({
       )}
       <div className="grid gap-0.5">
         {filteredPayload.map(({ value, name, dataKey }, index) => {
-          const formattedValue = formatter
-            ? formatter(value as number, name, payload[index], index)
+          const formattedValue = formatter && typeof value === 'number'
+            ? formatter(value as TValue, name || '', payload[index], index)
             : value
 
           return (

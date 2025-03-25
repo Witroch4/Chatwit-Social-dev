@@ -6,6 +6,9 @@ import log from '@/lib/log';
 
 const prismaClient = new PrismaClient();
 
+// Constante para o nome do bucket do MinIO
+const BUCKET_NAME = process.env.S3Bucket || 'chatwit-social';
+
 // Interface para representar um arquivo
 interface ArquivoDTO {
   id: string;
@@ -169,7 +172,7 @@ export async function DELETE(request: NextRequest) {
               // Importação dinâmica do client MinIO para evitar erros se não estiver disponível
               const { MinioClient } = await import('@/lib/minio');
               const minioClient = new MinioClient();
-              await minioClient.removeObject('leadschatwit', objectName);
+              await minioClient.removeObject(BUCKET_NAME, objectName);
               log.info(`[ArquivoDelete] Arquivo removido do MinIO: ${objectName}`);
             } catch (minioError) {
               log.error(`[ArquivoDelete] Erro ao remover arquivo do MinIO: ${minioError}`);
@@ -209,7 +212,7 @@ export async function DELETE(request: NextRequest) {
               // Importação dinâmica do client MinIO
               const { MinioClient } = await import('@/lib/minio');
               const minioClient = new MinioClient();
-              await minioClient.removeObject('leadschatwit', objectName);
+              await minioClient.removeObject(BUCKET_NAME, objectName);
               log.info(`[ArquivoDelete] PDF unificado removido do MinIO: ${objectName}`);
             } catch (minioError) {
               log.error(`[ArquivoDelete] Erro ao remover PDF unificado do MinIO: ${minioError}`);
@@ -255,7 +258,7 @@ export async function DELETE(request: NextRequest) {
                 // Importação dinâmica do client MinIO
                 const { MinioClient } = await import('@/lib/minio');
                 const minioClient = new MinioClient();
-                await minioClient.removeObject('leadschatwit', objectName);
+                await minioClient.removeObject(BUCKET_NAME, objectName);
                 log.info(`[ArquivoDelete] Imagem convertida removida do MinIO: ${objectName}`);
               } catch (minioError) {
                 log.error(`[ArquivoDelete] Erro ao remover imagem convertida do MinIO: ${minioError}`);

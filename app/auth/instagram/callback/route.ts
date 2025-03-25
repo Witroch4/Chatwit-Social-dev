@@ -155,7 +155,7 @@ export async function GET(request: Request) {
     if (existingAccountWithSameId) {
       if (existingAccountWithSameId.userId !== userId) {
         console.log('Esta conta do Instagram já está conectada a outro usuário.');
-        const baseUrl = process.env.NEXTAUTH_URL || 'https://moved-chigger-randomly.ngrok-free.app';
+        const baseUrl = process.env.NEXTAUTH_URL || 'https://funny-direct-colt.ngrok-free.app';
         return NextResponse.redirect(
           `${baseUrl}/registro/redesocial?error=account_already_connected`
         );
@@ -202,11 +202,11 @@ export async function GET(request: Request) {
     });
 
     if (accountToUse) {
-      const baseUrl = process.env.NEXTAUTH_URL || 'https://moved-chigger-randomly.ngrok-free.app';
+      const baseUrl = process.env.NEXTAUTH_URL || 'https://funny-direct-colt.ngrok-free.app';
       console.log(`Redirecionando para /${accountToUse.providerAccountId}/dashboard`);
       return NextResponse.redirect(`${baseUrl}/${accountToUse.providerAccountId}/dashboard`);
     } else {
-      const baseUrl = process.env.NEXTAUTH_URL || 'https://moved-chigger-randomly.ngrok-free.app';
+      const baseUrl = process.env.NEXTAUTH_URL || 'https://funny-direct-colt.ngrok-free.app';
       console.log('Nenhuma conta encontrada, redirecionando para /registro/redesocial');
       return NextResponse.redirect(`${baseUrl}/registro/redesocial`);
     }

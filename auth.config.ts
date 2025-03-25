@@ -10,6 +10,8 @@ import { findUserbyEmail } from "./services";
 import GitHub from "next-auth/providers/github";
 import Facebook from "next-auth/providers/facebook";
 
+export const runtime = 'nodejs';
+
 export default {
 	providers: [
 	  Credentials({

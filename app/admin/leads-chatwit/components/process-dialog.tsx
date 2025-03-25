@@ -143,21 +143,19 @@ export function ProcessDialog({
       
       // Atualizar progresso
       setProgress(prev => {
-        // Mais lento conforme aproxima-se de 100%
-        const increment = prev < 75 ? Math.random() * 8 + 2 : Math.random() * 3 + 1;
+        // Progresso mais lento e realista
+        const increment = prev < 50 ? 
+          Math.random() * 3 + 1 : // Início mais rápido
+          prev < 85 ? 
+            Math.random() * 1.5 + 0.5 : // Meio mais lento
+            Math.random() * 0.5 + 0.1; // Final bem mais lento
+            
         const newProgress = Math.min(prev + increment, 99);
         
-        // Se completou 100%, finalizar em 1 segundo
+        // Se completou 99%, aguardar confirmação externa
         if (newProgress >= 99 && !isComplete) {
-          setIsComplete(true);
-          setMessageIndex(messages.length - 1);
-          
-          setTimeout(() => {
-            setProgress(100);
-            setTimeout(() => {
-              onClose();
-            }, 1500);
-          }, 1000);
+          // Não finalizar automaticamente, aguardar sinal externo
+          setMessageIndex(messages.length - 2); // Penúltima mensagem
         }
         
         return newProgress;
@@ -176,10 +174,10 @@ export function ProcessDialog({
             const randomIndex = Math.floor(Math.random() * longMessages.length);
             return randomIndex;
           } else {
-            // Incrementar para a próxima mensagem normal, exceto a última (que é mostrada apenas quando completa)
+            // Incrementar para a próxima mensagem normal, exceto a última
             const nextIndex = prev + 1;
             if (nextIndex >= messages.length - 1) {
-              return 0;
+              return messages.length - 2; // Manter na penúltima mensagem
             }
             return nextIndex;
           }
@@ -199,6 +197,18 @@ export function ProcessDialog({
       clearTimeout(timer);
     };
   }, [isOpen, messages.length, longMessages.length, longProcess, isComplete, onClose]);
+  
+  // Efeito para finalizar o progresso quando isComplete for true
+  useEffect(() => {
+    if (isComplete) {
+      setProgress(100);
+      setMessageIndex(messages.length - 1); // Última mensagem
+      const timer = setTimeout(() => {
+        onClose();
+      }, 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [isComplete, messages.length, onClose]);
   
   // Obter a mensagem atual
   const getCurrentMessage = () => {

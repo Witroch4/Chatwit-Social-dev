@@ -9,7 +9,8 @@ import {
   TableRow 
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { useToast } from "@/components/ui/use-toast";
+import { toast, useToast } from "@/hooks/use-toast";
+import { ToastAction } from "@/components/ui/toast";
 import { UsuarioItem } from "./usuario-item";
 import { RefreshCw } from "lucide-react";
 

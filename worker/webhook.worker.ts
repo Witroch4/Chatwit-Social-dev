@@ -1,99 +1,35 @@
-// worker/agendamento.worker.ts
+// worker/webhook.worker.ts
 
-import { Worker, Job } from 'bullmq';
-import axios from 'axios';
+import { Worker } from 'bullmq';
 import dotenv from 'dotenv';
 import { connection } from '@/lib/redis';
-import { prepareWebhookData } from '@/lib/agendamento.service';
-import { scheduleAgendamentoJob, IAgendamentoJobData } from '@/lib/queue/agendamento.queue';
 import { prisma } from '@/lib/prisma';
+import { processAgendamentoTask } from './WebhookWorkerTasks/agendamento.task';
+import { processManuscritoTask } from './WebhookWorkerTasks/manuscrito.task';
+import { MANUSCRITO_QUEUE_NAME } from '@/lib/queue/manuscrito.queue';
 import {
   AUTO_NOTIFICATIONS_QUEUE_NAME,
   IAutoNotificationJobData,
   AutoNotificationType,
   addCheckExpiringTokensJob
 } from '@/lib/queue/instagram-webhook.queue';
-import { Worker as BullMQWorker } from 'bullmq';
 import cron from 'node-cron';
 
 dotenv.config();
 
-const webhookUrl = process.env.WEBHOOK_URL || 'https://default-webhook-url.com';
-
-// Criação do worker de agendamento
+// Worker de agendamento
 const agendamentoWorker = new Worker(
   'agendamento',
-  async (job: Job<IAgendamentoJobData>) => {
-    console.log(`[BullMQ] Processando job de agendamento: ${job.id}`);
-    console.log(`[BullMQ] Dados do job:`, job.data);
-
-    // Extrai o ID do agendamento a partir do baserowId
-    const agendamentoId = job.data.baserowId.split('-').pop() || '';
-
-    try {
-      // Verifica se o agendamento ainda existe no banco
-      const agendamento = await prisma.agendamento.findUnique({
-        where: { id: agendamentoId },
-      });
-
-      if (!agendamento) {
-        console.log(`[BullMQ] Agendamento ${agendamentoId} não encontrado no banco de dados. Job cancelado.`);
-        return { success: false, message: 'Agendamento não encontrado' };
-      }
-
-      // Prepara os dados para o webhook
-      const webhookData = await prepareWebhookData(agendamentoId);
-
-      // Envia o webhook
-      const response = await axios.post(webhookUrl, webhookData, {
-        headers: { 'Content-Type': 'application/json' },
-      });
-
-      console.log(`[BullMQ] Webhook enviado com sucesso para o agendamento ${agendamentoId}. Resposta: ${response.status}`);
-
-      // Se for um agendamento diário, agenda o próximo job para o dia seguinte
-      if (job.data.Diario) {
-        const jobDate = new Date(job.data.Data);
-        const nextDay = new Date(jobDate);
-        nextDay.setDate(nextDay.getDate() + 1);
-
-        console.log(`[BullMQ] Reagendando job diário para: ${nextDay.toISOString()}`);
-
-        // Agenda o próximo job utilizando a função de agendamento com delay
-        await scheduleAgendamentoJob({
-          id: agendamentoId,
-          Data: nextDay,
-          userId: job.data.userID,
-          accountId: job.data.accountId,
-          Diario: true,
-        });
-      }
-
-      return { success: true, message: 'Agendamento processado com sucesso' };
-    } catch (error: any) {
-      console.error(`[BullMQ] Erro ao processar job de agendamento: ${error.message}`);
-      throw error;
-    }
-  },
+  processAgendamentoTask,
   { connection }
 );
 
-// Tratamento de eventos do worker
-agendamentoWorker.on('completed', (job) => {
-  console.log(`[BullMQ] Job ${job.id} concluído com sucesso`);
-});
-
-agendamentoWorker.on('failed', (job, error) => {
-  console.error(`[BullMQ] Job ${job?.id} falhou: ${error.message}`);
-});
-
-export async function initAgendamentoWorker() {
-  console.log('[BullMQ] Worker de agendamento iniciado');
-  return agendamentoWorker;
-}
-
-// Exporta o worker para ser usado em outros lugares
-export { agendamentoWorker };
+// Worker de manuscrito
+const manuscritoWorker = new Worker(
+  MANUSCRITO_QUEUE_NAME,
+  processManuscritoTask,
+  { connection }
+);
 
 // Worker para processar notificações automáticas
 const autoNotificationsWorker = new Worker<IAutoNotificationJobData>(
@@ -121,6 +57,17 @@ const autoNotificationsWorker = new Worker<IAutoNotificationJobData>(
   { connection }
 );
 
+// Tratamento de eventos dos workers
+[agendamentoWorker, manuscritoWorker, autoNotificationsWorker].forEach(worker => {
+  worker.on('completed', (job) => {
+    console.log(`[BullMQ] Job ${job.id} concluído com sucesso`);
+  });
+
+  worker.on('failed', (job, error) => {
+    console.error(`[BullMQ] Job ${job?.id} falhou: ${error.message}`);
+  });
+});
+
 /**
  * Processa notificações de tokens expirando
  */
@@ -128,7 +75,6 @@ async function handleExpiringTokensNotification(data: IAutoNotificationJobData) 
   try {
     console.log('[BullMQ] Verificando tokens expirando...');
 
-    // Busca contas com tokens expirando nos próximos 7 dias
     const sevenDaysFromNow = new Date();
     sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
 
@@ -153,15 +99,12 @@ async function handleExpiringTokensNotification(data: IAutoNotificationJobData) 
 
     console.log(`[BullMQ] Encontradas ${expiringAccounts.length} contas com tokens expirando.`);
 
-    // Processa cada conta
     for (const account of expiringAccounts) {
-      // Calcula dias restantes
       const expiresAt = account.expires_at ? new Date(account.expires_at * 1000) : null;
       if (!expiresAt) continue;
 
       const daysRemaining = Math.ceil((expiresAt.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
 
-      // Cria notificação para o usuário
       await prisma.notification.create({
         data: {
           userId: account.userId,
@@ -188,7 +131,6 @@ export async function initJobs() {
   try {
     console.log('[BullMQ] Inicializando jobs recorrentes...');
 
-    // Verifica tokens expirando diariamente às 8h
     cron.schedule('0 8 * * *', async () => {
       try {
         await addCheckExpiringTokensJob();
@@ -203,22 +145,51 @@ export async function initJobs() {
   }
 }
 
-// Removida a inicialização automática dos jobs recorrentes
-// initJobs().catch(console.error);
+// Exportar a função de inicialização do worker de agendamento
+export async function initAgendamentoWorker() {
+  try {
+    console.log('[BullMQ] Inicializando worker de agendamento...');
+    await agendamentoWorker.waitUntilReady();
+    console.log('[BullMQ] Worker de agendamento inicializado com sucesso');
+  } catch (error) {
+    console.error('[BullMQ] Erro ao inicializar worker de agendamento:', error);
+    throw error;
+  }
+}
+
+// Exportar a função de inicialização do worker de manuscrito
+export async function initManuscritoWorker() {
+  try {
+    console.log('[BullMQ] Inicializando worker de manuscrito...');
+    await manuscritoWorker.waitUntilReady();
+    console.log('[BullMQ] Worker de manuscrito inicializado com sucesso');
+  } catch (error) {
+    console.error('[BullMQ] Erro ao inicializar worker de manuscrito:', error);
+    throw error;
+  }
+}
 
 // Tratamento de encerramento gracioso
 process.on('SIGTERM', async () => {
   console.log('Encerrando workers...');
-  await agendamentoWorker.close();
-  await autoNotificationsWorker.close();
+  await Promise.all([
+    agendamentoWorker.close(),
+    manuscritoWorker.close(),
+    autoNotificationsWorker.close(),
+  ]);
   await prisma.$disconnect();
   process.exit(0);
 });
 
 process.on('SIGINT', async () => {
   console.log('Encerrando workers...');
-  await agendamentoWorker.close();
-  await autoNotificationsWorker.close();
+  await Promise.all([
+    agendamentoWorker.close(),
+    manuscritoWorker.close(),
+    autoNotificationsWorker.close(),
+  ]);
   await prisma.$disconnect();
   process.exit(0);
 });
+
+export { agendamentoWorker, manuscritoWorker, autoNotificationsWorker };

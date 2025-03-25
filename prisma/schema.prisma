@@ -168,7 +168,7 @@ model Automacao {
  * - Remove campos automacaoId, linkSent, waitingForEmail etc.
  */
 model Lead {
-  igSenderId  String   @id
+  igSenderId  String   @id @default(cuid())
   email       String?
   whatsapp    String?
   seguidor    Boolean  @default(false)
@@ -354,6 +354,9 @@ model LeadChatwit {
   leadUrl           String?       // URL para abrir o chat no Chatwit
   fezRecurso        Boolean       @default(false) // Indica se o lead fez recurso
   datasRecurso      String?       // Lista de datas de recursos em formato JSON
+  provaManuscrita   String?       @db.Text // Texto da prova digitalizada
+  manuscritoProcessado Boolean    @default(false) // Indica se o manuscrito foi processado
+  aguardandoManuscrito Boolean    @default(false) // Indica se está aguardando processamento do manuscrito
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
 

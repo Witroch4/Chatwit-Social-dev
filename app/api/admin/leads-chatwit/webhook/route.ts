@@ -1,170 +1,95 @@
 import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
-import { v4 as uuidv4 } from 'uuid';
-import axios from 'axios';
+import { addManuscritoJob } from '@/lib/queue/manuscrito.queue';
 
-// Se já possuir uma instância global do Prisma, utilize-a; caso contrário, crie uma nova.
-export const prisma: PrismaClient = (globalThis as any).prisma || new PrismaClient();
-
-/**
- * Interfaces para os dados esperados no payload.
- */
-interface Usuario {
-  inbox: {
-    id: number;
-    name: string;
-  };
-  account: {
-    id: number;
-    name: string;
-  };
-  channel: string;
-}
-
-interface OrigemLead {
-  source_id: string;
-  name: string;
-  phone_number: string;
-  thumbnail: string;
-  arquivos: Array<{ file_type: string; data_url: string }>;
-  leadUrl: string;
-}
-
-interface WebhookPayload {
-  usuario: Usuario;
-  origemLead: OrigemLead;
-}
+// Criando uma instância do Prisma fora do escopo da rota
+const prisma = new PrismaClient();
 
 /**
  * Handler da rota POST.
  */
 export async function POST(request: Request): Promise<Response> {
   try {
-    console.log("[Webhook Chatwit] Recebendo requisição");
+    console.log("[Webhook] Recebendo requisição POST");
     
-    // Extrair dados do payload
-    const payloadRaw = await request.json();
-    console.log("[Webhook Chatwit] Payload recebido:", JSON.stringify(payloadRaw, null, 2));
+    // Obter o payload completo
+    const webhookData = await request.json();
+    console.log("[Webhook] Dados recebidos:", JSON.stringify(webhookData, null, 2));
     
-    // Verificar se o payload é um array ou um objeto único
-    let payload: WebhookPayload;
-    if (Array.isArray(payloadRaw)) {
-      payload = payloadRaw[0];
-    } else {
-      payload = payloadRaw as WebhookPayload;
-    }
-    
-    // Extrair dados do usuário e do lead
-    const { usuario, origemLead } = payload;
-    
-    // Validação básica
-    if (!usuario?.account?.id || !origemLead?.source_id) {
-      return NextResponse.json(
-        { 
-          error: "Dados incompletos recebidos",
-          receivedData: payload 
-        },
-        { status: 400 }
-      );
-    }
-
-    console.log("[Webhook Chatwit] Dados extraídos:", {
-      usuarioData: usuario,
-      leadData: origemLead
-    });
-
-    // 1. Verificar se o usuário já existe, senão cria
-    let usuarioDb = await prisma.usuarioChatwit.findFirst({
-      where: {
-        userId: Number(usuario.account.id),
-        accountName: usuario.account.name,
-      },
-    });
-
-    if (!usuarioDb) {
-      usuarioDb = await prisma.usuarioChatwit.create({
-        data: {
-          userId: Number(usuario.account.id),
-          name: usuario.account.name,
-          accountId: Number(usuario.account.id),
-          accountName: usuario.account.name,
-          channel: usuario.channel,
-          inboxId: usuario.inbox?.id ? Number(usuario.inbox.id) : undefined,
-          inboxName: usuario.inbox?.name,
-        },
-      });
-      console.log("[Webhook Chatwit] Novo usuário criado:", usuarioDb.id);
-    }
-
-    // 2. Verificar se o lead já existe, senão cria
-    let lead = await prisma.leadChatwit.findFirst({
-      where: {
-        usuarioId: usuarioDb.id,
-        sourceId: origemLead.source_id,
-      },
-    });
-
-    if (!lead) {
-      lead = await prisma.leadChatwit.create({
-        data: {
-          usuarioId: usuarioDb.id,
-          sourceId: origemLead.source_id,
-          name: origemLead.name || "Lead sem nome",
-          phoneNumber: origemLead.phone_number || null,
-          thumbnail: origemLead.thumbnail || null,  // Salvar a URL da thumbnail
-          leadUrl: origemLead.leadUrl,
-        },
-      });
-      console.log("[Webhook Chatwit] Novo lead criado:", lead.id);
-    } else if (!lead.thumbnail && origemLead.thumbnail) {
-      // Atualizar o lead com a thumbnail, caso ele exista mas não tenha thumbnail
-      lead = await prisma.leadChatwit.update({
-        where: { id: lead.id },
-        data: { thumbnail: origemLead.thumbnail }
-      });
-      console.log("[Webhook Chatwit] Thumbnail atualizada para o lead:", lead.id);
-    }
-
-    // 3. Processar anexos, se houver
-    const arquivosIds = [];
-    if (origemLead.arquivos && origemLead.arquivos.length > 0) {
-      for (const arquivo of origemLead.arquivos) {
-        const novoArquivo = await prisma.arquivoLeadChatwit.create({
-          data: {
-            leadId: lead.id,
-            fileType: arquivo.file_type,
-            dataUrl: arquivo.data_url,
-          },
+    // Verificar se é um manuscrito processado
+    if (webhookData.manuscrito && webhookData.textoDAprova) {
+      console.log("[Webhook] Identificado payload de manuscrito processado");
+      
+      // Primeira tentativa: usar o leadID do payload
+      let leadID = webhookData.leadID;
+      
+      // Segunda tentativa: buscar pelo telefone
+      if (!leadID && webhookData.telefone) {
+        console.log("[Webhook] Buscando lead por telefone");
+        const lead = await prisma.leadChatwit.findFirst({
+          where: {
+            phoneNumber: webhookData.telefone
+          }
         });
-        arquivosIds.push(novoArquivo.id);
-        console.log(`[Webhook Chatwit] Novo arquivo adicionado para o lead ${lead.id}, tipo: ${arquivo.file_type}`);
+        
+        if (lead) {
+          leadID = lead.id;
+          console.log("[Webhook] Lead encontrado pelo telefone:", leadID);
+        } else {
+          console.error("[Webhook] Lead não encontrado com o telefone fornecido");
+          return NextResponse.json({
+            success: false,
+            message: "Lead não encontrado com o telefone fornecido",
+          });
+        }
       }
+      
+      if (!leadID) {
+        console.error("[Webhook] Não foi possível identificar o lead");
+        return NextResponse.json({
+          success: false,
+          message: "Não foi possível identificar o lead",
+        });
+      }
+      
+      // Adicionar à fila de processamento
+      await addManuscritoJob({
+        leadID: leadID,
+        textoDAprova: webhookData.textoDAprova
+      });
+      
+      // Atualizar o lead com o texto manuscrito
+      const leadUpdate = await prisma.leadChatwit.update({
+        where: {
+          id: leadID
+        },
+        data: {
+          provaManuscrita: webhookData.textoDAprova,
+          manuscritoProcessado: true,
+          aguardandoManuscrito: false,
+          updatedAt: new Date()
+        }
+      });
+      
+      console.log("[Webhook] Manuscrito adicionado à fila de processamento");
+      return NextResponse.json({
+        success: true,
+        message: "Manuscrito adicionado à fila de processamento",
+      });
     }
-
-    // Buscar o lead completo com todos os relacionamentos para retornar
-    const leadCompleto = await prisma.leadChatwit.findUnique({
-      where: { id: lead.id },
-      include: {
-        usuario: true,
-        arquivos: true
-      }
+    
+    console.log("[Webhook] Payload não identificado como manuscrito");
+    return NextResponse.json({
+      success: false,
+      message: "Payload não identificado como manuscrito",
     });
 
+  } catch (error: any) {
+    console.error("[Webhook] Erro ao processar webhook:", error);
     return NextResponse.json(
-      { 
-        success: true, 
-        leadId: lead.id, 
-        usuarioId: usuarioDb.id,
-        payload: payload, // Incluir o payload recebido
-        leadData: leadCompleto, // Incluir os dados do lead
-        arquivosIds: arquivosIds // IDs dos arquivos criados
+      {
+        error: error.message || "Erro interno ao processar webhook",
       },
-      { status: 200 }
-    );
-  } catch (error) {
-    console.error("[Webhook Chatwit] Erro ao processar webhook:", error);
-    return NextResponse.json(
-      { error: "Erro interno ao processar webhook", errorDetails: error },
       { status: 500 }
     );
   }
@@ -179,3 +104,6 @@ export async function GET(request: Request): Promise<Response> {
     { status: 200 }
   );
 }
+
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';

@@ -11,10 +11,12 @@ import {
 } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
-import { useToast } from "@/components/ui/use-toast";
+import { toast, useToast } from "@/hooks/use-toast";
+import { ToastAction } from "@/components/ui/toast";
 import { LeadItem } from "./lead-item";
-import { RefreshCw, FileUp } from "lucide-react";
+import { RefreshCw, FileUp, Edit3 } from "lucide-react";
 import { DialogDetalheLead } from "./dialog-detalhe-lead";
+import { LeadChatwit } from "../types";
 
 interface LeadsListProps {
   searchQuery: string;
@@ -24,7 +26,7 @@ interface LeadsListProps {
 }
 
 export function LeadsList({ searchQuery, onRefresh, initialLoading, refreshCounter = 0 }: LeadsListProps) {
-  const [leads, setLeads] = useState<any[]>([]);
+  const [leads, setLeads] = useState<LeadChatwit[]>([]);
   const [selectedLeads, setSelectedLeads] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isUnifying, setIsUnifying] = useState(false);
@@ -37,7 +39,7 @@ export function LeadsList({ searchQuery, onRefresh, initialLoading, refreshCount
     totalPages: 0,
   });
   const [detailsOpen, setDetailsOpen] = useState(false);
-  const [currentLead, setCurrentLead] = useState<any>(null);
+  const [currentLead, setCurrentLead] = useState<LeadChatwit | null>(null);
 
   const { toast } = useToast();
 
@@ -72,6 +74,11 @@ export function LeadsList({ searchQuery, onRefresh, initialLoading, refreshCount
         title: "Erro",
         description: "Não foi possível carregar os leads. Tente novamente.",
         variant: "destructive",
+        action: (
+          <ToastAction altText="Tentar novamente" onClick={fetchLeads}>
+            Tentar novamente
+          </ToastAction>
+        ),
       });
     } finally {
       setIsLoading(false);
@@ -186,8 +193,8 @@ export function LeadsList({ searchQuery, onRefresh, initialLoading, refreshCount
       return;
     }
     
-    // Se for uma edição interna (flag _internal = true), não abrimos o diálogo novamente
-    if (lead._internal) {
+    // Se for uma edição interna (flag _internal = true) ou tiver _skipDialog, não abrimos o diálogo
+    if (lead._internal || lead._skipDialog) {
       handleSaveLead(lead);
       return;
     }
@@ -215,23 +222,23 @@ export function LeadsList({ searchQuery, onRefresh, initialLoading, refreshCount
       });
 
       if (response.ok) {
-        // Se forçar atualização ou não for uma edição interna, recarregar a lista completa
-        if (forceUpdate || !isInternalEdit || leadData._refresh) {
-          fetchLeads(); 
-        }
-        
-        // Se for apenas um refresh, atualizar o item específico na lista
-        else if (leadData._refresh) {
-          // Buscar dados atualizados para este lead específico
-          const responseItem = await fetch(`/api/admin/leads-chatwit/leads?id=${leadData.id}`);
-          const dataItem = await responseItem.json();
+        // Se for uma edição interna, apenas atualizar o lead atual sem recarregar tudo
+        if (isInternalEdit && !forceUpdate) {
+          // Atualizar apenas o lead atual no estado
+          setLeads(prevLeads => 
+            prevLeads.map(lead => 
+              lead.id === leadData.id ? { ...lead, ...dataToSend } : lead
+            )
+          );
           
-          if (responseItem.ok && dataItem.lead) {
-            // Atualizar apenas este item na lista
-            setLeads(prevLeads => prevLeads.map(lead => 
-              lead.id === leadData.id ? dataItem.lead : lead
-            ));
+          // Atualizar o currentLead também para manter o dialog sincronizado
+          if (currentLead && currentLead.id === leadData.id) {
+            setCurrentLead((prev: LeadChatwit | null) => prev ? { ...prev, ...dataToSend } : null);
           }
+        } 
+        // Se forçar atualização ou não for uma edição interna, recarregar a lista completa
+        else if (forceUpdate || !isInternalEdit) {
+          fetchLeads();
         }
         
         return Promise.resolve();
@@ -265,6 +272,100 @@ export function LeadsList({ searchQuery, onRefresh, initialLoading, refreshCount
       setSelectedLeads(prev => [...prev, id]);
     } else {
       setSelectedLeads(prev => prev.filter(leadId => leadId !== id));
+    }
+  };
+
+  const handleDigitarManuscrito = async (lead: any) => {
+    try {
+      // Obter as imagens convertidas
+      let imagensConvertidas: string[] = [];
+      if (lead.imagensConvertidas) {
+        try {
+          imagensConvertidas = JSON.parse(lead.imagensConvertidas);
+        } catch (error) {
+          console.error("Erro ao processar URLs de imagens convertidas:", error);
+        }
+      }
+
+      // Se não houver imagens no campo imagensConvertidas, buscar dos arquivos
+      if (!imagensConvertidas || imagensConvertidas.length === 0) {
+        imagensConvertidas = lead.arquivos
+          .filter((a: { pdfConvertido: string | null }) => a.pdfConvertido)
+          .map((a: { pdfConvertido: string }) => a.pdfConvertido)
+          .filter((url: string | null) => url && url.length > 0);
+      }
+
+      // Preparar os dados para enviar ao webhook
+      const webhookData = {
+        lead_chatwit: true,// Campo booleano para identificação
+        manuscrito: true, // Campo booleano para identificação
+        id: lead.id,
+        nome: lead.nomeReal || lead.name || "Lead sem nome",
+        email: lead.email,
+        telefone: lead.phoneNumber,
+        status: lead.status,
+        data_criacao: lead.createdAt,
+        usuario: {
+          id: lead.usuario.id,
+          nome: lead.usuario.name,
+          email: lead.usuario.email,
+          channel: lead.usuario.channel
+        },
+        arquivos: lead.arquivos.map((a: { id: string; dataUrl: string; fileType: string }) => ({
+          id: a.id,
+          url: a.dataUrl,
+          tipo: a.fileType,
+          nome: a.fileType
+        })),
+        arquivos_pdf: lead.pdfUnificado ? [{
+          id: lead.id,
+          url: lead.pdfUnificado,
+          nome: "PDF Unificado"
+        }] : [],
+        arquivos_imagens: imagensConvertidas.map((url: string, index: number) => ({
+          id: `${lead.id}-img-${index}`,
+          url: url,
+          nome: `Página ${index + 1}`
+        })),
+        recursos: lead.datasRecurso ? JSON.parse(lead.datasRecurso).map((data: string, index: number) => ({
+          id: `${lead.id}-recurso-${index}`,
+          tipo: "recurso",
+          status: "realizado",
+          data_criacao: data
+        })) : [],
+        observacoes: lead.anotacoes || "",
+        metadata: {
+          leadUrl: lead.leadUrl,
+          sourceId: lead.sourceId,
+          concluido: lead.concluido,
+          fezRecurso: lead.fezRecurso
+        }
+      };
+
+      const response = await fetch("/api/admin/leads-chatwit/webhook", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(webhookData),
+      });
+
+      if (response.ok) {
+        toast({
+          title: "Sucesso",
+          description: "Solicitação de digitação enviada com sucesso!",
+        });
+      } else {
+        const data = await response.json();
+        throw new Error(data.error || "Erro ao enviar solicitação de digitação");
+      }
+    } catch (error: any) {
+      console.error("Erro ao enviar solicitação de digitação:", error);
+      toast({
+        title: "Erro",
+        description: error.message || "Não foi possível enviar a solicitação de digitação. Tente novamente.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -322,6 +423,7 @@ export function LeadsList({ searchQuery, onRefresh, initialLoading, refreshCount
                 <TableHead className="w-[150px]">Arquivos</TableHead>
                 <TableHead className="w-[80px]">PDF</TableHead>
                 <TableHead className="w-[80px]">Imagens</TableHead>
+                <TableHead className="w-[100px]">Manuscrito</TableHead>
                 <TableHead className="w-[60px]">Ações</TableHead>
               </TableRow>
             </TableHeader>
@@ -330,13 +432,14 @@ export function LeadsList({ searchQuery, onRefresh, initialLoading, refreshCount
                 <LeadItem
                   key={lead.id}
                   lead={lead}
-                  onUnificarArquivos={handleUnificarArquivos}
-                  onConverterEmImagens={handleConverterEmImagens}
-                  onEdit={handleEditLead}
+                  isSelected={selectedLeads.includes(lead.id)}
+                  onSelect={handleToggleLead}
                   onDelete={handleDeleteLead}
-                  checked={selectedLeads.includes(lead.id)}
-                  onCheckedChange={(checked) => handleToggleLead(lead.id, checked)}
-                  isLoading={isUnifying}
+                  onEdit={handleEditLead}
+                  onUnificar={handleUnificarArquivos}
+                  onConverter={handleConverterEmImagens}
+                  onDigitarManuscrito={handleDigitarManuscrito}
+                  isUnifying={isUnifying}
                   isConverting={isConverting}
                 />
               ))}

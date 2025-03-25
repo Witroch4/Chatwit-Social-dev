@@ -1,4 +1,3 @@
-
 services:
   app:
     container_name: chatwit_dev
@@ -8,9 +7,6 @@ services:
     env_file:
       - .env.development
     environment:
-      # Configurações de ambiente
-      NODE_ENV: development
-      
       # Configurações para detecção de alterações em tempo real
       WATCHPACK_POLLING: "true"
       CHOKIDAR_USEPOLLING: "true"
@@ -18,82 +14,19 @@ services:
       NEXT_WEBPACK_USEPOLLING: "true"
       NEXT_SCRIPT: dev:polling
       
-      # Configurações do ngrok
-      NGROK_HOSTNAME: moved-chigger-randomly.ngrok-free.app
-      NGROK_TOKEN: 2uJh0TVA0MaMIG2Xj5GG7jGu58S_3vtJnw6JadXqKnVSCuYss
-      
-      # Variáveis do Prisma
-      DATABASE_URL: "postgresql://postgres:WITrdN6835yt8roch4WITrdNwit2357ytwqw466tgroch4696WIT@188.245.200.61:5432/faceApp"
-      
-      # Autenticação
-      AUTH_SECRET: "bdb391WnOGDkEq9xGaHzJFeeL+E7M9l72LS1F37Q1Ks="
-      AUTH_LOGIN_REDIRECT: "/registro/redesocial"
-      AUTH_TRUST_HOST: "true"
-      NEXTAUTH_URL: "https://moved-chigger-randomly.ngrok-free.app"
-      
-      # Instagram
-      NEXT_PUBLIC_INSTAGRAM_APP_ID: "977749511089965"
-      INSTAGRAM_APP_SECRET: "df291212321673eb54a19a5668f8a5a5"
-      INSTAGRAM_CLIENT_SECRET: "df291212321673eb54a19a5668f8a5a5"
-      NEXT_PUBLIC_INSTAGRAM_REDIRECT_URI: "https://moved-chigger-randomly.ngrok-free.app/auth/instagram/callback"
-      INSTAGRAM_SCOPE: "instagram_business_basic,instagram_business_manage_messages,instagram_business_manage_comments,instagram_business_content_publish"
-      IG_GRAPH_API_BASE: "https://graph.instagram.com/v21.0"
-      IG_VERIFY_TOKEN: "EAAIaqbt2rHgBO92NRTO2oMot3I8VPQGkJdnIMGVekpa5ebrdpSHfhqPytX0uih1kXLD5EZB0yHUHV5jHa1hryqrZAt8vWpZBpZCMnaLzuqGCjlKfX3mNoUSYbcnClC45md4NF5ZBKrkyZCiYLNtyeg9UgHZA7s4gafEWZCxZC0P9k4MY4Wh0jSiKpFuwVQy9crIZCW"
-      # Google Auth
-      AUTH_GOOGLE_ID: "872490654538-ddj32hbe06oovetcs0aitpt8jhrttc21.apps.googleusercontent.com"
-      AUTH_GOOGLE_SECRET: "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"
-      
-      # Resend
-      AUTH_RESEND_KEY: "re_GGQ4WmEd_Q6bLhpwJ8tZjzTzCp3SXwHgz"
-      NEXT_PUBLIC_URL: "https://moved-chigger-randomly.ngrok-free.app"
-
-      RESEND_EMAIL_FROM: "Witdev <onboarding@resend.dev>"
-      
-      # Verificação de conta
-      VERIFICATION_URL: "/auth/verify-email"
-      VERIFICATION_SUBJECT: "Verificação de E-mail"
-      OTP_SUBJECT: "Seu codigo de verificação"
-      RESET_PASSWORD_URL: "/auth/change-password"
-      RESET_PASSWORD_SUBJECT: "Mudança de senha"
-      
-      # Webhooks e Bull Board
-      WEBHOOK_URL: "https://autofluxofilaapi.witdev.com.br/webhook/5f439037-6e1a-4d53-80ae-1cc0c4633c51"
-      BULL_BOARD_SECRET_TOKEN: "WIt2357111317"
-      BULL_BOARD_PORT: "3005"
-      
-      # Stripe
-      NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: "pk_test_51QoCkdEKzzlTPseQyOqQmZ5tANpqPAuTn9hcaNulHPVOdlrEfGrGS72cpigLeXPaajK5LGD0lHV8AYkIEll9OIBC006fKnOUc6"
-      STRIPE_SECRET_KEY: "sk_test_51QoCkdEKzzlTPseQ7FdJnVUUP3VUuyGhLrAXKb7f3Jn75tRd2hbGsrHKjP3oHYz8gTxG31bLpkzTW1JLXMXRueVd00Byjw8TiL"
-      STRIPE_WEBHOOK_SECRET: "whsec_2TDbd15diSN6QGnOfiwgomWFsZD0XZtW"
-      STRIPE_PRICE_ID: "price_1QoCnpEKzzlTPseQKVlbztRv"
-      
-      # S3
-      S3AccessKey: "WOmhXdGA7q45h6eUd76E"
-      S3SecretKey: "VBFbOh6VMW1flrwyzWS4CoR4dtibpfeSRwYhjkbs"
-      S3Bucket: "chatwit-social"
-      S3Endpoint: "objstoreapi.witdev.com.br"
-      
-      # ILOVEPDF
-      ILOVEPDF_PUBLIC_KEY: "project_public_23efeafb1e47ece0d4aa324fe219d945_hsFOM1f4c018796b6854aa3c80c0f28d8ee5d"
-      ILOVEPDF_SECRET_KEY: "secret_key_52f5e1066a39d6cbcd4676033fd2285f_aiGC72b3cd95a29dc50d3e30df79928fc6a54"
-      
       # Redis (ajuste para apontar para o container redis)
       REDIS_HOST: "redis"
       REDIS_PORT: "6379"
       
     ports:
       - "3000:3000"
-      - "4000:4000"
-      - "5555:5555"
       - "3005:3005" # Porta para o Bull Board
     volumes:
       # Mapeia o repositório local para /src no container
       - .:/src
       # Volume para node_modules
       - node_modules:/src/node_modules
-      # Certificados locais
-      - ./localhost-key.pem:/src/localhost-key.pem
-      - ./localhost.pem:/src/localhost.pem
+
       # Pasta temporária
       - ./temp:/src/temp
     command: sh -c "npm run ${NEXT_SCRIPT:-dev}"
@@ -131,9 +64,11 @@ services:
   ngrok:
     image: ngrok/ngrok:latest
     container_name: chatwit_ngrok
-    command: http app:3000 --domain=moved-chigger-randomly.ngrok-free.app
+    env_file:
+      - .env.development
+    command: http app:3000 --domain=funny-direct-colt.ngrok-free.app
     environment:
-      - NGROK_AUTHTOKEN=2uJh0TVA0MaMIG2Xj5GG7jGu58S_3vtJnw6JadXqKnVSCuYss
+      - NGROK_AUTHTOKEN=2uo7DZcOBaccynlt2Wq8gVULqJ3_36ywaedyqoJRNq1zNRUDf
     networks:
       - minha_rede
     depends_on:

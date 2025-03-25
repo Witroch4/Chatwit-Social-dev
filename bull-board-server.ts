@@ -7,8 +7,8 @@ import { ExpressAdapter } from '@bull-board/express';
 import { agendamentoQueue } from './lib/queue/agendamento.queue';
 import { instagramWebhookQueue, autoNotificationsQueue } from './lib/queue/instagram-webhook.queue';
 import { followUpQueue } from './worker/queues/followUpQueue';
+import { manuscritoQueue } from './lib/queue/manuscrito.queue';
 import { initializeWorkers } from './worker/init';
-import { initAgendamentoWorker } from './worker/agendamento.worker';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -23,7 +23,8 @@ createBullBoard({
     new BullMQAdapter(agendamentoQueue),
     new BullMQAdapter(instagramWebhookQueue),
     new BullMQAdapter(autoNotificationsQueue),
-    new BullMQAdapter(followUpQueue)
+    new BullMQAdapter(followUpQueue),
+    new BullMQAdapter(manuscritoQueue)
   ],
   serverAdapter,
 });
@@ -38,7 +39,7 @@ async function initializeAllWorkers() {
 
   try {
     // Inicializa o worker de agendamento diretamente
-    await initAgendamentoWorker();
+    // await initAgendamentoWorker();
 
     // Inicializa os agendamentos existentes e outros workers
     const result = await initializeWorkers();

@@ -1,6 +1,6 @@
-import { initAgendamentoWorker } from './agendamento.worker';
+import { initAgendamentoWorker, initManuscritoWorker } from './webhook.worker';
 import { initializeExistingAgendamentos } from '@/lib/scheduler-bullmq';
-import { initJobs } from './agendamento.worker';
+import { initJobs } from './webhook.worker';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -14,6 +14,9 @@ export async function initializeWorkers() {
 
     // Inicializa o worker de agendamento (agora é feito no bull-board-server.ts)
     // await initAgendamentoWorker();
+
+    // Inicializa o worker de manuscrito
+    await initManuscritoWorker();
 
     // Inicializa os jobs recorrentes (apenas uma vez)
     await initJobs();
