@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter, usePathname } from 'next/navigation';
-import { Loader2, Bell, Users, LayoutDashboard, ShieldAlert, MessageSquare } from 'lucide-react';
+import { Loader2, Bell, Users, LayoutDashboard, ShieldAlert, MessageSquare, Headphones } from 'lucide-react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -90,6 +90,9 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
       } else if (pathname.includes('/admin/leads-chatwit')) {
         pageTitle = "Gerenciamento de Leads Chatwit";
         icon = <MessageSquare className="h-5 w-5" />;
+      } else if (pathname.includes('/admin/atendimento')) {
+        pageTitle = "Sistema de Atendimento WhatsApp";
+        icon = <Headphones className="h-5 w-5" />;
       }
 
       // Não exibir toast na primeira carga da página principal
@@ -133,6 +136,9 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
           </AdminNavLink>
           <AdminNavLink href="/admin/leads-chatwit" icon={<MessageSquare className="h-5 w-5 mr-3" />}>
             Leads Chatwit
+          </AdminNavLink>
+          <AdminNavLink href="/admin/atendimento" icon={<Headphones className="h-5 w-5 mr-3" />}>
+            Atendimento WhatsApp
           </AdminNavLink>
         </nav>
       </aside>
