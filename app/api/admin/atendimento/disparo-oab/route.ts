@@ -14,7 +14,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
     }
     
-    const { csvData } = await request.json();
+    const { csvData, imageUrl } = await request.json();
     
     if (!csvData) {
       return NextResponse.json(
@@ -44,6 +44,9 @@ export async function POST(request: Request) {
         'Content-Type': 'application/json',
       }
     };
+
+    // URL padrão da imagem caso não seja fornecida
+    const headerImageUrl = imageUrl || 'https://amandasousaprev.adv.br/wp-content/uploads/2024/10/AmandaFOTO.jpg';
 
     // Resultados do envio
     const results = {
@@ -79,7 +82,7 @@ export async function POST(request: Request) {
                   {
                     type: 'image',
                     image: {
-                      link: 'https://amandasousaprev.adv.br/wp-content/uploads/2024/10/AmandaFOTO.jpg',
+                      link: headerImageUrl,
                     },
                   },
                 ],

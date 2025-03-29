@@ -24,6 +24,8 @@ interface Template {
   id: string;
   name: string;
   status: string;
+  category: string;
+  language: string;
 }
 
 interface Contact {
@@ -527,7 +529,7 @@ export default function AtendimentoPage() {
               <CardDescription>
                 Configure as credenciais para acesso à API do WhatsApp Business. Estas configurações serão utilizadas para envio de mensagens e obtenção de templates.
                 {isEnvConfig && (
-                  <Alert variant="warning" className="mt-4 bg-yellow-50 border border-yellow-200">
+                  <Alert variant="default" className="mt-4 bg-yellow-50 border border-yellow-200">
                     <AlertCircle className="h-4 w-4 text-yellow-600" />
                     <AlertTitle className="text-yellow-800">Usando configurações padrão</AlertTitle>
                     <AlertDescription className="text-yellow-700">
@@ -745,7 +747,10 @@ export default function AtendimentoPage() {
                     ) : templates.length > 0 ? (
                       templates.map((template) => (
                         <SelectItem key={template.id} value={template.name}>
-                          {template.name}
+                          {template.name} 
+                          <span className="ml-2 text-xs text-muted-foreground">
+                            ({template.category} - {template.language})
+                          </span>
                         </SelectItem>
                       ))
                     ) : (
@@ -792,64 +797,6 @@ export default function AtendimentoPage() {
                 )}
               </Button>
             </CardFooter>
-            
-            {/* Adicionar seção para disparo de OAB */}
-            <div className="border-t border-border mt-6 pt-6">
-              <h3 className="text-lg font-semibold mb-3">Disparo Específico - Template OAB</h3>
-              <p className="text-sm text-muted-foreground mb-4">
-                Envie mensagens utilizando o template "satisfacao_oab" para os contatos da lista.
-              </p>
-              <Button 
-                onClick={async () => {
-                  if (!csvData) {
-                    toast({
-                      variant: "destructive",
-                      title: "Arquivo CSV não carregado",
-                      description: "Por favor, faça upload de um arquivo CSV com os contatos."
-                    });
-                    return;
-                  }
-                  
-                  try {
-                    setEnviando(true);
-                    setProgresso(10);
-                    
-                    const payload = { csvData };
-                    setProgresso(30);
-                    
-                    const response = await axios.post('/api/admin/atendimento/disparo-oab', payload);
-                    
-                    setProgresso(100);
-                    setResultado(response.data);
-                    
-                    toast({
-                      title: "Disparo OAB concluído",
-                      description: `${response.data.results.enviados} mensagens enviadas de ${response.data.results.total}.`
-                    });
-                  } catch (error: any) {
-                    toast({
-                      variant: "destructive",
-                      title: "Erro no disparo OAB",
-                      description: error.response?.data?.error || "Ocorreu um erro ao enviar as mensagens."
-                    });
-                  } finally {
-                    setEnviando(false);
-                  }
-                }}
-                disabled={!csvData || enviando}
-                variant="outline"
-                className="w-full"
-              >
-                {enviando ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Enviando Template OAB...
-                  </>
-                ) : (
-                  "Iniciar Disparo OAB"
-                )}
-              </Button>
-            </div>
           </Card>
         </TabsContent>
         

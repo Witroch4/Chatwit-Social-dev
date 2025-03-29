@@ -5,10 +5,11 @@ export * from './whatsapp-config';
 export { default as prisma } from '@/lib/prisma';
 
 // Exportar funções úteis da lib
-import { getWhatsAppConfig, getWhatsAppApiUrl, getApiVersion } from './whatsapp-config';
+import { getWhatsAppConfig, getWhatsAppApiUrl, getWhatsAppTemplatesUrl, getApiVersion } from './whatsapp-config';
 
 export {
   getWhatsAppConfig,
   getWhatsAppApiUrl,
+  getWhatsAppTemplatesUrl,
   getApiVersion
 }; 

@@ -751,6 +751,81 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
+        {/* Atendimento WhatsApp */}
+        <Collapsible defaultOpen={false} className="group/collapsible">
+          <SidebarGroup>
+            <div
+              className={`flex items-center justify-center p-2 relative ${
+                state === "collapsed" ? "flex-col space-y-1" : "flex-row"
+              }`}
+            >
+              <CollapsibleTrigger className="flex items-center justify-center cursor-pointer">
+                <Zap
+                  className={`transition-all duration-300 ${
+                    state === "collapsed" ? "mx-auto" : "mr-2"
+                  }`}
+                />
+                {state !== "collapsed" && (
+                  <span className="ml-2 font-medium">Atendimento WhatsApp</span>
+                )}
+                <ChevronDown
+                  className={`ml-auto transition-transform duration-300 ${
+                    state === "collapsed" ? "hidden" : "inline-block"
+                  } group-data-[state=open]/collapsible:rotate-180`}
+                />
+              </CollapsibleTrigger>
+            </div>
+
+            <CollapsibleContent>
+              <SidebarGroupContent className="bg-background">
+                <SidebarMenu>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild>
+                      <Link
+                        href="/admin/atendimento"
+                        className={`flex items-center ${
+                          state === "collapsed" ? "justify-start pl-4" : "justify-start pl-2"
+                        }`}
+                      >
+                        <MessageCircle className="mr-2" />
+                        {state !== "collapsed" && <span>Sistema de Atendimento</span>}
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild>
+                      <Link
+                        href="/admin/disparo-oab"
+                        className={`flex items-center ${
+                          state === "collapsed" ? "justify-start pl-4" : "justify-start pl-2"
+                        }`}
+                      >
+                        <Users className="mr-2" />
+                        {state !== "collapsed" && <span>Disparo Template OAB</span>}
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild>
+                      <Link
+                        href="/admin/templates"
+                        className={`flex items-center ${
+                          state === "collapsed" ? "justify-start pl-4" : "justify-start pl-2"
+                        }`}
+                      >
+                        <HelpCircle className="mr-2" />
+                        {state !== "collapsed" && <span>Documentação Templates</span>}
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </CollapsibleContent>
+          </SidebarGroup>
+        </Collapsible>
+
         {/* Chat ao Vivo */}
         <SidebarGroup>
           <SidebarGroupContent>

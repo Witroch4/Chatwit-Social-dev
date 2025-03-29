@@ -1,16 +1,22 @@
 // Configurações para o sistema de atendimento
 export const atendimentoConfig = {
   // Token da API do WhatsApp (da variável de ambiente)
-  whatsappToken: process.env.WHATSAPP_TOKEN || "EAAGIBII4GXQBO2qgvJ2jdcUmgkdqBo5bUKEanJWmCLpcZAsq0Ovpm4JNlrNLeZAv3OYNrdCqqQBAHfEfPFD0FPnZAOQJURB9GKcbjXeDpa83XdAsa3i6fTr23lBFM2LwUZC23xXrZAnB8QjCCFZBxrxlBvzPj8LsejvUjz0C04Q8Jsl8nTGHUd4ZBRPc4NiHFnc",
+  // ID do App: 431027922671988 - API ZAP WIT
+  // User ID: 122105475986262788
+  // Token com permissões: whatsapp_business_management, whatsapp_business_messaging
+  whatsappToken: process.env.WHATSAPP_TOKEN || "",
   
   // ID da conta de negócios do WhatsApp
-  whatsappBusinessAccountId: process.env.WHATSAPP_BUSINESS_ID || "274633962398273",
+  whatsappBusinessAccountId: process.env.WHATSAPP_BUSINESS_ID || "431027922671988",
   
   // URL da API do WhatsApp
-  whatsappApiUrl: `${process.env.FB_GRAPH_API_BASE || "https://graph.facebook.com/v18.0"}/${process.env.WHATSAPP_BUSINESS_ID || "274633962398273"}/messages`,
+  whatsappApiUrl: `${process.env.FB_GRAPH_API_BASE || "https://graph.facebook.com/v18.0"}/${process.env.WHATSAPP_BUSINESS_ID || "431027922671988"}`,
   
   // Versão da API do WhatsApp
-  whatsappApiVersion: (process.env.FB_GRAPH_API_BASE || "https://graph.facebook.com/v18.0").split('/').pop() || "v18.0",
+  whatsappApiVersion: "v18.0",
+  
+  // API App ID do WhatsApp
+  whatsappAppId: "431027922671988",
   
   // Configurações padrão
   defaultConfig: {
@@ -28,53 +34,13 @@ export const atendimentoConfig = {
     chavePix: "atendimento@amandasousaprev.adv.br",
   },
   
-  // Templates mockados para desenvolvimento
-  mockTemplates: [
-    {
-      id: "12345678901234",
-      name: "satisfacao_oab",
-      status: "APPROVED"
-    },
-    {
-      id: "23456789012345",
-      name: "menu_novo",
-      status: "APPROVED"
-    },
-    {
-      id: "34567890123456",
-      name: "bpc_loas",
-      status: "APPROVED"
-    },
-    {
-      id: "45678901234567",
-      name: "maternidade_novo",
-      status: "APPROVED"
-    },
-    {
-      id: "56789012345678",
-      name: "invalidez",
-      status: "APPROVED"
-    },
-    {
-      id: "67890123456789",
-      name: "auxilio",
-      status: "APPROVED"
-    },
-    {
-      id: "78901234567890",
-      name: "consulta_juridica",
-      status: "APPROVED"
-    },
-    {
-      id: "89012345678901",
-      name: "falar_com_atendente",
-      status: "APPROVED"
-    }
-  ],
+  // Templates mockados para desenvolvimento - removidos para usar apenas dados reais
+  mockTemplates: [],
   
   // ID do usuário administrador (substituir pelo real em produção)
   adminUserId: "admin-user-id",
   
-  // Modo de desenvolvimento (para simulações)
-  isDevelopment: true,
+  // Modo de desenvolvimento - forçando uso de dados reais
+  isDevelopment: false,
+  useRealData: true,
 }; 

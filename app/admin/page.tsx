@@ -106,6 +106,12 @@ export default function AdminPage() {
           <Button asChild variant="default">
             <Link href="/admin/atendimento">Sistema de Atendimento WhatsApp</Link>
           </Button>
+          <Button asChild variant="outline">
+            <Link href="/admin/disparo-oab">Disparo Template OAB</Link>
+          </Button>
+          <Button asChild variant="outline">
+            <Link href="/admin/templates">Documentação de Templates</Link>
+          </Button>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

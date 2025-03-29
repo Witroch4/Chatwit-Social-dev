@@ -25,25 +25,32 @@ export async function getWhatsAppConfig(userId?: string) {
     return {
       whatsappToken: process.env.WHATSAPP_TOKEN || '',
       whatsappBusinessAccountId: process.env.WHATSAPP_BUSINESS_ID || '',
-      fbGraphApiBase: process.env.FB_GRAPH_API_BASE || 'https://graph.facebook.com/v18.0',
+      fbGraphApiBase: 'https://graph.facebook.com/v18.0', // Forçar versão v18.0
       isFromEnv: true
     };
   }
   
-  // Retornamos a configuração do banco de dados
+  // Forçamos a versão v18.0 mesmo para configurações do banco
   return {
     whatsappToken: config.whatsappToken,
     whatsappBusinessAccountId: config.whatsappBusinessAccountId,
-    fbGraphApiBase: config.fbGraphApiBase,
+    fbGraphApiBase: 'https://graph.facebook.com/v18.0', // Forçar versão v18.0
     isFromEnv: false
   };
 }
 
 /**
- * Monta a URL para a API do WhatsApp
+ * Monta a URL para a API do WhatsApp para envio de mensagens
  */
 export function getWhatsAppApiUrl(config: { fbGraphApiBase: string, whatsappBusinessAccountId: string }) {
   return `${config.fbGraphApiBase}/${config.whatsappBusinessAccountId}/messages`;
+}
+
+/**
+ * Monta a URL para a API do WhatsApp para templates
+ */
+export function getWhatsAppTemplatesUrl(config: { fbGraphApiBase: string, whatsappBusinessAccountId: string }) {
+  return `${config.fbGraphApiBase}/${config.whatsappBusinessAccountId}/message_templates`;
 }
 
 /**

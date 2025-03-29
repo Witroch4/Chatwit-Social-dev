@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter, usePathname } from 'next/navigation';
-import { Loader2, Bell, Users, LayoutDashboard, ShieldAlert, MessageSquare, Headphones } from 'lucide-react';
+import { Loader2, Bell, Users, LayoutDashboard, ShieldAlert, MessageSquare, Headphones, HelpCircle } from 'lucide-react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -139,6 +139,12 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
           </AdminNavLink>
           <AdminNavLink href="/admin/atendimento" icon={<Headphones className="h-5 w-5 mr-3" />}>
             Atendimento WhatsApp
+          </AdminNavLink>
+          <AdminNavLink href="/admin/disparo-oab" icon={<Users className="h-5 w-5 mr-3" />}>
+            Disparo OAB
+          </AdminNavLink>
+          <AdminNavLink href="/admin/templates" icon={<HelpCircle className="h-5 w-5 mr-3" />}>
+            Templates WhatsApp
           </AdminNavLink>
         </nav>
       </aside>

@@ -25,14 +25,14 @@ async function getCurrentWhatsAppConfig() {
     return {
       token: process.env.WHATSAPP_TOKEN || '',
       businessId: process.env.WHATSAPP_BUSINESS_ID || '',
-      apiBase: process.env.FB_GRAPH_API_BASE || 'https://graph.facebook.com/v18.0',
+      apiBase: 'https://graph.facebook.com/v18.0', // Forçar versão v18.0
     };
   }
   
   return {
     token: config.whatsappToken,
     businessId: config.whatsappBusinessAccountId,
-    apiBase: config.fbGraphApiBase
+    apiBase: 'https://graph.facebook.com/v18.0', // Forçar versão v18.0
   };
 }
 
