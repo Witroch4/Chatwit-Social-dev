@@ -1,9 +1,24 @@
 import { NextResponse } from 'next/server';
 import axios from 'axios';
-import prisma from '@/lib/prisma';
 import { parse } from 'papaparse';
 import { auth } from '@/auth';
 import { getWhatsAppConfig, getWhatsAppApiUrl } from '@/app/lib';
+import { db } from "@/lib/db";
+import { z } from "zod";
+
+// Função para formatar número de telefone
+function formatPhoneNumber(phone: string): string {
+  // Remover caracteres não numéricos
+  const numbers = phone.replace(/\D/g, '');
+  
+  // Verificar se já tem o código do país (55)
+  if (numbers.startsWith('55') && numbers.length >= 12) {
+    return numbers;
+  }
+  
+  // Adicionar código do país (55)
+  return `55${numbers}`;
+}
 
 // Função para enviar mensagem para um número com um template (versão simulada)
 async function sendTemplateMessage(to: string, templateName: string, parameters: any[] = []): Promise<boolean> {
@@ -81,7 +96,13 @@ async function sendTemplateMessage(to: string, templateName: string, parameters:
         console.log(`[SUCESSO] Template ${templateToUse} enviado para ${to}`, response.data);
         return true;
       } catch (apiError) {
-        console.error(`[ERRO API] Falha ao enviar para ${to}:`, apiError.response?.data || apiError.message);
+        const errorMessage = apiError instanceof Error 
+          ? apiError.message 
+          : 'Erro desconhecido';
+        const errorData = apiError && typeof apiError === 'object' && 'response' in apiError 
+          ? (apiError.response as any)?.data 
+          : undefined;
+        console.error(`[ERRO API] Falha ao enviar para ${to}:`, errorData || errorMessage);
         return false;
       }
     }
@@ -140,150 +161,174 @@ function processCSV(csvContent: string) {
   })).filter((contact: any) => contact.numero);
 }
 
-// Endpoint para disparar mensagens
-export async function POST(request: Request) {
+interface EnvioResult {
+  nome: string;
+  numero: string;
+  status: "enviado" | "falha";
+  erro?: string;
+}
+
+const DisparoSchema = z.object({
+  csvData: z.string(),
+  templateName: z.string(),
+  configuracoes: z.object({
+    variaveis: z.array(z.string())
+  })
+});
+
+export async function POST(req: Request) {
   try {
-    // Verificação de autenticação
+    // Verificar autenticação
     const session = await auth();
     if (!session?.user) {
-      return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
-    }
-    
-    const { csvData, templateName, configuracoes } = await request.json();
-    
-    if (!csvData || !templateName) {
-      return NextResponse.json(
-        { error: 'Dados CSV e nome do template são obrigatórios' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
     }
 
-    // Processar o CSV
-    const contacts = processCSV(csvData);
+    // Verificar se o usuário é admin
+    if (session.user.role !== "ADMIN") {
+      return NextResponse.json({ error: "Sem permissão" }, { status: 403 });
+    }
+
+    // Validar o corpo da requisição
+    const body = await req.json();
+    const validationResult = DisparoSchema.safeParse(body);
+    
+    if (!validationResult.success) {
+      return NextResponse.json({ 
+        error: "Dados inválidos", 
+        details: validationResult.error.errors 
+      }, { status: 400 });
+    }
+
+    const { csvData, templateName, configuracoes } = validationResult.data;
+
+    // Verificar se o template existe
+    const template = await db.whatsAppTemplate.findFirst({
+      where: {
+        name: templateName
+      }
+    });
+
+    if (!template) {
+      return NextResponse.json({ error: "Template não encontrado" }, { status: 404 });
+    }
+
+    // Verificar status do template
+    if (template.status !== "APPROVED") {
+      return NextResponse.json({ 
+        error: "O template selecionado não está aprovado", 
+        status: template.status 
+      }, { status: 400 });
+    }
+
+    // Processar CSV
+    const lines = csvData.split('\n');
+    const contacts: { nome: string; numero: string }[] = [];
+    
+    // Pular cabeçalho
+    for (let i = 1; i < lines.length; i++) {
+      if (!lines[i].trim()) continue;
+      
+      const values = lines[i].split(',');
+      if (values.length >= 2) {
+        contacts.push({
+          nome: values[0].trim(),
+          numero: values[1].trim()
+        });
+      }
+    }
     
     if (contacts.length === 0) {
-      return NextResponse.json(
-        { error: 'Nenhum contato válido encontrado no CSV' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Nenhum contato válido encontrado no CSV" }, { status: 400 });
     }
 
-    // Resultados do envio
-    const results = {
-      total: contacts.length,
-      enviados: 0,
-      falhas: 0,
-      detalhes: [] as any[]
-    };
+    // Limitar número máximo de envios (opcional, ajuste conforme necessário)
+    const MAX_CONTACTS = 1000;
+    if (contacts.length > MAX_CONTACTS) {
+      return NextResponse.json({ 
+        error: `Limite de ${MAX_CONTACTS} contatos excedido. Divida o envio em lotes menores.` 
+      }, { status: 400 });
+    }
 
     // Enviar mensagens para cada contato
+    const results: EnvioResult[] = [];
+    let enviados = 0;
+    let falhas = 0;
+
     for (const contact of contacts) {
       try {
-        // Garante que o número tem o formato correto (com código do país)
-        let numero = contact.numero;
-        if (!numero.startsWith('55')) {
-          numero = '55' + numero;
+        // Formatar número de telefone
+        const formattedNumber = formatPhoneNumber(contact.numero);
+        
+        if (!formattedNumber) {
+          results.push({
+            nome: contact.nome,
+            numero: contact.numero,
+            status: "falha",
+            erro: "Número de telefone inválido"
+          });
+          falhas++;
+          continue;
         }
 
-        // Enviar mensagem
+        // Enviar mensagem usando o template
         const success = await sendTemplateMessage(
-          numero, 
+          formattedNumber, 
           templateName, 
-          [contact.nome] // Parâmetro nome para o template
+          configuracoes.variaveis
         );
 
-        // Registrar resultado
-        if (success) {
-          results.enviados++;
-          results.detalhes.push({
+        if (!success) {
+          results.push({
             nome: contact.nome,
-            numero: contact.numero,
-            status: 'enviado',
+            numero: formattedNumber,
+            status: "falha",
+            erro: "Falha ao enviar mensagem através da API"
           });
-
-          // Em ambiente de produção, salvaríamos no banco de dados
-          if (process.env.NODE_ENV === 'production') {
-            try {
-              // Buscar usuário Chatwit para associar ao lead
-              const usuarioChatwit = await prisma.usuarioChatwit.findFirst({
-                where: { userId: parseInt(session.user.id) }
-              });
-              
-              if (usuarioChatwit) {
-                await prisma.leadChatwit.upsert({
-                  where: {
-                    usuarioId_sourceId: {
-                      usuarioId: usuarioChatwit.id,
-                      sourceId: numero
-                    }
-                  },
-                  update: {
-                    anotacoes: `Envio de template ${templateName} em ${new Date().toISOString()}`
-                  },
-                  create: {
-                    sourceId: numero,
-                    name: contact.nome,
-                    phoneNumber: numero,
-                    anotacoes: `Envio de template ${templateName} em ${new Date().toISOString()}`,
-                    usuarioId: usuarioChatwit.id
-                  }
-                });
-              }
-            } catch (dbError) {
-              console.error('Erro ao salvar lead no banco:', dbError);
-            }
-          }
-        } else {
-          results.falhas++;
-          results.detalhes.push({
-            nome: contact.nome,
-            numero: contact.numero,
-            status: 'falha',
-          });
+          falhas++;
+          continue;
         }
 
-        // Adicionar um pequeno delay para evitar rate limiting
-        await new Promise(resolve => setTimeout(resolve, 200));
-      } catch (error) {
-        console.error(`Erro ao processar contato ${contact.nome}:`, error);
-        results.falhas++;
-        results.detalhes.push({
+        // Log de registro
+        console.log(`[REGISTRO] Mensagem enviada para ${contact.nome} (${formattedNumber}) usando template ${templateName}`);
+
+        results.push({
+          nome: contact.nome,
+          numero: formattedNumber,
+          status: "enviado"
+        });
+        
+        enviados++;
+      } catch (error: any) {
+        console.error(`Erro ao enviar para ${contact.nome} (${contact.numero}):`, error);
+        
+        results.push({
           nome: contact.nome,
           numero: contact.numero,
-          status: 'falha',
-          erro: (error as Error).message
+          status: "falha",
+          erro: error.message || "Erro ao enviar mensagem"
         });
+        
+        falhas++;
       }
+      
+      // Aguardar um pequeno intervalo entre mensagens para evitar throttling
+      await new Promise(resolve => setTimeout(resolve, 100));
     }
 
-    // Em ambiente de produção, registramos notificação
-    if (process.env.NODE_ENV === 'production') {
-      try {
-        await prisma.notification.create({
-          data: {
-            userId: session.user.id,
-            title: `Disparo de WhatsApp - ${templateName}`,
-            message: `Enviadas ${results.enviados} mensagens de ${results.total}. Configurações: ${JSON.stringify(configuracoes)}`,
-          }
-        });
-      } catch (dbError) {
-        console.error('Erro ao criar notificação:', dbError);
-      }
-    }
-
-    // Adicionamos um atraso para simular processamento
-    await new Promise(resolve => setTimeout(resolve, 1000));
-
+    // Retornar resultados
     return NextResponse.json({
       success: true,
-      message: `Disparo concluído. Enviadas ${results.enviados} mensagens de ${results.total}.`,
-      results
+      results: {
+        total: contacts.length,
+        enviados,
+        falhas,
+        detalhes: results
+      }
     });
+
   } catch (error) {
-    console.error('Erro ao disparar mensagens:', error);
-    return NextResponse.json(
-      { error: 'Erro ao disparar mensagens', details: (error as Error).message },
-      { status: 500 }
-    );
+    console.error("Erro ao processar disparo em massa:", error);
+    return NextResponse.json({ error: "Erro ao processar disparo" }, { status: 500 });
   }
 } 

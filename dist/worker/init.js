@@ -4,8 +4,9 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.initializeWorkers = initializeWorkers;
-const agendamento_worker_1 = require("./webhook.worker");
+const webhook_worker_1 = require("./webhook.worker");
 const scheduler_bullmq_1 = require("../lib/scheduler-bullmq");
+const webhook_worker_2 = require("./webhook.worker");
 const dotenv_1 = __importDefault(require("dotenv"));
 dotenv_1.default.config();
 /**
@@ -14,12 +15,16 @@ dotenv_1.default.config();
 async function initializeWorkers() {
     try {
         console.log('[Worker] Inicializando workers...');
-        // Inicializa o worker de agendamento
-        await (0, agendamento_worker_1.initAgendamentoWorker)();
+        // Inicializa o worker de agendamento (agora é feito no bull-board-server.ts)
+        // await initAgendamentoWorker();
+        // Inicializa o worker de manuscrito
+        await (0, webhook_worker_1.initManuscritoWorker)();
+        // Inicializa os jobs recorrentes (apenas uma vez)
+        await (0, webhook_worker_2.initJobs)();
         // Inicializa os agendamentos existentes
         const result = await (0, scheduler_bullmq_1.initializeExistingAgendamentos)();
         console.log(`[Worker] Workers inicializados com sucesso. ${result.count} agendamentos carregados.`);
-        return { success: true };
+        return { success: true, count: result.count };
     }
     catch (error) {
         console.error('[Worker] Erro ao inicializar workers:', error);

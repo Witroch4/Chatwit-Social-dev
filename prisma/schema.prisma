@@ -54,6 +54,9 @@ model User {
   
   // Relação com configurações do WhatsApp
   whatsappConfigs        WhatsAppConfig[]
+  
+  // Relação com templates do WhatsApp
+  whatsappTemplates      WhatsAppTemplate[]
 }
 
 model Account {
@@ -403,3 +406,69 @@ model WhatsAppConfig {
 
   @@index([userId])
 }
+
+// Modelo para armazenar templates do WhatsApp
+model WhatsAppTemplate {
+  id                         String   @id @default(cuid())
+  /// ID retornado pela API do WhatsApp (único na plataforma)
+  templateId                 String
+  
+  /// Nome do template
+  name                       String
+  
+  /// Status do template (APPROVED, REJECTED, PENDING, etc.)
+  status                     String
+  
+  /// Categoria (ex.: UTILITY, MARKETING, AUTHENTICATION, etc.)
+  category                   String
+  
+  /// Subcategoria, se aplicável (ex.: ORDER_DETAILS, ORDER_STATUS, etc.)
+  subCategory                String?
+  
+  /// Idioma do template (ex.: pt_BR, en_US)
+  language                   String
+  
+  /// JSON com os componentes do template (HEADER, BODY, FOOTER, BUTTONS) e exemplos
+  components                 Json
+  
+  /// Qualidade do template (ex.: GREEN, YELLOW, RED, UNKNOWN)
+  qualityScore               String?
+  
+  /// Categoria correta determinada pelo sistema (se houver)
+  correctCategory            String?
+  
+  /// Indica se o rastreamento de links foi desativado no nível do template
+  ctaUrlLinkTrackingOptedOut Boolean?
+  
+  /// Se o template foi criado a partir de uma biblioteca, guarda o nome original
+  libraryTemplateName        String?
+  
+  /// TTL para envio da mensagem (em segundos)
+  messageSendTtlSeconds      Int?
+  
+  /// Formato dos parâmetros (NAMED ou POSITIONAL)
+  parameterFormat            String?
+  
+  /// Categoria anterior do template, se houver (útil para histórico de edições)
+  previousCategory           String?
+  
+  /// Flag para marcar o template como favorito (ex.: para acesso rápido)
+  isFavorite                 Boolean  @default(false)
+  
+  /// Data da última edição (útil para controle de versão)
+  lastEdited                 DateTime?
+  
+  /// Histórico de edições em formato JSON (ex.: [{ editedAt: Date, changes: {...} }, ...])
+  editHistory                Json?
+  
+  createdAt                  DateTime @default(now())
+  updatedAt                  DateTime @updatedAt
+
+  // Relação com o usuário que gerencia o template
+  userId                     String
+  user                       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([name])
+}
+

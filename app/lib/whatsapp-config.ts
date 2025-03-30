@@ -25,16 +25,16 @@ export async function getWhatsAppConfig(userId?: string) {
     return {
       whatsappToken: process.env.WHATSAPP_TOKEN || '',
       whatsappBusinessAccountId: process.env.WHATSAPP_BUSINESS_ID || '',
-      fbGraphApiBase: 'https://graph.facebook.com/v18.0', // Forçar versão v18.0
+      fbGraphApiBase: 'https://graph.facebook.com/v22.0', // Forçar versão v22.0
       isFromEnv: true
     };
   }
   
-  // Forçamos a versão v18.0 mesmo para configurações do banco
+  // Forçamos a versão v22.0 mesmo para configurações do banco
   return {
     whatsappToken: config.whatsappToken,
     whatsappBusinessAccountId: config.whatsappBusinessAccountId,
-    fbGraphApiBase: 'https://graph.facebook.com/v18.0', // Forçar versão v18.0
+    fbGraphApiBase: 'https://graph.facebook.com/v22.0', // Forçar versão v22.0
     isFromEnv: false
   };
 }
@@ -58,5 +58,5 @@ export function getWhatsAppTemplatesUrl(config: { fbGraphApiBase: string, whatsa
  */
 export function getApiVersion(fbGraphApiBase: string) {
   const version = fbGraphApiBase.split('/').pop();
-  return version || 'v18.0';
+  return version || 'v22.0';
 } 

@@ -5,6 +5,8 @@ exports.cancelAgendamentoBullMQ = cancelAgendamentoBullMQ;
 exports.initializeExistingAgendamentos = initializeExistingAgendamentos;
 const prisma_1 = require("../lib/prisma");
 const agendamento_queue_1 = require("../lib/queue/agendamento.queue");
+// Variável para controlar se já inicializamos os agendamentos
+let agendamentosInitialized = false;
 /**
  * Agenda um agendamento no BullMQ
  * @param data Dados do agendamento
@@ -50,6 +52,11 @@ async function cancelAgendamentoBullMQ(agendamentoId) {
  * Deve ser chamado na inicialização do servidor
  */
 async function initializeExistingAgendamentos() {
+    // Evita inicialização duplicada
+    if (agendamentosInitialized) {
+        console.log('[Scheduler] Agendamentos já foram inicializados anteriormente. Ignorando.');
+        return { success: true, count: 0, alreadyInitialized: true };
+    }
     try {
         // Busca todos os agendamentos futuros
         const agendamentos = await prisma_1.prisma.agendamento.findMany({
@@ -71,6 +78,8 @@ async function initializeExistingAgendamentos() {
             });
         }
         console.log('[Scheduler] Todos os agendamentos existentes foram inicializados');
+        // Marca como inicializado
+        agendamentosInitialized = true;
         return { success: true, count: agendamentos.length };
     }
     catch (error) {

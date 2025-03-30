@@ -483,6 +483,9 @@ export default function RedeSocialPage() {
             <p>ID do usuário: {session?.user?.id || "N/A"}</p>
             <p>Contas carregadas: {connectedAccounts.length}</p>
             <p>Estado de carregamento: {isLoading ? "Carregando..." : "Concluído"}</p>
+            <Link href="/admin" className="text-blue-600 hover:underline mt-2 inline-block">
+              Acessar Painel Admin
+            </Link>
             <Button
               onClick={handleForceSessionUpdate}
               variant="outline"

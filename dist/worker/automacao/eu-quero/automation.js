@@ -115,7 +115,22 @@ async function handleCommentChange(value, igUserId) {
             const senderId = from.id;
             let lead = await prisma_1.prisma.lead.findUnique({ where: { igSenderId: senderId } });
             if (!lead) {
-                lead = await prisma_1.prisma.lead.create({ data: { igSenderId: senderId } });
+                // Primeiro buscamos a conta pelo igUserId
+                const account = await prisma_1.prisma.account.findFirst({
+                    where: {
+                        provider: "instagram",
+                        igUserId: igUserId
+                    }
+                });
+                if (!account) {
+                    throw new Error(`Conta não encontrada para igUserId=${igUserId}`);
+                }
+                lead = await prisma_1.prisma.lead.create({
+                    data: {
+                        igSenderId: senderId,
+                        accountId: account.id
+                    }
+                });
             }
             let la = await prisma_1.prisma.leadAutomacao.findUnique({
                 where: {
@@ -195,7 +210,22 @@ async function handleMessageEvent(msgEvt, igUserId) {
             }
             let lead = await prisma_1.prisma.lead.findUnique({ where: { igSenderId: senderId } });
             if (!lead) {
-                lead = await prisma_1.prisma.lead.create({ data: { igSenderId: senderId } });
+                // Primeiro buscamos a conta pelo igUserId
+                const account = await prisma_1.prisma.account.findFirst({
+                    where: {
+                        provider: "instagram",
+                        igUserId: igUserId
+                    }
+                });
+                if (!account) {
+                    throw new Error(`Conta não encontrada para igUserId=${igUserId}`);
+                }
+                lead = await prisma_1.prisma.lead.create({
+                    data: {
+                        igSenderId: senderId,
+                        accountId: account.id
+                    }
+                });
             }
             let la = await prisma_1.prisma.leadAutomacao.findUnique({
                 where: {

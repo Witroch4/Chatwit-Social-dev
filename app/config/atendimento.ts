@@ -7,13 +7,13 @@ export const atendimentoConfig = {
   whatsappToken: process.env.WHATSAPP_TOKEN || "",
   
   // ID da conta de negócios do WhatsApp
-  whatsappBusinessAccountId: process.env.WHATSAPP_BUSINESS_ID || "431027922671988",
+  whatsappBusinessAccountId: process.env.WHATSAPP_BUSINESS_ID || "294585820394901",
   
   // URL da API do WhatsApp
-  whatsappApiUrl: `${process.env.FB_GRAPH_API_BASE || "https://graph.facebook.com/v18.0"}/${process.env.WHATSAPP_BUSINESS_ID || "431027922671988"}`,
+  whatsappApiUrl: `${process.env.FB_GRAPH_API_BASE || "https://graph.facebook.com/v22.0"}/${process.env.WHATSAPP_BUSINESS_ID || "294585820394901"}`,
   
   // Versão da API do WhatsApp
-  whatsappApiVersion: "v18.0",
+  whatsappApiVersion: "v22.0",
   
   // API App ID do WhatsApp
   whatsappAppId: "431027922671988",
