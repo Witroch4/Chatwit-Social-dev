@@ -1,13 +1,25 @@
 version: '3.8'
 services:
+  redis:
+    container_name: redis
+    image: redis:alpine
+    command: redis-server --appendonly yes
+    ports:
+      - "6379:6379"
+    networks:
+      - minha_rede
+
   app:
     container_name: chatwit_prod
     image: witrocha/chatwit-social:latest
     build:
       context: .
       dockerfile: Dockerfile.prod
+      # Habilita o uso da rede do host durante o build (necessário com BuildKit)
+      network: host
       args:
-        # Importa todas as variáveis do arquivo .env.production
+        # Variáveis para build – use REDIS_HOST=localhost para que o contêiner em build
+        # possa conectar ao Redis via a porta mapeada no host.
         DATABASE_URL: ${DATABASE_URL}
         AUTH_SECRET: ${AUTH_SECRET}
         AUTH_LOGIN_REDIRECT: ${AUTH_LOGIN_REDIRECT}
@@ -38,7 +50,8 @@ services:
         BASEROW_TOKEN: ${BASEROW_TOKEN}
         BASEROW_UPLOAD_URL: ${BASEROW_UPLOAD_URL}
         BASEROW_TABLE_ID: ${BASEROW_TABLE_ID}
-        REDIS_HOST: redis
+        # IMPORTANTE: durante o build, use "localhost" para o REDIS_HOST
+        REDIS_HOST: localhost
         REDIS_PORT: 6379
         REDIS_PASSWORD: ${REDIS_PASSWORD}
         REDIS_USE_TLS: ${REDIS_USE_TLS}
@@ -59,19 +72,17 @@ services:
       - .env.production
     environment:
       NODE_ENV: production
-      # Redefinimos essa variável para garantir que o Redis aponte para o serviço correto
+      # Em runtime, a aplicação deverá encontrar o contêiner Redis via DNS do Docker
       REDIS_HOST: redis
     ports:
       - "3000:3000"
-      - "3005:3005" # Porta para o Bull Board
+      - "3005:3005"
     volumes:
-      - ./temp:/app/temp # Volume para arquivos temporários
+      - ./temp:/app/temp
     networks:
       - minha_rede
     restart: unless-stopped
 
-# Não precisamos definir o serviço Redis pois já está em operação
-
 networks:
   minha_rede:
-    external: true 
+    external: true

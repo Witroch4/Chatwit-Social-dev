@@ -16,9 +16,19 @@ RUN apt-get update && apt-get install -y \
 
 # Configura o ImageMagick para permitir conversão de PDFs
 RUN if [ -f /etc/ImageMagick-6/policy.xml ]; then \
-      sed -i 's#<policy domain="coder" rights="none" pattern="PDF" />#<policy domain="coder" rights="read|write" pattern="PDF" />#' /etc/ImageMagick-6/policy.xml; \
+      sed -i 's/<policy domain="coder" rights="none" pattern="PDF" \/>/<policy domain="coder" rights="read|write" pattern="PDF" \/>/' /etc/ImageMagick-6/policy.xml && \
+      sed -i 's/<policy domain="coder" rights="none" pattern="PS" \/>/<policy domain="coder" rights="read|write" pattern="PS" \/>/' /etc/ImageMagick-6/policy.xml && \
+      sed -i 's/<policy domain="coder" rights="none" pattern="EPS" \/>/<policy domain="coder" rights="read|write" pattern="EPS" \/>/' /etc/ImageMagick-6/policy.xml && \
+      sed -i 's/<policy domain="coder" rights="none" pattern="XPS" \/>/<policy domain="coder" rights="read|write" pattern="XPS" \/>/' /etc/ImageMagick-6/policy.xml && \
+      sed -i 's/<policy domain="module" rights="none" pattern="{PS,PDF,XPS}" \/>/<policy domain="module" rights="read|write" pattern="{PS,PDF,XPS}" \/>/' /etc/ImageMagick-6/policy.xml && \
+      echo "Política do ImageMagick-6 atualizada"; \
     elif [ -f /etc/ImageMagick-7/policy.xml ]; then \
-      sed -i 's#<policy domain="coder" rights="none" pattern="PDF" />#<policy domain="coder" rights="read|write" pattern="PDF" />#' /etc/ImageMagick-7/policy.xml; \
+      sed -i 's/<policy domain="coder" rights="none" pattern="PDF" \/>/<policy domain="coder" rights="read|write" pattern="PDF" \/>/' /etc/ImageMagick-7/policy.xml && \
+      sed -i 's/<policy domain="coder" rights="none" pattern="PS" \/>/<policy domain="coder" rights="read|write" pattern="PS" \/>/' /etc/ImageMagick-7/policy.xml && \
+      sed -i 's/<policy domain="coder" rights="none" pattern="EPS" \/>/<policy domain="coder" rights="read|write" pattern="EPS" \/>/' /etc/ImageMagick-7/policy.xml && \
+      sed -i 's/<policy domain="coder" rights="none" pattern="XPS" \/>/<policy domain="coder" rights="read|write" pattern="XPS" \/>/' /etc/ImageMagick-7/policy.xml && \
+      sed -i 's/<policy domain="module" rights="none" pattern="{PS,PDF,XPS}" \/>/<policy domain="module" rights="read|write" pattern="{PS,PDF,XPS}" \/>/' /etc/ImageMagick-7/policy.xml && \
+      echo "Política do ImageMagick-7 atualizada"; \
     else \
       echo "Nenhum arquivo de política do ImageMagick encontrado"; \
     fi

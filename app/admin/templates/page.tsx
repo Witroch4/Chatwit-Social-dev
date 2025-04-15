@@ -101,7 +101,7 @@ function TemplatesDisponiveis() {
           }
           setTemplates([]);
         } else {
-          setTemplates(response.data.templates);
+          setTemplates(response.data.templates as Template[]);
           setIsRealData(response.data.isRealData === true);
         }
       } catch (err) {
@@ -156,17 +156,10 @@ function TemplatesDisponiveis() {
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text).then(
       () => {
-        toast({
-          title: "Código copiado",
-          description: "Código copiado para a área de transferência!"
-        });
+        toast.success("Código copiado para a área de transferência!");
       },
       () => {
-        toast({
-          variant: "destructive",
-          title: "Erro",
-          description: "Falha ao copiar para a área de transferência"
-        });
+        toast.error("Falha ao copiar para a área de transferência");
       }
     );
   };
@@ -239,6 +232,23 @@ function TemplatesDisponiveis() {
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
           <span className="ml-2 text-muted-foreground">Carregando templates...</span>
         </div>
+      ) : configError ? (
+        <Alert variant="destructive" className="mb-4">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Erro de configuração</AlertTitle>
+          <AlertDescription className="space-y-4">
+            <p>{configError}</p>
+            <div className="bg-gray-900 p-4 rounded text-xs font-mono text-green-400 overflow-auto">
+              <p># No arquivo .env.local, adicione:</p>
+              <p>FB_GRAPH_API_BASE="https://graph.facebook.com/v18.0"</p>
+              <p>WHATSAPP_BUSINESS_ID="seu-business-id-do-whatsapp"</p>
+              <p>WHATSAPP_TOKEN="seu-token-de-acesso-com-permissão-whatsapp_business_management"</p>
+            </div>
+            <p className="text-sm">
+              Certifique-se de que seu token possui a permissão <code>whatsapp_business_management</code>.
+            </p>
+          </AlertDescription>
+        </Alert>
       ) : error ? (
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />

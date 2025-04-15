@@ -109,7 +109,7 @@ export default function EditTemplateDetailsPage() {
             buttons: []
           };
           
-          template.components.forEach((component) => {
+          template.components.forEach((component: any) => {
             if (component.tipo === "HEADER" && component.formato === "IMAGE") {
               // Obter URL da imagem do header se disponível
               if (component.example?.header_handle?.[0]) {
@@ -131,7 +131,7 @@ export default function EditTemplateDetailsPage() {
             } else if (component.tipo === "FOOTER" && component.texto) {
               formValues.footerText = component.texto;
             } else if (component.tipo === "BUTTONS" && component.botoes) {
-              formValues.buttons = component.botoes.map(botao => ({
+              formValues.buttons = component.botoes.map((botao: any) => ({
                 tipo: botao.tipo,
                 texto: botao.texto,
                 url: botao.url || "",
@@ -166,14 +166,14 @@ export default function EditTemplateDetailsPage() {
   
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
+    setFormData((prev: any) => ({
       ...prev,
       [name]: value
     }));
   };
   
   const handleButtonChange = (index: number, field: string, value: string) => {
-    setFormData(prev => {
+    setFormData((prev: any) => {
       const newButtons = [...prev.buttons];
       newButtons[index] = {
         ...newButtons[index],
@@ -203,7 +203,7 @@ export default function EditTemplateDetailsPage() {
           example: {
             header_handle: [formData.headerUrl]
           }
-        };
+        } as any; // Type assertion to avoid TypeScript error
       }
       
       // Atualizar texto do body

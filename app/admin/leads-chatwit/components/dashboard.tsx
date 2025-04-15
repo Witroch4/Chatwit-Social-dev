@@ -13,13 +13,12 @@ import {
 import {
   ChartConfig,
   ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
+  ChartTooltipContent
 } from "@/components/ui/chart";
 import { toast, useToast } from "@/hooks/use-toast";
 import { ToastAction } from "@/components/ui/toast";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Area, AreaChart, BarChart, CartesianGrid, XAxis, Bar, Pie, PieChart, Label } from "recharts";
+import { Area, AreaChart, BarChart, CartesianGrid, XAxis, Bar, Pie, PieChart, Label, Tooltip } from "recharts";
 
 interface DashboardProps {
   isOpen: boolean;
@@ -152,9 +151,8 @@ export function LeadsDashboard({ isOpen }: DashboardProps) {
                   tickMargin={8}
                   tickFormatter={(value) => value.slice(0, 3)}
                 />
-                <ChartTooltip
-                  cursor={false}
-                  content={<ChartTooltipContent indicator="dot" />}
+                <Tooltip
+                  labelFormatter={(value) => value.slice(0, 3)}
                 />
                 <Area
                   dataKey="leadsConcluidos"
@@ -218,9 +216,8 @@ export function LeadsDashboard({ isOpen }: DashboardProps) {
               className="mx-auto aspect-square max-h-[250px]"
             >
               <PieChart>
-                <ChartTooltip
-                  cursor={false}
-                  content={<ChartTooltipContent hideLabel />}
+                <Tooltip
+                  labelFormatter={(value) => value.slice(0, 3)}
                 />
                 <Pie
                   data={chartData.leadsPorCanal}
