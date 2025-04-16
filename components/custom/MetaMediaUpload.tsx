@@ -326,53 +326,83 @@ export default function MetaMediaUpload({
         </div>
 
         {/* URL Input para upload de arquivos existentes */}
-        <div className="flex gap-2 mb-4">
-          <div className="flex-1">
-            <Input
-              type="url"
-              placeholder="URL da mídia já existente no MinIO"
-              value={urlToUpload}
-              onChange={(e) => setUrlToUpload(e.target.value)}
-              disabled={isUploading || uploadedFiles.length >= maxFiles}
-            />
+        <div className="rounded-lg border p-3 bg-gray-50 dark:bg-gray-800 mb-4">
+          <h4 className="text-sm font-medium mb-2">Upload de URL existente</h4>
+          <div className="space-y-2">
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                <ExternalLink className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+              </div>
+              <Input
+                type="url"
+                className="pl-10"
+                placeholder="URL da mídia no MinIO (ex: https://objstoreapi.witdev.com.br/...)"
+                value={urlToUpload}
+                onChange={(e) => setUrlToUpload(e.target.value)}
+                disabled={isUploading || uploadedFiles.length >= maxFiles}
+              />
+            </div>
+            
+            <div className="flex gap-2">
+              <div className="w-32">
+                <select
+                  className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
+                  value={mimeTypeToUpload}
+                  onChange={(e) => setMimeTypeToUpload(e.target.value)}
+                  disabled={isUploading || uploadedFiles.length >= maxFiles}
+                >
+                  <option value="video/mp4">Vídeo (MP4)</option>
+                  <option value="image/jpeg">Imagem (JPEG)</option>
+                  <option value="image/png">Imagem (PNG)</option>
+                </select>
+              </div>
+              <Button
+                onClick={() => uploadExistingUrlToMeta(urlToUpload, mimeTypeToUpload)}
+                disabled={!urlToUpload || isUploading || uploadedFiles.length >= maxFiles}
+                className="flex-1"
+              >
+                {isUploading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Enviando...
+                  </>
+                ) : (
+                  <>
+                    <UploadCloud className="mr-2 h-4 w-4" />
+                    Enviar para API Meta
+                  </>
+                )}
+              </Button>
+            </div>
+            
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              Use esta opção para enviar uma URL já existente diretamente para a API Meta.
+            </p>
           </div>
-          <div className="w-28">
-            <select
-              className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
-              value={mimeTypeToUpload}
-              onChange={(e) => setMimeTypeToUpload(e.target.value)}
-              disabled={isUploading || uploadedFiles.length >= maxFiles}
-            >
-              <option value="video/mp4">Vídeo</option>
-              <option value="image/jpeg">Imagem</option>
-            </select>
-          </div>
-          <Button
-            onClick={() => uploadExistingUrlToMeta(urlToUpload, mimeTypeToUpload)}
-            disabled={!urlToUpload || isUploading || uploadedFiles.length >= maxFiles}
-            size="sm"
-          >
-            Upload
-          </Button>
         </div>
 
         {/* Área de Drag & Drop */}
         <div
           {...getRootProps()}
-          className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors ${
-            isDragActive ? "border-primary bg-primary/5" : "border-muted-foreground/20"
+          className={`relative flex flex-col items-center justify-center w-full py-8 border-2 border-dashed rounded-lg cursor-pointer bg-gray-50 dark:bg-[#262626] hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors ${
+            isDragActive ? "border-primary bg-primary/5" : "border-gray-300"
           } ${
             isUploading || uploadedFiles.length >= maxFiles ? "opacity-50 cursor-not-allowed" : ""
           }`}
         >
           <Input {...getInputProps()} />
-          <div className="flex flex-col items-center justify-center gap-2">
-            <UploadCloud className="h-10 w-10 text-muted-foreground" />
-            <p className="text-sm font-medium">
-              Arraste arquivos ou clique para selecionar
+          <div className="text-center">
+            <div className="border p-2 rounded-md max-w-min mx-auto">
+              <UploadCloud size={24} className="text-muted-foreground" />
+            </div>
+            <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
+              <span className="font-semibold">Arraste arquivos para a API Meta</span>
             </p>
-            <p className="text-xs text-muted-foreground">
-              Formatos aceitos: MP4, WebM, JPEG, PNG (Máx. {maxSizeMB}MB)
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              Clique para selecionar arquivos &#40;máximo {maxSizeMB}MB&#41;
+            </p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+              Formatos aceitos: {allowedTypes.map(type => type.split('/')[1].toUpperCase()).join(', ')}
             </p>
           </div>
         </div>
@@ -386,91 +416,110 @@ export default function MetaMediaUpload({
               {uploadedFiles.map((file) => (
                 <div
                   key={file.id}
-                  className="flex items-center gap-3 p-3 rounded-md border bg-card"
+                  className="flex justify-between gap-2 rounded-lg overflow-hidden border border-slate-100 bg-white dark:bg-[#262626] group hover:pr-0 pr-2 hover:border-slate-300 transition-all"
                 >
-                  {/* Ícone baseado no tipo */}
-                  <div className="flex-shrink-0">
-                    {file.mime_type?.includes("video") ? (
-                      <Video className="h-8 w-8 text-blue-500" />
-                    ) : file.mime_type?.includes("image") ? (
-                      <FileImage className="h-8 w-8 text-green-500" />
-                    ) : (
-                      <ImageIcon className="h-8 w-8 text-gray-500" />
-                    )}
-                  </div>
+                  <div className="flex items-center flex-1 p-2">
+                    {/* Thumbnail ou ícone */}
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        {file.mime_type?.includes('image') && file.url ? (
+                          <img
+                            src={file.url}
+                            alt={file.file?.name || "Imagem"}
+                            className="w-12 h-12 object-cover rounded-md cursor-pointer"
+                          />
+                        ) : file.mime_type?.includes("video") ? (
+                          <Video className="h-10 w-10 text-blue-500" />
+                        ) : file.mime_type?.includes("image") ? (
+                          <FileImage className="h-10 w-10 text-green-500" />
+                        ) : (
+                          <ImageIcon className="h-10 w-10 text-gray-500" />
+                        )}
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>{file.file?.name || file.url?.split("/").pop() || "Arquivo"}</p>
+                      </TooltipContent>
+                    </Tooltip>
 
-                  {/* Informações do arquivo */}
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">
-                      {file.file?.name || file.url?.split("/").pop() || "Arquivo"}
-                    </p>
-                    
-                    {file.status === 'uploading' && (
-                      <Progress value={file.progress} className="h-1 mt-1" />
-                    )}
-                    
-                    {file.status === 'success' && (
-                      <div className="flex flex-col text-xs text-green-500 mt-1">
-                        <div className="flex items-center">
-                          <Check className="h-3 w-3 mr-1" />
-                          <span className="truncate">
-                            Processado com sucesso
-                          </span>
+                    {/* Informações do arquivo */}
+                    <div className="ml-3 flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">
+                        {file.file?.name || file.url?.split("/").pop() || "Arquivo"}
+                      </p>
+                      
+                      {file.status === 'uploading' && (
+                        <div className="w-full space-y-1">
+                          <div className="flex justify-between text-xs">
+                            <span className="text-muted-foreground">Enviando para API Meta...</span>
+                            <span>{file.progress}%</span>
+                          </div>
+                          <Progress 
+                            value={file.progress} 
+                            className={file.mime_type?.includes("video") ? "bg-blue-500" : "bg-green-500"}
+                          />
                         </div>
-                        {file.mediaHandle && (
-                          <div className="mt-1 text-muted-foreground">
-                            <span className="font-mono text-[10px] truncate">
-                              Handle: {file.mediaHandle.substring(0, 12)}...
+                      )}
+                      
+                      {file.status === 'success' && (
+                        <div className="flex flex-col text-xs text-green-500">
+                          <div className="flex items-center">
+                            <Check className="h-3 w-3 mr-1" />
+                            <span className="truncate">
+                              Processado com sucesso
                             </span>
                           </div>
-                        )}
-                        {file.url && (
-                          <div className="mt-1 flex items-center">
-                            {file.mime_type?.includes("video") && (
+                          {file.mediaHandle && (
+                            <div className="text-muted-foreground">
+                              <span className="font-mono text-[10px] truncate">
+                                Handle: {file.mediaHandle.substring(0, 12)}...
+                              </span>
+                            </div>
+                          )}
+                          {file.url && (
+                            <div className="mt-1 flex items-center">
                               <a 
                                 href={file.url} 
                                 target="_blank" 
                                 rel="noopener noreferrer"
                                 className="text-[10px] text-blue-500 hover:underline flex items-center"
                               >
-                                <span>Visualizar vídeo</span>
+                                <span>Visualizar {file.mime_type?.includes("video") ? "vídeo" : "imagem"}</span>
                                 <ExternalLink className="h-2 w-2 ml-1" />
                               </a>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                    
-                    {file.status === 'error' && (
-                      <div className="text-xs text-red-500 mt-1 truncate">
-                        Erro: {file.error}
-                      </div>
-                    )}
-                    
-                    {file.status === 'waiting' && (
-                      <div className="text-xs text-muted-foreground mt-1">
-                        Aguardando upload...
-                      </div>
-                    )}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      
+                      {file.status === 'error' && (
+                        <div className="text-xs text-red-500 truncate">
+                          Erro: {file.error}
+                        </div>
+                      )}
+                      
+                      {file.status === 'waiting' && (
+                        <div className="text-xs text-muted-foreground">
+                          Aguardando upload...
+                        </div>
+                      )}
+                    </div>
                   </div>
 
-                  {/* Botões de ação */}
-                  <div className="flex-shrink-0">
-                    {file.status === 'uploading' ? (
+                  {/* Botão de remoção */}
+                  {file.status === 'uploading' ? (
+                    <div className="flex items-center px-3">
                       <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-                    ) : (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6"
-                        onClick={() => handleRemoveFile(file.id)}
-                        disabled={isUploading}
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    )}
-                  </div>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => handleRemoveFile(file.id)}
+                      className="bg-red-500 text-white transition-all items-center justify-center cursor-pointer px-2 hidden group-hover:flex"
+                      disabled={isUploading}
+                      aria-label={`Remover ${file.file?.name || 'arquivo'}`}
+                    >
+                      <X size={20} />
+                    </button>
+                  )}
                 </div>
               ))}
             </div>

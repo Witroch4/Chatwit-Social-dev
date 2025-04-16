@@ -92,7 +92,7 @@ export default function CreateTemplatePage() {
       return headerMetaMedia.length > 0 && headerMetaMedia[0].status === 'success' && !!headerMetaMedia[0].mediaHandle;
     }
     // Se o cabeçalho for de imagem, precisa ter um arquivo
-    return (headerType === "IMAGE") ? headerMedia.length > 0 : true;
+    return (headerType === "IMAGE") ? headerMetaMedia.length > 0 : true;
   };
   
   const isFormValid = () => {
@@ -246,6 +246,14 @@ export default function CreateTemplatePage() {
     });
   };
   
+  // Função para lidar com o upload completo da imagem para a API Meta
+  const handleImageUploadComplete = (mediaHandle: string, file: MetaMediaFile) => {
+    console.log(`Upload para API Meta concluído. Media Handle: ${mediaHandle}`);
+    toast.success("Imagem processada com sucesso!", { 
+      description: "A imagem foi enviada para a API do WhatsApp e está pronta para uso."
+    });
+  };
+  
   // Criar template na API
   const createTemplate = async () => {
     if (!isFormValid()) {
@@ -280,11 +288,23 @@ export default function CreateTemplatePage() {
               header_text: [headerExample]
             };
           }
-        } else if (headerType === "IMAGE" && headerMedia.length > 0) {
-          // Adicionar exemplo para mídia de imagem
+        } else if (headerType === "IMAGE" && headerMetaMedia.length > 0) {
+          // Para imagem, usamos o media_handle retornado pela API Meta
+          headerComponent.format = "IMAGE";
+          
+          // Verificar se temos um media handle válido
+          if (!headerMetaMedia[0].mediaHandle) {
+            throw new Error("Media handle não encontrado. Faça upload da imagem usando o componente específico para WhatsApp.");
+          }
+          
+          // Usar o formato correto conforme documentação oficial
           headerComponent.example = {
-            header_handle: [headerMedia[0].url]
+            header_handle: [headerMetaMedia[0].mediaHandle]
           };
+          
+          console.log("== COMPONENTE DE IMAGEM WHATSAPP ==");
+          console.log("Media Handle:", headerMetaMedia[0].mediaHandle);
+          console.log("Componente completo:", JSON.stringify(headerComponent, null, 2));
         } else if (headerType === "VIDEO" && headerMetaMedia.length > 0) {
           // Para vídeo, usamos o media_handle retornado pela API Meta
           headerComponent.format = "VIDEO";  
@@ -305,6 +325,9 @@ export default function CreateTemplatePage() {
         } else if (headerType === "VIDEO") {
           // Se não tiver mídia, não podemos criar o template
           throw new Error("Modelos com o tipo de cabeçalho VIDEO precisam de um exemplo de vídeo. Faça upload de um vídeo antes de enviar o template.");
+        } else if (headerType === "IMAGE") {
+          // Se não tiver mídia, não podemos criar o template
+          throw new Error("Modelos com o tipo de cabeçalho IMAGE precisam de um exemplo de imagem. Faça upload de uma imagem usando o componente específico para WhatsApp.");
         }
         
         components.push(headerComponent);
@@ -1011,11 +1034,17 @@ export default function CreateTemplatePage() {
                     <p className="text-xs text-muted-foreground mb-2">
                       Faça upload da imagem que será usada como cabeçalho
                     </p>
-                    <FileUpload 
-                      uploadedFiles={headerMedia}
-                      setUploadedFiles={setHeaderMedia}
+                    <MetaMediaUpload
+                      uploadedFiles={headerMetaMedia}
+                      setUploadedFiles={setHeaderMetaMedia}
+                      allowedTypes={['image/jpeg', 'image/png', 'image/jpg']}
+                      maxSizeMB={5}
+                      title="Upload de imagem para cabeçalho"
+                      description="Faça upload da imagem para o cabeçalho do template"
+                      maxFiles={1}
+                      onUploadComplete={handleImageUploadComplete}
                     />
-                    {headerMedia.length === 0 && (
+                    {headerMetaMedia.length === 0 && (
                       <Alert variant="destructive" className="mt-2">
                         <AlertCircle className="h-4 w-4" />
                         <AlertTitle>Imagem obrigatória</AlertTitle>
@@ -1327,15 +1356,15 @@ export default function CreateTemplatePage() {
                       <div className="font-bold text-center mb-2">{headerText}</div>
                     )}
                     {headerType === "IMAGE" && (
-                      <div className="mb-2 overflow-hidden rounded-md">
-                        {headerMedia.length > 0 && headerMedia[0].url ? (
+                      <div className="mb-2 overflow-hidden rounded-md" style={{ maxHeight: "180px" }}>
+                        {headerMetaMedia.length > 0 && headerMetaMedia[0].url ? (
                           <img 
-                            src={headerMedia[0].url} 
+                            src={headerMetaMedia[0].url} 
                             alt="Header" 
-                            className="w-full object-cover rounded-md" 
+                            className="w-full object-contain rounded-md max-h-[160px]" 
                           />
                         ) : (
-                          <div className="w-full aspect-video bg-gray-200 flex items-center justify-center">
+                          <div className="w-full bg-gray-200 flex items-center justify-center" style={{ height: "140px" }}>
                             <svg className="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
                             </svg>
@@ -1352,14 +1381,14 @@ export default function CreateTemplatePage() {
                       </div>
                     )}
                     {headerType === "VIDEO" && (
-                      <div className="w-full aspect-video bg-gray-100 rounded-md mb-2 flex items-center justify-center">
+                      <div className="w-full bg-gray-100 rounded-md mb-2 flex items-center justify-center" style={{ maxHeight: "180px" }}>
                         {headerMetaMedia.length > 0 && headerMetaMedia[0].status === 'success' ? (
                           <div className="flex flex-col items-center justify-center w-full h-full">
                             {headerMetaMedia[0].url ? (
                               <video 
                                 src={headerMetaMedia[0].url} 
                                 controls
-                                className="w-full rounded-md" 
+                                className="w-full rounded-md max-h-[160px] object-contain" 
                               />
                             ) : (
                               <>
