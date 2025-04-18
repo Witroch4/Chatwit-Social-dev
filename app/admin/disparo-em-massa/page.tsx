@@ -212,7 +212,7 @@ export default function DisparoEmMassaPage() {
 
       setProgresso(30);
       
-      const response = await axios.post('/api/admin/atendimento/disparo-mensagem', payload);
+      const response = await axios.post('/api/admin/atendimento/disparo', payload);
       
       setProgresso(100);
       setResultado(response.data);

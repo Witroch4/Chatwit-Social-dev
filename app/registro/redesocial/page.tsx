@@ -426,6 +426,17 @@ export default function RedeSocialPage() {
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
+                  {session?.user?.role === "ADMIN" && (
+                    <>
+                      <DropdownMenuItem asChild>
+                        <Link href="/admin" className="flex items-center">
+                          <BarChart className="mr-2 h-4 w-4" />
+                          <span>Painel Admin</span>
+                        </Link>
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                    </>
+                  )}
                   <DropdownMenuItem
                     onClick={() => signOut({ callbackUrl: '/' })}
                     className="flex items-center"
@@ -486,6 +497,17 @@ export default function RedeSocialPage() {
             <Link href="/admin" className="text-blue-600 hover:underline mt-2 inline-block">
               Acessar Painel Admin
             </Link>
+            {session?.user?.role === "ADMIN" && (
+              <Button
+                onClick={() => router.push('/admin')}
+                variant="default"
+                size="sm"
+                className="mt-2 ml-2"
+              >
+                <BarChart className="mr-2 h-4 w-4" />
+                Painel de Administração
+              </Button>
+            )}
             <Button
               onClick={handleForceSessionUpdate}
               variant="outline"

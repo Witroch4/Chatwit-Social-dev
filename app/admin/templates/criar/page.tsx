@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
-import { Loader2, AlertCircle, ArrowLeft, Save, Plus, Trash, Copy, ExternalLink, BanIcon, PhoneCall, Check } from "lucide-react";
+import { Loader2, AlertCircle, ArrowLeft, Save, Plus, Trash, Copy, ExternalLink, BanIcon, PhoneCall, Check, AlertTriangle, Send, Phone } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import axios from "axios";
@@ -27,46 +27,83 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { CreateTemplateComponent } from "../components/template-preview";
 
 // Componente para criar um novo template de WhatsApp
 export default function CreateTemplatePage() {
   const router = useRouter();
   const { toast: hookToast } = useToast();
   
-  // Estado do fluxo de criação
-  const [currentStep, setCurrentStep] = useState<"configurar" | "editar" | "analisar">("configurar");
-  
-  // Estados
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [templateId, setTemplateId] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [creationSuccess, setCreationSuccess] = useState(false);
+  const [templateId, setTemplateId] = useState<string>("");
+  
+  // Etapas do formulário
+  const [currentStep, setCurrentStep] = useState<"configurar" | "editar" | "analisar">("configurar");
   
   // Dados do template
   const [name, setName] = useState("");
-  const [category, setCategory] = useState<"UTILITY" | "MARKETING" | "AUTHENTICATION">("UTILITY");
+  const [category, setCategory] = useState<"MARKETING" | "UTILITY" | "AUTHENTICATION">("MARKETING");
   const [language, setLanguage] = useState("pt_BR");
-  const [allowCategoryChange, setAllowCategoryChange] = useState(true);
+  const [allowCategoryChange, setAllowCategoryChange] = useState(false);
   
-  // Componentes do template
-  const [headerType, setHeaderType] = useState<"NONE" | "TEXT" | "IMAGE" | "DOCUMENT" | "VIDEO">("NONE");
+  // Cabeçalho
+  const [headerType, setHeaderType] = useState<"NONE" | "TEXT" | "IMAGE" | "VIDEO" | "DOCUMENT">("NONE");
   const [headerText, setHeaderText] = useState("");
-  const [headerMedia, setHeaderMedia] = useState<UploadedFile[]>([]);
-  const [headerMetaMedia, setHeaderMetaMedia] = useState<MetaMediaFile[]>([]);
-  const [bodyText, setBodyText] = useState("");
-  const [footerText, setFooterText] = useState("");
-  const [buttons, setButtons] = useState<Array<{
-    type: "QUICK_REPLY" | "URL" | "COPY_CODE" | "PHONE_NUMBER";
-    text: string;
-    url?: string;
-    phone_number?: string;
-    code_example?: string;
-  }>>([]);
-  
-  // Exemplos para aprovação pelo WhatsApp
   const [headerExample, setHeaderExample] = useState("");
+  
+  // Estado para mídia do cabeçalho (imagem, vídeo)
+  const [headerMetaMedia, setHeaderMetaMedia] = useState<MetaMediaFile[]>([]);
+  
+  // Corpo e rodapé
+  const [bodyText, setBodyText] = useState("");
   const [bodyExamples, setBodyExamples] = useState<string[]>([]);
-  const [codeExample, setCodeExample] = useState<string>("");
+  const [footerText, setFooterText] = useState("");
+  
+  // Botões
+  const [buttons, setButtons] = useState<any[]>([]);
+  
+  // Carregar mídia do localStorage quando o componente monta
+  useEffect(() => {
+    try {
+      const savedMedia = localStorage.getItem('headerMetaMedia');
+      if (savedMedia) {
+        const parsedMedia = JSON.parse(savedMedia);
+        console.log("Mídia recuperada do localStorage:", parsedMedia);
+        setHeaderMetaMedia(parsedMedia);
+      }
+    } catch (err) {
+      console.error("Erro ao carregar mídia do localStorage:", err);
+    }
+  }, []);
+  
+  // Log changes to headerMetaMedia for debugging
+  useEffect(() => {
+    console.log("headerMetaMedia state atualizado:", headerMetaMedia);
+    
+    // Se houver mídia, vamos salvar no localStorage
+    if (headerMetaMedia.length > 0) {
+      try {
+        localStorage.setItem('headerMetaMedia', JSON.stringify(headerMetaMedia));
+        console.log("Mídia salva em localStorage após atualização de estado");
+      } catch (err) {
+        console.error("Erro ao salvar mídia em localStorage:", err);
+      }
+    }
+  }, [headerMetaMedia]);
+  
+  // Limpar localStorage quando o componente é desmontado
+  useEffect(() => {
+    return () => {
+      try {
+        localStorage.removeItem('headerMetaMedia');
+        console.log("Mídia removida do localStorage na desmontagem");
+      } catch (err) {
+        console.error("Erro ao remover mídia do localStorage:", err);
+      }
+    };
+  }, []);
   
   // Validações
   const isValidName = () => {
@@ -241,6 +278,44 @@ export default function CreateTemplatePage() {
   // Função para lidar com o upload completo do vídeo para a API Meta
   const handleVideoUploadComplete = (mediaHandle: string, file: MetaMediaFile) => {
     console.log(`Upload para API Meta concluído. Media Handle: ${mediaHandle}`);
+    console.log(`URL do MinIO para referência: ${file.url}`);
+    
+    // Garantimos que o componente de exemplo inclua a URL do MinIO para referência futura
+    if (file.url && mediaHandle) {
+      // Cria uma cópia completa do objeto para evitar problemas de referência
+      const updatedFile = {
+        ...file,
+        mediaHandle,
+        url: file.url,
+        status: 'success' as const,
+        progress: 100
+      };
+      
+      // Verificar se o arquivo já existe na lista
+      const fileExists = headerMetaMedia.some(item => item.id === file.id);
+      
+      if (fileExists) {
+        // Atualizar o arquivo existente
+        const updatedHeader = headerMetaMedia.map(item => 
+          item.id === file.id ? updatedFile : item
+        );
+        console.log("Atualizando mídia existente:", updatedHeader);
+        setHeaderMetaMedia(updatedHeader);
+      } else {
+        // Adicionar novo arquivo à lista
+        console.log("Adicionando nova mídia:", [updatedFile]);
+        setHeaderMetaMedia([updatedFile]);
+      }
+      
+      // Salvar em localStorage para persistência durante navegação
+      try {
+        localStorage.setItem('headerMetaMedia', JSON.stringify([updatedFile]));
+        console.log("Mídia salva em localStorage");
+      } catch (err) {
+        console.error("Erro ao salvar mídia em localStorage:", err);
+      }
+    }
+    
     toast.success("Vídeo processado com sucesso!", { 
       description: "O vídeo foi enviado para a API do WhatsApp e está pronto para uso."
     });
@@ -249,6 +324,44 @@ export default function CreateTemplatePage() {
   // Função para lidar com o upload completo da imagem para a API Meta
   const handleImageUploadComplete = (mediaHandle: string, file: MetaMediaFile) => {
     console.log(`Upload para API Meta concluído. Media Handle: ${mediaHandle}`);
+    console.log(`URL do MinIO para referência: ${file.url}`);
+    
+    // Garantimos que o componente de exemplo inclua a URL do MinIO para referência futura
+    if (file.url && mediaHandle) {
+      // Cria uma cópia completa do objeto para evitar problemas de referência
+      const updatedFile = {
+        ...file,
+        mediaHandle,
+        url: file.url,
+        status: 'success' as const,
+        progress: 100
+      };
+      
+      // Verificar se o arquivo já existe na lista
+      const fileExists = headerMetaMedia.some(item => item.id === file.id);
+      
+      if (fileExists) {
+        // Atualizar o arquivo existente
+        const updatedHeader = headerMetaMedia.map(item => 
+          item.id === file.id ? updatedFile : item
+        );
+        console.log("Atualizando mídia existente:", updatedHeader);
+        setHeaderMetaMedia(updatedHeader);
+      } else {
+        // Adicionar novo arquivo à lista
+        console.log("Adicionando nova mídia:", [updatedFile]);
+        setHeaderMetaMedia([updatedFile]);
+      }
+      
+      // Salvar em localStorage para persistência durante navegação
+      try {
+        localStorage.setItem('headerMetaMedia', JSON.stringify([updatedFile]));
+        console.log("Mídia salva em localStorage");
+      } catch (err) {
+        console.error("Erro ao salvar mídia em localStorage:", err);
+      }
+    }
+    
     toast.success("Imagem processada com sucesso!", { 
       description: "A imagem foi enviada para a API do WhatsApp e está pronta para uso."
     });
@@ -288,23 +401,38 @@ export default function CreateTemplatePage() {
               header_text: [headerExample]
             };
           }
+          
+          components.push(headerComponent);
         } else if (headerType === "IMAGE" && headerMetaMedia.length > 0) {
           // Para imagem, usamos o media_handle retornado pela API Meta
-          headerComponent.format = "IMAGE";
           
           // Verificar se temos um media handle válido
           if (!headerMetaMedia[0].mediaHandle) {
             throw new Error("Media handle não encontrado. Faça upload da imagem usando o componente específico para WhatsApp.");
           }
           
-          // Usar o formato correto conforme documentação oficial
+          // Armazenamos a URL para referência interna, mas criamos uma cópia sem ela para enviar à API
+          const fullExample = {
+            header_handle: [headerMetaMedia[0].mediaHandle],
+            // Adicionamos a URL do MinIO como referência interna apenas
+            header_url: headerMetaMedia[0].url
+          };
+          
+          // Log completo para depuração interna
+          console.log("== COMPONENTE DE IMAGEM WHATSAPP (COMPLETO) ==");
+          console.log("Media Handle:", headerMetaMedia[0].mediaHandle);
+          console.log("MinIO URL para referência interna:", headerMetaMedia[0].url);
+          console.log("Exemplo completo:", JSON.stringify(fullExample, null, 2));
+          
+          // Para a API do WhatsApp, enviamos apenas o header_handle
           headerComponent.example = {
             header_handle: [headerMetaMedia[0].mediaHandle]
           };
           
-          console.log("== COMPONENTE DE IMAGEM WHATSAPP ==");
-          console.log("Media Handle:", headerMetaMedia[0].mediaHandle);
-          console.log("Componente completo:", JSON.stringify(headerComponent, null, 2));
+          console.log("== COMPONENTE DE IMAGEM WHATSAPP (ENVIADO PARA API) ==");
+          console.log("Componente enviado:", JSON.stringify(headerComponent, null, 2));
+          
+          components.push(headerComponent);
         } else if (headerType === "VIDEO" && headerMetaMedia.length > 0) {
           // Para vídeo, usamos o media_handle retornado pela API Meta
           headerComponent.format = "VIDEO";  
@@ -314,23 +442,37 @@ export default function CreateTemplatePage() {
             throw new Error("Media handle não encontrado. Faça upload do vídeo usando o componente específico para WhatsApp.");
           }
           
-          // Usar o formato correto conforme documentação oficial
+          // Armazenamos a URL para referência interna, mas criamos uma cópia sem ela para enviar à API
+          const fullExample = {
+            header_handle: [headerMetaMedia[0].mediaHandle],
+            // Adicionamos a URL do MinIO como referência interna apenas
+            header_url: headerMetaMedia[0].url
+          };
+          
+          // Log completo para depuração interna
+          console.log("== COMPONENTE DE VÍDEO WHATSAPP (COMPLETO) ==");
+          console.log("Media Handle:", headerMetaMedia[0].mediaHandle);
+          console.log("MinIO URL para referência interna:", headerMetaMedia[0].url);
+          console.log("Exemplo completo:", JSON.stringify(fullExample, null, 2));
+          
+          // Para a API do WhatsApp, enviamos apenas o header_handle
           headerComponent.example = {
             header_handle: [headerMetaMedia[0].mediaHandle]
           };
           
-          console.log("== COMPONENTE DE VÍDEO WHATSAPP ==");
-          console.log("Media Handle:", headerMetaMedia[0].mediaHandle);
-          console.log("Componente completo:", JSON.stringify(headerComponent, null, 2));
+          console.log("== COMPONENTE DE VÍDEO WHATSAPP (ENVIADO PARA API) ==");
+          console.log("Componente enviado:", JSON.stringify(headerComponent, null, 2));
+          
+          components.push(headerComponent);
         } else if (headerType === "VIDEO") {
           // Se não tiver mídia, não podemos criar o template
           throw new Error("Modelos com o tipo de cabeçalho VIDEO precisam de um exemplo de vídeo. Faça upload de um vídeo antes de enviar o template.");
         } else if (headerType === "IMAGE") {
           // Se não tiver mídia, não podemos criar o template
           throw new Error("Modelos com o tipo de cabeçalho IMAGE precisam de um exemplo de imagem. Faça upload de uma imagem usando o componente específico para WhatsApp.");
+        } else if (headerType === "DOCUMENT") {
+          components.push(headerComponent);
         }
-        
-        components.push(headerComponent);
       }
       
       // Adicionar corpo (obrigatório)
@@ -359,40 +501,35 @@ export default function CreateTemplatePage() {
       }
       
       // Adicionar botões se existirem
-      if (buttons.length > 0) {
-        const buttonsComponent = {
-          type: "BUTTONS",
-          buttons: buttons.map(button => {
-            if (button.type === "QUICK_REPLY") {
-              return {
-                type: "QUICK_REPLY",
-                text: button.text
-              };
-            } else if (button.type === "URL") {
-              return {
-                type: "URL",
-                text: button.text,
-                url: button.url
-              };
-            } else if (button.type === "PHONE_NUMBER") {
-              return {
-                type: "PHONE_NUMBER",
-                text: button.text,
-                phone_number: button.phone_number
-              };
-            } else if (button.type === "COPY_CODE") {
-              // Para botões de Copy Code (texto fixo conforme API)
-              return {
-                type: "COPY_CODE",
-                text: "Copiar código da oferta",
-                example: button.code_example ? [button.code_example] : ["123456"]
-              };
+      if (buttons && buttons.length > 0) {
+        const buttonComponent = {
+          type: "buttons",
+          buttons: buttons.map(b => {
+            const btn: {
+              type: string;
+              text: string;
+              url?: string;
+              phoneNumber?: string;
+              example?: string[];
+            } = {
+              type: b.type,
+              text: b.text
+            };
+            
+            if (b.type === "URL" && b.url) {
+              btn.url = b.url;
+            } else if (b.type === "PHONE_NUMBER" && b.phone_number) {
+              btn.phoneNumber = b.phone_number;
+            } else if (b.type === "COPY_CODE" && b.code_example) {
+              btn.example = [b.code_example];
             }
-            return button;
+            
+            return btn;
           })
         };
         
-        components.push(buttonsComponent);
+        console.log("Adicionando botões:", buttonComponent);
+        components.push(buttonComponent);
       }
       
       // Payload para a API
@@ -404,33 +541,54 @@ export default function CreateTemplatePage() {
         allow_category_change: allowCategoryChange
       };
       
-      // Certificar que o componente de vídeo está correto
-      if (headerType === "VIDEO" && headerMetaMedia.length > 0 && components.length > 0) {
-        console.log("=== DETALHES DO PAYLOAD DE ENVIO ===");
-        console.log("Tipo do cabeçalho:", components[0].format);
-        console.log("Formato do exemplo:", JSON.stringify(components[0].example));
-        
-        // Verificação adicional para garantir que o formato está correto
-        if (components[0].example?.header_handle && Array.isArray(components[0].example.header_handle)) {
-          const videoUrl = components[0].example.header_handle[0];
-          console.log("URL final do vídeo:", videoUrl);
-          console.log("URL termina com .mp4:", typeof videoUrl === 'string' && videoUrl.toLowerCase().endsWith('.mp4'));
-          
-          // Em caso de problemas futuros, também podemos tentar o formato alternativo
-          if (!components[0].example.header_url && typeof videoUrl === 'string') {
-            console.log("IMPORTANTE: De acordo com a documentação WhatsApp:");
-            console.log("1. Você deve fazer upload do vídeo usando a API de Carregamento Retomável");
-            console.log("2. O header_handle deve conter o identificador retornado pela API");
-            console.log("3. Não é recomendado usar URLs diretas para vídeos em modelos de mensagem");
+      // Verificação final para garantir que nenhum header_url seja enviado para a API
+      // Esta verificação adicional garante que mesmo se houver alterações futuras no código
+      // ainda estaremos protegidos contra envio incorreto de URLs para a API do WhatsApp
+      // No entanto, vamos garantir que a informação da URL seja preservada para uso interno
+      const payloadToSend = {
+        ...payload,
+        components: payload.components.map(component => {
+          // Para componentes de cabeçalho com mídia, vamos extrair a URL do MinIO 
+          // e adicionar um campo especial que será processado pelo backend
+          if (component.type === "HEADER" && 
+              component.format && 
+              ["IMAGE", "VIDEO"].includes(component.format) && 
+              component.example?.header_handle) {
+            
+            // Encontrar a URL do MinIO nos nossos dados
+            let minioUrl = null;
+            
+            if (component.example.header_url) {
+              // Se já temos a URL no objeto, extraímos ela
+              minioUrl = component.example.header_url;
+              console.log("Preservando URL do MinIO para o backend:", minioUrl);
+            } else if (headerMetaMedia.length > 0 && headerMetaMedia[0].url) {
+              // Se não, tentamos encontrar nos dados de estado
+              minioUrl = headerMetaMedia[0].url;
+              console.log("Extraindo URL do MinIO dos dados de mídia:", minioUrl);
+            }
+            
+            // Criar uma cópia do objeto para o WhatsApp (apenas com o header_handle)
+            return {
+              ...component,
+              example: {
+                header_handle: component.example.header_handle,
+                // Adicionamos um campo especial que o backend vai reconhecer e usar
+                // para salvar no banco de dados, mas que a API do WhatsApp vai ignorar
+                _minioUrl: minioUrl
+              }
+            };
           }
-        }
-        
-        console.log("Componente de cabeçalho completo:", JSON.stringify(components[0]));
-        console.log("PAYLOAD COMPLETO DA REQUISIÇÃO:", JSON.stringify(payload, null, 2));
-      }
+          
+          return component;
+        })
+      };
+      
+      console.log("Enviando payload para API (com URL preservada):", 
+        JSON.stringify(payloadToSend, null, 2));
       
       // Enviar para API
-      const response = await axios.post('/api/admin/atendimento/templates', payload);
+      const response = await axios.post('/api/admin/atendimento/templates', payloadToSend);
       
       if (response.data.success) {
         setCreationSuccess(true);
@@ -441,8 +599,21 @@ export default function CreateTemplatePage() {
           description: `O template foi enviado para aprovação e será revisado pelo WhatsApp.`
         });
         
-        // Não redirecionar automaticamente para permitir copiar o ID
-        // router.push('/admin/templates');
+        // Após criar o template, atualizar a lista de templates no banco de dados
+        try {
+          // Fazer uma chamada para sincronizar o novo template com o banco de dados
+          await axios.get('/api/admin/atendimento/templates?refresh=true');
+          console.log('Lista de templates atualizada após criação do novo template');
+        } catch (syncError) {
+          console.error('Erro ao atualizar lista de templates:', syncError);
+          // Não exibimos erro para o usuário, pois o template já foi criado com sucesso
+        }
+        
+        // Redirecionar para a página de templates após um pequeno atraso
+        // para permitir que o usuário veja o toast de sucesso
+        setTimeout(() => {
+          router.push('/admin/templates');
+        }, 1500);
       } else {
         setError(response.data.error || "Erro ao criar template");
       }
@@ -472,6 +643,86 @@ export default function CreateTemplatePage() {
   // Função para escolher categoria
   const selecionarCategoria = (cat: "MARKETING" | "UTILITY" | "AUTHENTICATION") => {
     setCategory(cat);
+  };
+  
+  // Função para obter os componentes para o preview
+  const getPreviewComponents = (): CreateTemplateComponent[] => {
+    const components: CreateTemplateComponent[] = [];
+    
+    // Adicionar o header se existir
+    if (headerType !== "NONE") {
+      const headerComponent: {
+        type: string;
+        format: string;
+        text: string;
+        url?: string;
+      } = {
+        type: "header",
+        format: headerType.toLowerCase(),
+        text: headerType === "TEXT" ? headerText : ""
+      };
+      
+      // Adicionar URL para mídia se houver
+      if (["IMAGE", "VIDEO", "DOCUMENT"].includes(headerType) && headerMetaMedia.length > 0) {
+        headerComponent.url = headerMetaMedia[0].url || "";
+      }
+      
+      console.log("Adicionando header:", headerComponent);
+      components.push(headerComponent);
+    }
+    
+    // Adicionar o corpo (obrigatório)
+    const bodyComponent = {
+      type: "body",
+      text: bodyText
+    };
+    console.log("Adicionando body:", bodyComponent);
+    components.push(bodyComponent);
+    
+    // Adicionar o footer se existir
+    if (footerText && footerText.trim() !== "") {
+      const footerComponent = {
+        type: "footer",
+        text: footerText
+      };
+      console.log("Adicionando footer:", footerComponent);
+      components.push(footerComponent);
+    }
+    
+    // Adicionar botões se existirem
+    if (buttons && buttons.length > 0) {
+      const buttonComponent = {
+        type: "buttons",
+        buttons: buttons.map(b => {
+          const btn: {
+            type: string;
+            text: string;
+            url?: string;
+            phoneNumber?: string;
+            example?: string[];
+          } = {
+            type: b.type,
+            text: b.text
+          };
+          
+          if (b.type === "URL" && b.url) {
+            btn.url = b.url;
+          } else if (b.type === "PHONE_NUMBER" && b.phone_number) {
+            btn.phoneNumber = b.phone_number;
+          } else if (b.type === "COPY_CODE" && b.code_example) {
+            btn.example = [b.code_example];
+          }
+          
+          return btn;
+        })
+      };
+      
+      console.log("Adicionando botões:", buttonComponent);
+      components.push(buttonComponent);
+    }
+    
+    console.log("Componentes finais para preview:", components);
+    return components;
   };
   
   return (
@@ -971,7 +1222,6 @@ export default function CreateTemplatePage() {
                 <Select value={headerType} onValueChange={(value: any) => {
                   // Limpar mídia ao trocar tipo de cabeçalho
                   if (value !== headerType) {
-                    setHeaderMedia([]);
                     setHeaderMetaMedia([]);
                   }
                   setHeaderType(value);
@@ -1435,7 +1685,7 @@ export default function CreateTemplatePage() {
                           >
                             {button.type === "URL" && <ExternalLink className="h-4 w-4 mr-2" />}
                             {button.type === "COPY_CODE" && <Copy className="h-4 w-4 mr-2" />}
-                            {button.type === "PHONE_NUMBER" && <PhoneCall className="h-4 w-4 mr-2" />}
+                            {button.type === "PHONE_NUMBER" && <Phone className="h-4 w-4 mr-2" />}
                             {button.text}
                           </button>
                         ))}
@@ -1518,43 +1768,166 @@ export default function CreateTemplatePage() {
     )}
               
     {currentStep === "analisar" && (
-      <div>
-        <Card className="mb-6">
+      <div className="space-y-6">
+        <Card>
           <CardHeader>
-            <CardTitle>Resumo do Template</CardTitle>
-            <CardDescription>
-              Confirme os detalhes antes de enviar para análise
-            </CardDescription>
+            <CardTitle>Revisar Template</CardTitle>
+            <CardDescription>Verifique se seu template está correto antes de enviar</CardDescription>
           </CardHeader>
           <CardContent>
-            {/* Resumo do template */}
-            {/* ... existing code ... */}
+            <div className="space-y-6">
+              <div>
+                <h3 className="text-lg font-semibold mb-2">Informações Gerais</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium">Nome:</p>
+                    <p className="bg-muted p-2 rounded text-sm">{name}</p>
+                  </div>
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium">Categoria:</p>
+                    <Badge 
+                      className={
+                        category === "UTILITY" ? "bg-blue-100 text-blue-800" :
+                        category === "MARKETING" ? "bg-amber-100 text-amber-800" :
+                        "bg-green-100 text-green-800"
+                      }
+                    >
+                      {category}
+                    </Badge>
+                  </div>
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium">Idioma:</p>
+                    <p className="bg-muted p-2 rounded text-sm">Português (pt_BR)</p>
+                  </div>
+                </div>
+              </div>
+              
+              <Separator />
+              
+              {/* Preview do Template */}
+              <div className="space-y-4">
+                <div className="flex flex-col space-y-1.5 mb-2">
+                  <h3 className="text-lg font-semibold">Visualização do Template</h3>
+                  <p className="text-sm text-muted-foreground">Veja como o template ficará após aprovação</p>
+                </div>
+
+                <Tabs defaultValue="visual">
+                  <TabsList>
+                    <TabsTrigger value="visual">Visual</TabsTrigger>
+                    <TabsTrigger value="json">JSON</TabsTrigger>
+                  </TabsList>
+                  
+                  <TabsContent value="visual">
+                    {getPreviewComponents().map((c, i) => (
+                      <div key={i} className="border p-4 rounded-md mb-4">
+                        <h3 className="font-semibold mb-2">{c.type.toUpperCase()}</h3>
+                        {c.format && (
+                          <p className="text-sm mb-2">
+                            <strong>Formato:</strong> {c.format.toUpperCase()}
+                          </p>
+                        )}
+                        {c.text && (
+                          <pre className="bg-muted p-2 rounded mb-2 whitespace-pre-wrap text-sm">
+                            {c.text}
+                          </pre>
+                        )}
+                        {c.buttons && c.buttons.length > 0 && (
+                          <div className="mb-2">
+                            <p className="font-medium">Botões:</p>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                              {c.buttons.map((b, idx) => (
+                                <div
+                                  key={idx}
+                                  className="border p-3 rounded shadow-sm hover:shadow-md transition-shadow"
+                                >
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <Badge variant="outline" className="font-mono text-xs">
+                                      {b.type.toUpperCase()}
+                                    </Badge>
+                                    <span className="font-medium">{b.text}</span>
+                                  </div>
+                                  
+                                  {b.url && (
+                                    <a 
+                                      href={b.url} 
+                                      target="_blank" 
+                                      rel="noopener noreferrer"
+                                      className="text-blue-600 hover:underline text-sm flex items-center gap-1 mt-1"
+                                    >
+                                      {b.url}
+                                    </a>
+                                  )}
+                                  
+                                  {b.phoneNumber && (
+                                    <a 
+                                      href={`tel:${b.phoneNumber}`} 
+                                      className="text-blue-600 hover:underline text-sm flex items-center gap-1 mt-1"
+                                    >
+                                      <Phone className="h-3 w-3" />
+                                      {b.phoneNumber}
+                                    </a>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </TabsContent>
+
+                  <TabsContent value="json">
+                    <pre className="bg-muted p-4 rounded overflow-auto text-xs max-h-[400px]">
+                      {JSON.stringify(getPreviewComponents(), null, 2)}
+                    </pre>
+                  </TabsContent>
+                </Tabs>
+              </div>
+            </div>
           </CardContent>
-          <CardFooter className="flex flex-col sm:flex-row gap-2">
-            <Button 
-              variant="outline" 
-              onClick={() => setCurrentStep("editar")}
-              className="w-full"
-            >
-              Voltar
-            </Button>
-            <Button 
-              onClick={createTemplate} 
-              disabled={isSubmitting || !isFormValid()}
-              className="w-full"
-            >
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Enviando para análise...
-                </>
-              ) : (
-                <>
-                  <Save className="mr-2 h-4 w-4" />
-                  Enviar para análise
-                </>
-              )}
-            </Button>
+          <CardFooter className="flex flex-col space-y-2">
+            <Alert variant="default" className="mb-4">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertTitle>Atenção</AlertTitle>
+              <AlertDescription className="text-xs">
+                Após o envio, seu template passará por aprovação do WhatsApp.
+                Templates promocionais podem demorar mais para serem aprovados.
+              </AlertDescription>
+            </Alert>
+            
+            <div className="flex w-full justify-between">
+              <Button 
+                variant="outline" 
+                onClick={() => setCurrentStep("editar")}
+              >
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Voltar
+              </Button>
+              <Button
+                onClick={createTemplate}
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Enviando...
+                  </>
+                ) : (
+                  <>
+                    <Send className="mr-2 h-4 w-4" />
+                    Enviar Template
+                  </>
+                )}
+              </Button>
+            </div>
+            
+            {error && (
+              <Alert variant="destructive" className="mt-4">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>Erro</AlertTitle>
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
           </CardFooter>
         </Card>
       </div>

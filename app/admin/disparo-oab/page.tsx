@@ -118,13 +118,16 @@ export default function DisparoOABPage() {
       setProgresso(10);
 
       const payload = {
-        csvData,
-        imageUrl
+        contatos: contacts,
+        templateName: 'satisfacao_oab',
+        configuracoes: {
+          headerMedia: imageUrl
+        }
       };
 
       setProgresso(30);
       
-      const response = await axios.post('/api/admin/atendimento/disparo-oab', payload);
+      const response = await axios.post('/api/admin/atendimento/disparo', payload);
       
       setProgresso(100);
       setResultado(response.data);

@@ -29,6 +29,7 @@ interface TemplateDetail {
   parameterFormat?: string | null;
   previousCategory?: string | null;
   lastEdited?: Date | null;
+  publicMediaUrl?: string | null;
   components: Array<{
     tipo: string;
     formato?: string;
@@ -96,6 +97,7 @@ export default function EditTemplateDetailsPage() {
             parameterFormat: templateData.formatoParametro,
             previousCategory: templateData.categoriaAnterior,
             lastEdited: templateData.ultimaEdicao ? new Date(templateData.ultimaEdicao) : null,
+            publicMediaUrl: templateData.publicMediaUrl,
             components: templateData.componentes
           };
           
@@ -110,9 +112,26 @@ export default function EditTemplateDetailsPage() {
           };
           
           template.components.forEach((component: any) => {
-            if (component.tipo === "HEADER" && component.formato === "IMAGE") {
-              // Obter URL da imagem do header se disponível
-              if (component.example?.header_handle?.[0]) {
+            if (component.tipo === "HEADER" && 
+               ["IMAGE", "VIDEO", "DOCUMENT"].includes(component.formato)) {
+              // Preferir usar a URL pública do MinIO se disponível
+              if (template.publicMediaUrl) {
+                formValues.headerUrl = template.publicMediaUrl;
+                console.log("Usando URL pública do MinIO:", template.publicMediaUrl);
+                
+                // Inicializar o headerMedia com a imagem existente do MinIO
+                setHeaderMedia([{
+                  id: 'existing-header',
+                  url: template.publicMediaUrl,
+                  progress: 100,
+                  mime_type: component.formato === 'IMAGE' ? 'image/jpeg' :
+                            component.formato === 'VIDEO' ? 'video/mp4' :
+                            component.formato === 'DOCUMENT' ? 'application/pdf' : 'application/octet-stream',
+                  visible_name: `Mídia do cabeçalho (${component.formato.toLowerCase()})`
+                }]);
+              } 
+              // Caso contrário, usar a URL do WhatsApp
+              else if (component.example?.header_handle?.[0]) {
                 formValues.headerUrl = component.example.header_handle[0];
                 
                 // Inicializar o headerMedia com a imagem existente
@@ -121,8 +140,10 @@ export default function EditTemplateDetailsPage() {
                     id: 'existing-header',
                     url: formValues.headerUrl,
                     progress: 100,
-                    mime_type: 'image/jpeg', // Assumimos JPEG como padrão
-                    visible_name: 'Imagem do header'
+                    mime_type: component.formato === 'IMAGE' ? 'image/jpeg' :
+                              component.formato === 'VIDEO' ? 'video/mp4' :
+                              component.formato === 'DOCUMENT' ? 'application/pdf' : 'application/octet-stream',
+                    visible_name: `Mídia do cabeçalho (${component.formato.toLowerCase()})`
                   }]);
                 }
               }
@@ -310,6 +331,21 @@ export default function EditTemplateDetailsPage() {
   const hasFooter = template.components.some(c => c.tipo === "FOOTER");
   const hasButtons = template.components.some(c => c.tipo === "BUTTONS");
   
+  // Adicionar função para verificar a origem da mídia
+  function getMediaSourceLabel(url: string, template: TemplateDetail | null) {
+    if (!url || !template) return "";
+    
+    if (template.publicMediaUrl && url === template.publicMediaUrl) {
+      return "✅ Mídia armazenada localmente no MinIO (mais confiável)";
+    }
+    
+    if (url.includes('whatsapp.net') || url.includes('fbcdn.net')) {
+      return "⚠️ Mídia hospedada nos servidores da Meta (temporária)";
+    }
+    
+    return "";
+  }
+  
   return (
     <div className="container mx-auto py-10 max-w-6xl">
       <div className="flex items-center justify-between mb-6">
@@ -354,9 +390,11 @@ export default function EditTemplateDetailsPage() {
                         onChange={handleInputChange}
                         placeholder="https://exemplo.com/imagem.jpg"
                       />
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Esta URL será atualizada automaticamente quando você fizer upload de uma nova imagem
-                      </p>
+                      {formData.headerUrl && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {getMediaSourceLabel(formData.headerUrl, template)}
+                        </p>
+                      )}
                     </div>
                   </div>
                 )}

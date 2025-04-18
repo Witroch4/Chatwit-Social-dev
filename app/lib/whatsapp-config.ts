@@ -25,6 +25,7 @@ export async function getWhatsAppConfig(userId?: string) {
     return {
       whatsappToken: process.env.WHATSAPP_TOKEN || '',
       whatsappBusinessAccountId: process.env.WHATSAPP_BUSINESS_ID || '',
+      phoneNumberId: process.env.FROM_PHONE_NUMBER_ID || '',
       fbGraphApiBase: 'https://graph.facebook.com/v22.0', // Forçar versão v22.0
       isFromEnv: true
     };
@@ -34,6 +35,7 @@ export async function getWhatsAppConfig(userId?: string) {
   return {
     whatsappToken: config.whatsappToken,
     whatsappBusinessAccountId: config.whatsappBusinessAccountId,
+    phoneNumberId: process.env.FROM_PHONE_NUMBER_ID || '', // Usar phoneNumberId do .env pois o banco não armazena
     fbGraphApiBase: 'https://graph.facebook.com/v22.0', // Forçar versão v22.0
     isFromEnv: false
   };
@@ -42,8 +44,10 @@ export async function getWhatsAppConfig(userId?: string) {
 /**
  * Monta a URL para a API do WhatsApp para envio de mensagens
  */
-export function getWhatsAppApiUrl(config: { fbGraphApiBase: string, whatsappBusinessAccountId: string }) {
-  return `${config.fbGraphApiBase}/${config.whatsappBusinessAccountId}/messages`;
+export function getWhatsAppApiUrl(config: { fbGraphApiBase: string, phoneNumberId?: string, whatsappBusinessAccountId: string }) {
+  // Usar phoneNumberId se disponível (correto segundo a documentação), caso contrário usar o WABA ID
+  const id = config.phoneNumberId || config.whatsappBusinessAccountId;
+  return `${config.fbGraphApiBase}/${id}/messages`;
 }
 
 /**

@@ -461,6 +461,9 @@ model WhatsAppTemplate {
   /// Histórico de edições em formato JSON (ex.: [{ editedAt: Date, changes: {...} }, ...])
   editHistory                Json?
   
+  /// URL pública da mídia no MinIO (para vídeos, imagens, etc.)
+  publicMediaUrl             String?
+  
   createdAt                  DateTime @default(now())
   updatedAt                  DateTime @updatedAt
 

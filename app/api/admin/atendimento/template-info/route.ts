@@ -21,7 +21,7 @@ function getWhatsAppApiConfig() {
     whatsappToken:
       process.env.WHATSAPP_TOKEN ||
       atendimentoConfig.whatsappToken ||
-      'EAAGIBII4GXQBO2qgvJ2jdcUmgkdqBo5bUKEanJWmCLpcZAsq0Ovpm4JNlrNLeZAv3OYNrdCqqQBAHfEfPFD0FPnZAOQJURB9GKcbjXeDpa83XdAsa3i6fTr23lBFM2LwUZC23xXrZAnB8QjCCFZBxrxlBvzPj8LsejvUjz0C04Q8Jsl8nTGHUd4ZBRPc4NiHFnc',
+      '',
   };
 }
 
@@ -32,7 +32,6 @@ function getWhatsAppApiConfig() {
 async function getWhatsAppTemplateDetailsFromAPI(templateId: string) {
   try {
     const config = getWhatsAppApiConfig();
-    // Inclui campos extras para a sincronização completa
     const url = `${config.fbGraphApiBase}/${config.whatsappBusinessAccountId}/message_templates?fields=name,status,category,language,components,sub_category,quality_score,correct_category,cta_url_link_tracking_opted_out,library_template_name,message_send_ttl_seconds,parameter_format,previous_category&limit=1000`;
     console.log('Consultando API do WhatsApp em:', url);
     
@@ -47,21 +46,18 @@ async function getWhatsAppTemplateDetailsFromAPI(templateId: string) {
       throw new Error('Nenhum template encontrado na API');
     }
     
-    // Localiza o template específico pelo ID
     const template = response.data.data.find((t: any) => t.id === templateId);
     if (!template) {
       throw new Error(`Template com ID ${templateId} não encontrado na API`);
     }
     
-    // Tenta sincronizar o template com o banco de dados
     try {
       const session = await auth();
       if (session?.user) {
         const existingTemplate = await prisma.whatsAppTemplate.findFirst({
-          where: { templateId: templateId }
+          where: { templateId }
         });
         
-        // Preparar dados para salvar no banco
         const data = {
           name: template.name,
           category: template.category,
@@ -98,7 +94,6 @@ async function getWhatsAppTemplateDetailsFromAPI(templateId: string) {
       }
     } catch (dbError) {
       console.error(`Erro ao salvar template no banco:`, dbError);
-      // Se ocorrer erro no banco, não interrompe o fluxo
     }
     
     return template;
@@ -115,12 +110,10 @@ async function getWhatsAppTemplateDetailsFromAPI(templateId: string) {
  */
 export async function GET(req: Request) {
   try {
-    // Verifica autenticação
     const session = await auth();
     if (!session?.user) {
       return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
     }
-    // Verifica se o usuário é admin
     if (session.user.role !== "ADMIN") {
       return NextResponse.json({ error: "Sem permissão" }, { status: 403 });
     }
@@ -132,14 +125,20 @@ export async function GET(req: Request) {
     }
     console.log("Buscando template com ID:", templateId);
     
-    // Busca o template na API do WhatsApp e sincroniza com o banco
     const template = await getWhatsAppTemplateDetailsFromAPI(templateId);
     if (!template) {
       return NextResponse.json({ error: "Template não encontrado" }, { status: 404 });
     }
-    console.log("Template encontrado:", template ? "Sim" : "Não");
+    console.log("Template encontrado: Sim");
     
-    // Formata a resposta simplificada para o frontend
+    // Buscar URL pública da mídia armazenada no banco de dados
+    const dbTemplate = await prisma.whatsAppTemplate.findFirst({
+      where: { templateId }
+    });
+    
+    const publicMediaUrl = dbTemplate?.publicMediaUrl || null;
+    console.log("URL pública da mídia:", publicMediaUrl || "Não encontrada");
+    
     return NextResponse.json({
       success: true,
       template: {
@@ -155,63 +154,48 @@ export async function GET(req: Request) {
         mensagemSendTtlSegundos: template.message_send_ttl_seconds || null,
         formatoParametro: template.parameter_format || null,
         categoriaAnterior: template.previous_category || null,
+        publicMediaUrl: publicMediaUrl,
         componentes: Array.isArray(template.components)
           ? template.components.map((component: any) => {
-              // Objeto base com propriedades comuns
               const mappedComponent: any = {
                 tipo: component.type,
                 formato: component.format,
                 texto: component.text,
               };
-              
-              // Adicionar exemplo se existir
               if (component.example) {
                 mappedComponent.example = component.example;
               }
-              
-              // Processar variáveis se existirem
-              if (component.example && component.text && component.text.includes('{{')) {
-                // Extrair variáveis de texto com {{número}}
+              if (component.text && component.example) {
                 const varRegex = /{{(\d+)}}/g;
                 const matches = [...component.text.matchAll(varRegex)];
-                
                 if (matches.length > 0) {
-                  mappedComponent.variaveis = matches.map((match: any, index: number) => {
-                    // Tentar obter exemplo das variáveis
-                    let exemplo = '';
-                    if (component.example.body_text && 
-                        component.example.body_text[0] && 
-                        component.example.body_text[0][index]) {
-                      exemplo = component.example.body_text[0][index];
-                    }
-                    
-                    return {
-                      nome: match[1],
-                      descricao: `Variável ${match[1]}`,
-                      exemplo: exemplo
-                    };
-                  });
+                  mappedComponent.variaveis = matches.map((m: any, idx: number) => ({
+                    nome: m[1],
+                    descricao: `Variável ${m[1]}`,
+                    exemplo:
+                      component.example.body_text?.[0]?.[idx] ||
+                      component.example[component.type.toLowerCase()]?.[0] ||
+                      ''
+                  }));
                 } else {
                   mappedComponent.variaveis = false;
                 }
               } else {
                 mappedComponent.variaveis = false;
               }
-              
-              // Processar botões se existirem
               if (component.buttons) {
                 mappedComponent.botoes = component.buttons.map((btn: any) => ({
                   tipo: btn.type,
                   texto: btn.text,
                   url: btn.url || null,
-                  telefone: btn.phone_number || null
+                  telefone: btn.phone_number || null,
+                  example: btn.example || []
                 }));
               }
-              
               return mappedComponent;
             })
           : [],
-      }
+      },
     });
   } catch (error) {
     console.error("Erro ao buscar informações do template:", error);

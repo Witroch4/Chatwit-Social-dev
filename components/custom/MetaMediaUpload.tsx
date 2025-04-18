@@ -11,7 +11,7 @@ import {
   Loader2,
   ExternalLink
 } from "lucide-react";
-import { useCallback, useState } from "react";
+import { useCallback, useState, useEffect } from "react";
 import { useDropzone } from "react-dropzone";
 import { Input } from "../ui/input";
 import { Button } from "../ui/button";
@@ -58,6 +58,20 @@ export default function MetaMediaUpload({
   onUploadComplete,
 }: MetaMediaUploadProps) {
   const [isUploading, setIsUploading] = useState(false);
+  
+  // Log mudanças nos arquivos para debug
+  useEffect(() => {
+    console.log('[MetaMediaUpload] Estado dos arquivos atualizado:', uploadedFiles);
+    
+    // Verificar se algum arquivo tem URL e mediaHandle válidos
+    const validFiles = uploadedFiles.filter(f => f.url && f.mediaHandle);
+    console.log('[MetaMediaUpload] Arquivos válidos para template:', validFiles);
+    
+    // Log de estado para depuração
+    if (uploadedFiles.length > 0) {
+      localStorage.setItem('debug_uploadedFiles', JSON.stringify(uploadedFiles));
+    }
+  }, [uploadedFiles]);
 
   const onDrop = useCallback(
     async (acceptedFiles: File[]) => {
@@ -156,16 +170,36 @@ export default function MetaMediaUpload({
           url: newFile.url, // Manter a URL original para exibição
         };
         
-        setUploadedFiles(prev =>
-          prev.map(f => (f.id === newFile.id ? updatedFile : f))
-        );
+        setUploadedFiles(prev => {
+          // Log para debug
+          console.log(`[MetaMediaUpload] Atualizando arquivo após upload da URL para Meta API`);
+          console.log(`[MetaMediaUpload] Arquivo atual:`, prev.find(f => f.id === newFile.id));
+          console.log(`[MetaMediaUpload] Novo arquivo:`, updatedFile);
+          
+          // Criar uma cópia profunda do array para evitar problemas de referência
+          const newFiles = prev.map(f => 
+            f.id === newFile.id 
+              ? {...updatedFile} // Garantir que é uma nova referência 
+              : {...f} // Criar nova referência para outros arquivos também
+          );
+          
+          // Propagar mudança para o componente pai imediatamente
+          if (onUploadComplete) {
+            // Importante: Para garantir que a URL esteja acessível durante a criação do template
+            console.log(`[MetaMediaUpload] Notificando componente pai sobre upload concluído`);
+            console.log(`[MetaMediaUpload] URL de MinIO salva para uso futuro: ${updatedFile.url}`);
+            console.log(`[MetaMediaUpload] MediaHandle: ${response.data.mediaHandle}, MinIO URL: ${updatedFile.url}`);
+            
+            // Usar setTimeout para garantir que o estado tenha sido atualizado antes de chamar o callback
+            setTimeout(() => {
+              onUploadComplete(response.data.mediaHandle, updatedFile);
+            }, 100);
+          }
+          
+          return newFiles;
+        });
 
         toast.success("Upload da URL concluído");
-        
-        // Chamar callback se fornecido
-        if (onUploadComplete) {
-          onUploadComplete(response.data.mediaHandle, updatedFile);
-        }
       } else {
         throw new Error(response.data.error || "Erro desconhecido no upload");
       }
@@ -234,8 +268,10 @@ export default function MetaMediaUpload({
       
       // Agora temos a URL do MinIO para preview
       const minioUrl = minioResponse.data.url;
+      console.log(`[MetaMediaUpload] URL do MinIO obtida: ${minioUrl}`);
       
       // Atualizar o arquivo com a URL do MinIO
+      // Importante: Guardar uma cópia da URL aqui para evitar perda
       setUploadedFiles(prev =>
         prev.map(f =>
           f.id === fileData.id ? { ...f, url: minioUrl, progress: 50 } : f
@@ -264,25 +300,51 @@ export default function MetaMediaUpload({
 
       // Se o upload foi bem-sucedido
       if (metaResponse.data && metaResponse.data.success) {
+        // Criar uma cópia completa do objeto para preservar seus dados
         const updatedFile = {
           ...fileData,
           progress: 100,
           status: 'success' as const,
           mediaHandle: metaResponse.data.mediaHandle,
-          url: minioUrl, // Usar a URL do MinIO para exibição
+          url: minioUrl, // Usar a URL do MinIO para exibição - importante preservar
           mime_type: fileData.file.type,
         };
         
-        setUploadedFiles(prev =>
-          prev.map(f => (f.id === fileData.id ? updatedFile : f))
-        );
+        // Atualizar estado com o arquivo atualizado
+        setUploadedFiles(prev => {
+          // Log para debug
+          console.log(`[MetaMediaUpload] Atualizando arquivos após upload para Meta API`);
+          console.log(`[MetaMediaUpload] Arquivo atual:`, prev.find(f => f.id === fileData.id));
+          console.log(`[MetaMediaUpload] Novo arquivo:`, updatedFile);
+          
+          // Criar uma cópia profunda do array para evitar problemas de referência
+          const newFiles = prev.map(f => 
+            f.id === fileData.id 
+              ? {...updatedFile} // Garantir que é uma nova referência 
+              : {...f} // Criar nova referência para outros arquivos também
+          );
+          
+          // Propagar mudança para o componente pai imediatamente
+          if (onUploadComplete) {
+            console.log(`[MetaMediaUpload] Notificando componente pai sobre upload concluído`);
+            console.log(`[MetaMediaUpload] URL de MinIO salva para uso futuro: ${minioUrl}`);
+            console.log(`[MetaMediaUpload] MediaHandle: ${metaResponse.data.mediaHandle}, MinIO URL: ${minioUrl}`);
+            
+            // Usar setTimeout para garantir que o estado tenha sido atualizado antes de chamar o callback
+            setTimeout(() => {
+              onUploadComplete(metaResponse.data.mediaHandle, updatedFile);
+            }, 100);
+          }
+          
+          return newFiles;
+        });
 
-        toast.success(`Upload completo: ${fileData.file.name}`);
+        // Registrar a URL para debug
+        console.log(`[MetaMediaUpload] Upload completo: ${fileData.file.name}`);
+        console.log(`[MetaMediaUpload] URL MinIO: ${minioUrl}`);
+        console.log(`[MetaMediaUpload] MediaHandle: ${metaResponse.data.mediaHandle}`);
         
-        // Chamar callback se fornecido
-        if (onUploadComplete) {
-          onUploadComplete(metaResponse.data.mediaHandle, updatedFile);
-        }
+        toast.success(`Upload completo: ${fileData.file.name}`);
       } else {
         throw new Error(metaResponse.data.error || "Erro desconhecido no upload para Meta API");
       }

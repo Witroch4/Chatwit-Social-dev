@@ -20,7 +20,7 @@ export async function GET(request: Request) {
     const clientId = process.env.NEXT_PUBLIC_INSTAGRAM_APP_ID!;
     const clientSecret = process.env.INSTAGRAM_APP_SECRET!;
     const redirectUri = process.env.NEXT_PUBLIC_INSTAGRAM_REDIRECT_URI!;
-    const nextAuthUrl = process.env.NEXTAUTH_URL;
+    const nextAuthUrl = process.env.NEXT_PUBLIC_INSTAGRAM_REDIRECT_URI!;
     
     // Logs para depuração
     console.log("=== VARIÁVEIS DE AMBIENTE DEBUG ===");
@@ -155,7 +155,7 @@ export async function GET(request: Request) {
     if (existingAccountWithSameId) {
       if (existingAccountWithSameId.userId !== userId) {
         console.log('Esta conta do Instagram já está conectada a outro usuário.');
-        const baseUrl = process.env.NEXTAUTH_URL || 'https://funny-direct-colt.ngrok-free.app';
+        const baseUrl = process.env.NEXTAUTH_URL || 'https://chatwit-social.witdev.com.br';
         return NextResponse.redirect(
           `${baseUrl}/registro/redesocial?error=account_already_connected`
         );
@@ -202,11 +202,11 @@ export async function GET(request: Request) {
     });
 
     if (accountToUse) {
-      const baseUrl = process.env.NEXTAUTH_URL || 'https://funny-direct-colt.ngrok-free.app';
+      const baseUrl = process.env.NEXTAUTH_URL || 'https://chatwit-social.witdev.com.br';
       console.log(`Redirecionando para /${accountToUse.providerAccountId}/dashboard`);
       return NextResponse.redirect(`${baseUrl}/${accountToUse.providerAccountId}/dashboard`);
     } else {
-      const baseUrl = process.env.NEXTAUTH_URL || 'https://funny-direct-colt.ngrok-free.app';
+      const baseUrl = process.env.NEXTAUTH_URL || 'https://chatwit-social.witdev.com.br';
       console.log('Nenhuma conta encontrada, redirecionando para /registro/redesocial');
       return NextResponse.redirect(`${baseUrl}/registro/redesocial`);
     }
