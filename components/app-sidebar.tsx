@@ -833,13 +833,13 @@ export function AppSidebar() {
               <SidebarMenuItem>
                 <SidebarMenuButton asChild>
                   <Link
-                    href="chatwit"
+                    href="/chatwitia"
                     className={`flex items-center ${
                       state === "collapsed" ? "justify-start pl-4" : "justify-start pl-2"
                     }`}
                   >
-                    <MessageCircle className="mr-2" />
-                    {state !== "collapsed" && <span>Chat ao Vivos</span>}
+                    <Atom className="mr-2" />
+                    {state !== "collapsed" && <span>ChatwitIA</span>}
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>

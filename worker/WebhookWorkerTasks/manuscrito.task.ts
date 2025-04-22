@@ -1,5 +1,6 @@
 import { Job } from 'bullmq';
 import { prisma } from '@/lib/prisma';
+import fetch from 'node-fetch'; // Importar node-fetch para fazer chamadas HTTP
 
 interface IManuscritoJobData {
   leadID: string;
@@ -34,9 +35,44 @@ export async function processManuscritoTask(job: Job<IManuscritoJobData>) {
       where: { id: leadID },
       data: {
         provaManuscrita: conteudoUnificado,
-        manuscritoProcessado: true
+        manuscritoProcessado: true,
+        aguardandoManuscrito: false
       },
     });
+
+    // Notificar o frontend via SSE
+    try {
+      // Determinar a URL base do servidor
+      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+      
+      // Chamar a API interna para disparar o evento SSE
+      const response = await fetch(`${baseUrl}/api/admin/leads-chatwit/trigger-sse`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-API-Key': process.env.INTERNAL_API_KEY || 'desenvolvimento', // Use uma chave de API para segurança
+        },
+        body: JSON.stringify({
+          leadId: leadID,
+          eventName: 'manuscrito_processado',
+          data: {
+            leadId: leadID,
+            manuscritoProcessado: true,
+            provaManuscrita: conteudoUnificado
+          }
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`[BullMQ] Erro ao enviar evento SSE: ${errorText}`);
+      } else {
+        console.log(`[BullMQ] Evento SSE enviado com sucesso para o lead ${leadID}`);
+      }
+    } catch (error) {
+      console.error(`[BullMQ] Erro ao enviar notificação SSE:`, error);
+      // Não interromper o processamento se a notificação falhar
+    }
 
     console.log(`[BullMQ] Lead atualizado com sucesso:`, leadAtualizado.id);
     return { success: true, message: 'Manuscrito processado com sucesso' };

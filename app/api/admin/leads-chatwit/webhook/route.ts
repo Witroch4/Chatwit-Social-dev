@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import { addManuscritoJob } from '@/lib/queue/manuscrito.queue';
+import { sendEventToLead } from '../sse/route'; // Importar a função de envio de eventos SSE
 
 // Criando uma instância do Prisma fora do escopo da rota
 const prisma = new PrismaClient();
@@ -58,13 +59,18 @@ export async function POST(request: Request): Promise<Response> {
         textoDAprova: webhookData.textoDAprova
       });
       
+      // Juntar os "output" em uma única string com separadores
+      const conteudoUnificado = webhookData.textoDAprova
+        .map((item: { output: string }) => item.output)
+        .join('\n\n---------------------------------\n\n');
+      
       // Atualizar o lead com o texto manuscrito
       const leadUpdate = await prisma.leadChatwit.update({
         where: {
           id: leadID
         },
         data: {
-          provaManuscrita: webhookData.textoDAprova,
+          provaManuscrita: conteudoUnificado,
           manuscritoProcessado: true,
           aguardandoManuscrito: false,
           updatedAt: new Date()
@@ -72,6 +78,20 @@ export async function POST(request: Request): Promise<Response> {
       });
       
       console.log("[Webhook] Manuscrito adicionado à fila de processamento");
+      
+      // Enviar evento SSE para notificar o frontend
+      try {
+        await sendEventToLead(leadID, 'manuscrito_processado', {
+          leadId: leadID,
+          manuscritoProcessado: true,
+          provaManuscrita: conteudoUnificado
+        });
+        console.log("[Webhook] Evento SSE enviado com sucesso para o lead:", leadID);
+      } catch (error) {
+        console.error("[Webhook] Erro ao enviar evento SSE:", error);
+        // Continuar mesmo se o evento não puder ser enviado
+      }
+      
       return NextResponse.json({
         success: true,
         message: "Manuscrito adicionado à fila de processamento",

@@ -4,6 +4,92 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Estilos para formatação de markdown */
+.prose h1 {
+  @apply text-2xl font-bold mt-6 mb-4;
+}
+
+.prose h2 {
+  @apply text-xl font-bold mt-5 mb-3;
+}
+
+.prose h3 {
+  @apply text-lg font-bold mt-4 mb-2;
+}
+
+.prose h4 {
+  @apply text-base font-bold mt-3 mb-2;
+}
+
+.prose p {
+  @apply mb-4;
+}
+
+.prose ul {
+  @apply list-disc pl-6 mb-4;
+}
+
+.prose ol {
+  @apply list-decimal pl-6 mb-4;
+}
+
+.prose li {
+  @apply mb-1;
+}
+
+.prose a {
+  @apply text-blue-600 hover:underline;
+}
+
+.prose blockquote {
+  @apply border-l-4 border-gray-300 pl-4 italic my-4;
+}
+
+.prose pre {
+  @apply bg-gray-100 p-4 rounded-md overflow-x-auto my-4;
+}
+
+.prose code {
+  @apply bg-gray-100 px-1.5 py-0.5 rounded text-sm;
+}
+
+.prose pre code {
+  @apply bg-transparent p-0;
+}
+
+.prose table {
+  @apply border-collapse w-full my-4;
+}
+
+.prose table th {
+  @apply border border-gray-300 px-4 py-2 bg-gray-100 font-bold;
+}
+
+.prose table td {
+  @apply border border-gray-300 px-4 py-2;
+}
+
+.prose img {
+  @apply my-4 rounded-md max-w-full h-auto;
+}
+
+.prose strong {
+  @apply font-bold;
+}
+
+.prose em {
+  @apply italic;
+}
+
+.prose hr {
+  @apply my-6 border-t border-gray-300;
+}
+
+/* Adicionando uma classe helper para garantir que o markdown seja exibido corretamente */
+.markdown-body {
+  @apply prose prose-slate max-w-none break-words;
+}
+
 /* Adicione estilos globais adicionais aqui, se necessário */
 
 

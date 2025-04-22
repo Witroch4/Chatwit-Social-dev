@@ -66,9 +66,9 @@ services:
     container_name: chatwit_ngrok
     env_file:
       - .env.development
-    command: http app:3000 --domain=funny-direct-colt.ngrok-free.app
+    command: http app:3000 --domain=moving-eagle-bright.ngrok-free.app
     environment:
-      - NGROK_AUTHTOKEN=2uo7DZcOBaccynlt2Wq8gVULqJ3_36ywaedyqoJRNq1zNRUDf
+      - NGROK_AUTHTOKEN=2q8n28IDz0mMwNr02MlHnLGsbKE_6ohF5ifRMgFBW867Mk5Zi
     networks:
       - minha_rede
     depends_on:

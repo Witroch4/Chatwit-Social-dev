@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { 
   TableRow, 
   TableCell 
@@ -115,10 +115,87 @@ export function LeadItem({
   const [showManuscritoDialog, setShowManuscritoDialog] = useState(false);
   const [confirmDeleteManuscrito, setConfirmDeleteManuscrito] = useState(false);
   const [manuscritoToDelete, setManuscritoToDelete] = useState<string | null>(null);
+  const eventSourceRef = useRef<EventSource | null>(null);
 
   const displayName = lead.nomeReal || lead.name || "Lead sem nome";
   const formattedDate = format(new Date(lead.createdAt ?? new Date()), "dd/MM/yyyy HH:mm", { locale: ptBR });
   
+  // Efeito para configurar um EventSource para ouvir eventos de manuscrito processado
+  useEffect(() => {
+    // Verifica se o lead está aguardando um manuscrito e não está com o manuscrito processado
+    if (lead.aguardandoManuscrito && !lead.manuscritoProcessado) {
+      // Fecha qualquer EventSource existente
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+        eventSourceRef.current = null;
+      }
+      
+      // Cria um novo EventSource para ouvir eventos específicos para este lead
+      const eventSource = new EventSource(`/api/admin/leads-chatwit/sse?leadId=${lead.id}`);
+      eventSourceRef.current = eventSource;
+      
+      // Configura o handler para o evento 'manuscrito_processado'
+      eventSource.addEventListener('manuscrito_processado', (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          
+          // Verifica se o evento é para este lead
+          if (data.leadId === lead.id) {
+            // Atualiza o lead com os novos dados
+            onEdit({
+              ...lead,
+              manuscritoProcessado: true,
+              aguardandoManuscrito: false,
+              provaManuscrita: data.provaManuscrita || lead.provaManuscrita,
+              _skipDialog: true
+            });
+            
+            // Mostra um toast notificando que o manuscrito foi processado
+            toast({
+              title: "Manuscrito processado",
+              description: "O manuscrito foi processado com sucesso e está disponível para edição.",
+              variant: "default",
+              action: (
+                <ToastAction altText="Editar" onClick={() => setShowManuscritoDialog(true)}>
+                  Editar agora
+                </ToastAction>
+              )
+            });
+            
+            // Fecha o EventSource, pois não precisamos mais ouvir
+            eventSource.close();
+            eventSourceRef.current = null;
+            
+            // Desativa o estado de digitação
+            setIsDigitando(false);
+          }
+        } catch (error) {
+          console.error("Erro ao processar evento de manuscrito:", error);
+        }
+      });
+      
+      // Configura handlers para erros
+      eventSource.onerror = (error) => {
+        console.error("Erro no EventSource:", error);
+        // Fecha o EventSource em caso de erro
+        eventSource.close();
+        eventSourceRef.current = null;
+      };
+      
+      // Retorna uma função de limpeza
+      return () => {
+        eventSource.close();
+        eventSourceRef.current = null;
+      };
+    } else {
+      // Se o lead não está aguardando manuscrito, fecha qualquer EventSource existente
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+        eventSourceRef.current = null;
+      }
+    }
+  }, [lead.id, lead.aguardandoManuscrito, lead.manuscritoProcessado, onEdit, toast]);
+
   const handleDelete = () => {
     setConfirmDelete(false);
     onDelete(lead.id);

@@ -143,6 +143,9 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
           <AdminNavLink href="/admin/disparo-oab" icon={<Users className="h-5 w-5 mr-3" />}>
             Disparo OAB
           </AdminNavLink>
+          <AdminNavLink href="/chatwitia" icon={<Users className="h-5 w-5 mr-3" />}>
+            ChatwitIA
+          </AdminNavLink>
           <AdminNavLink href="/admin/templates" icon={<HelpCircle className="h-5 w-5 mr-3" />}>
             Templates WhatsApp
           </AdminNavLink>

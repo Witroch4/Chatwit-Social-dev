@@ -9,6 +9,9 @@ import { cn } from "@/lib/utils";
 import { Toaster } from "@/components/ui/toaster";
 import { WelcomeNotificationHandler } from "@/components/welcome-notification-handler";
 
+// 👇 import do TooltipProvider
+import { TooltipProvider } from "@/components/ui/tooltip";
+
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
@@ -17,11 +20,11 @@ export const metadata: Metadata = {
   icons: {
     icon: [
       {
-        url: '/W.svg',
-        href: '/W.svg',
-      }
-    ]
-  }
+        url: "/W.svg",
+        href: "/W.svg",
+      },
+    ],
+  },
 };
 
 export default function RootLayout({
@@ -41,7 +44,10 @@ export default function RootLayout({
               disableTransitionOnChange
             >
               <WelcomeNotificationHandler />
-              {children}
+              {/* 👇 Envolvendo a árvore de componentes com TooltipProvider */}
+              <TooltipProvider>
+                {children}
+              </TooltipProvider>
             </ThemeProvider>
           </SessionProvider>
         </ErrorBoundary>
@@ -50,3 +56,4 @@ export default function RootLayout({
     </html>
   );
 }
+

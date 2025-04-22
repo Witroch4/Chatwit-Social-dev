@@ -14,6 +14,8 @@ import {
   addCheckExpiringTokensJob
 } from '@/lib/queue/instagram-webhook.queue';
 import cron from 'node-cron';
+import { LEADS_QUEUE_NAME } from '@/lib/queue/leads-chatwit.queue';
+import { processLeadChatwitTask } from './WebhookWorkerTasks/leads-chatwit.task';
 
 dotenv.config();
 
@@ -30,6 +32,12 @@ const manuscritoWorker = new Worker(
   processManuscritoTask,
   { connection }
 );
+// Worker de leads‑chatwit  🔥
+const leadsChatwitWorker = new Worker(
+    LEADS_QUEUE_NAME,
+    processLeadChatwitTask,
+    { connection, concurrency: 5 }   // limite de concorrência
+  );
 
 // Worker para processar notificações automáticas
 const autoNotificationsWorker = new Worker<IAutoNotificationJobData>(
@@ -58,7 +66,7 @@ const autoNotificationsWorker = new Worker<IAutoNotificationJobData>(
 );
 
 // Tratamento de eventos dos workers
-[agendamentoWorker, manuscritoWorker, autoNotificationsWorker].forEach(worker => {
+[agendamentoWorker, manuscritoWorker, leadsChatwitWorker, autoNotificationsWorker].forEach(worker => {
   worker.on('completed', (job) => {
     console.log(`[BullMQ] Job ${job.id} concluído com sucesso`);
   });
@@ -175,6 +183,7 @@ process.on('SIGTERM', async () => {
   await Promise.all([
     agendamentoWorker.close(),
     manuscritoWorker.close(),
+    leadsChatwitWorker.close(),
     autoNotificationsWorker.close(),
   ]);
   await prisma.$disconnect();
@@ -192,4 +201,9 @@ process.on('SIGINT', async () => {
   process.exit(0);
 });
 
-export { agendamentoWorker, manuscritoWorker, autoNotificationsWorker };
+export {
+  agendamentoWorker,
+  manuscritoWorker,
+  leadsChatwitWorker,
+  autoNotificationsWorker
+};

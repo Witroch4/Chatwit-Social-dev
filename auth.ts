@@ -38,7 +38,7 @@ export const {
     },
 
     async jwt({ token, user, trigger, session }) {
-      console.log("Início do callback JWT:", { trigger });
+     // console.log("Início do callback JWT:", { trigger });
 
       if (trigger === "update" && session) {
         console.log("Atualizando token com base na sessão");
@@ -101,10 +101,10 @@ export const {
       const partialAccess = token.instagramAccessToken
         ? token.instagramAccessToken.slice(0, 3) + "..."
         : undefined;
-      console.log("Token final antes de retornar (PARCIAL IG):", {
-        ...token,
-        instagramAccessToken: partialAccess,
-      });
+      // console.log("Token final antes de retornar (PARCIAL IG):", {
+      //   ...token,
+      //   instagramAccessToken: partialAccess,
+      // });
 
       return token;
     },
