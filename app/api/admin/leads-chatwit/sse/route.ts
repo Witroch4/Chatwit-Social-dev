@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { cookies } from "next/headers";
 import { PrismaClient } from '@prisma/client';
-import { getCurrentUser } from "@/lib/session";
+import { auth } from "@/auth";
 
 const prisma = new PrismaClient();
 
@@ -31,15 +30,12 @@ export async function sendEventToLead(leadId: string, eventName: string, data: a
 
 export async function GET(req: NextRequest) {
   try {
-    // Verificar autenticação e autorização
-    const user = await getCurrentUser();
-    if (!user || !user.id) {
+    // Verificar autenticação usando auth.js v5
+    const session = await auth();
+    
+    // Verificar se o usuário está autenticado e tem role de admin
+    if (!session?.user || session.user.role !== "ADMIN") {
       return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
-    }
-
-    // Verificar se usuário é admin
-    if (!user.roles || !user.roles.includes("admin")) {
-      return NextResponse.json({ error: "Acesso negado" }, { status: 403 });
     }
 
     // Obter o ID do lead da query string

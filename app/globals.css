@@ -195,3 +195,133 @@ body,
     transition: margin-left 0.3s ease;
   }
 }
+
+/* Animação suave para o botão de scroll para baixo */
+.animate-bounce-soft {
+  animation: bounce 2s infinite;
+}
+
+@keyframes bounce {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(3px);
+  }
+}
+
+/* Animação de pulso suave para destacar novos itens */
+.animate-pulse-subtle {
+  animation: pulse-subtle 2s infinite;
+}
+
+@keyframes pulse-subtle {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.8;
+  }
+}
+
+/* Estilos para o botão de scroll */
+.scroll-to-bottom-btn {
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.scroll-to-bottom-btn.highlight {
+  transform: scale(1.1);
+  box-shadow: 0 0 0 5px rgba(59, 130, 246, 0.3);
+  animation: highlight-pulse 0.5s ease 2;
+}
+
+@keyframes highlight-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 5px rgba(59, 130, 246, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(59, 130, 246, 0.5);
+  }
+}
+
+/* Animação para os dots de carregamento */
+.loading-message {
+  animation: fadeIn 0.3s ease-in;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.loading-dots .animate-bounce {
+  animation-duration: 1.4s;
+}
+
+/* Animação suave para entrada de mensagens do assistente */
+.assistant-message-enter {
+  animation: slideInBottom 0.3s ease forwards;
+  transform-origin: bottom;
+  opacity: 0;
+}
+
+@keyframes slideInBottom {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Animação para texto que está sendo inserido pelo stream */
+@keyframes textFadeIn {
+  from { opacity: 0.4; }
+  to { opacity: 1; }
+}
+
+.prose p:last-child,
+.prose ul:last-child,
+.prose ol:last-child,
+.prose pre:last-child,
+.prose blockquote:last-child {
+  animation: textFadeIn 0.5s ease-out;
+}
+
+/* Estilo especial para o conteúdo que está em streaming */
+.stream-content {
+  transition: opacity 0.2s ease-out;
+}
+
+/* Efeito pulsante sutil para o cursor do texto em streaming */
+.stream-content::after {
+  content: "▌";
+  display: inline-block;
+  animation: cursorBlink 1s step-end infinite;
+  margin-left: 1px;
+  font-weight: normal;
+  opacity: 0.7;
+}
+
+/* Remove o cursor quando o streaming termina e adiciona uma transição suave */
+.stream-complete {
+  transition: all 0.3s ease-out;
+}
+
+.stream-complete::after {
+  content: "";
+  display: none;
+}
+
+@keyframes cursorBlink {
+  0%, 100% { opacity: 0; }
+  50% { opacity: 1; }
+}

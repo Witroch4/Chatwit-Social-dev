@@ -11,8 +11,8 @@ import {
 } from "@/components/ui/tooltip";
 import CodeBlock from "./CodeBlock";
 
-export default function MessageContent({ content }: { content: string }) {
-  if (!content) return <div className="text-gray-500 italic">Aguardando resposta...</div>;
+export default function MessageContent({ content, isStreaming = false }: { content: string, isStreaming?: boolean }) {
+  if (!content) return null;
 
   const hasFileReference = content.match(/\[.*?\]\(file_id:(.*?)\)/);
   const processed = useMemo(
@@ -23,8 +23,10 @@ export default function MessageContent({ content }: { content: string }) {
     [content, hasFileReference]
   );
 
+  const contentClassName = `prose prose-slate dark:prose-invert max-w-none break-words ${isStreaming ? 'stream-content' : 'stream-complete'}`;
+
   return (
-    <div className="prose prose-slate dark:prose-invert max-w-none break-words">
+    <div className={contentClassName}>
       {hasFileReference && (
         <div className="flex items-center gap-2 p-2 bg-blue-50 border border-blue-200 rounded-md mb-3">
           <FileIcon size={18} className="text-blue-500" />

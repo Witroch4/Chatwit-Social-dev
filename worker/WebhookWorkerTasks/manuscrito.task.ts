@@ -1,6 +1,5 @@
 import { Job } from 'bullmq';
 import { prisma } from '@/lib/prisma';
-import fetch from 'node-fetch'; // Importar node-fetch para fazer chamadas HTTP
 
 interface IManuscritoJobData {
   leadID: string;

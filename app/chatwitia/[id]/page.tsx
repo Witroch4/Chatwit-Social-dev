@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useRouter, useParams } from 'next/navigation';
+import { useRouter, useParams, useSearchParams } from 'next/navigation';  // ← importe useSearchParams
 import Link from 'next/link';
 import { ArrowLeft, MessageSquare, Plus, ChevronDown, User2, X, ChevronRight, MoreVertical, Share, Edit, Archive, Trash2 } from 'lucide-react';
 import ChatwitIA from '@/app/components/ChatwitIA/ChatwithIA';
@@ -12,6 +12,16 @@ interface ChatHistory {
   date: string;
   createdAt: Date;
   dateGroup: string;
+}
+
+// Define the Model interface
+interface Model {
+  id: string;
+  name: string;
+  description: string;
+  category?: string;
+  beta?: boolean;
+  experimental?: boolean;
 }
 
 // Main models
@@ -35,70 +45,98 @@ const defaultAdditionalModels = [
 export default function ChatPage() {
   const router = useRouter();
   const params = useParams();
+
+  const searchParams = useSearchParams();
   const chatId = params?.id as string;
   
-  const [chatHistories, setChatHistories] = useState<ChatHistory[]>([]);
-  const [groupedChats, setGroupedChats] = useState<{[key: string]: ChatHistory[]}>({});
-  const [isLoadingChats, setIsLoadingChats] = useState(true);
-  const [selectedModel, setSelectedModel] = useState('chatgpt-4o-latest');
-  const [selectedModelName, setSelectedModelName] = useState('ChatGPT 4o');
-  const [showModelDropdown, setShowModelDropdown] = useState(false);
-  const [showMoreModels, setShowMoreModels] = useState(false);
-  const [activeCategory, setActiveCategory] = useState<string | null>(null);
-  const [currentChatTitle, setCurrentChatTitle] = useState('Nova conversa');
-  const [collapsedGroups, setCollapsedGroups] = useState<{[key: string]: boolean}>({});
-  const [activeContextMenu, setActiveContextMenu] = useState<string | null>(null);
-  const [renameModalVisible, setRenameModalVisible] = useState(false);
-  const [chatToRename, setChatToRename] = useState<ChatHistory | null>(null);
-  const [newChatTitle, setNewChatTitle] = useState('');
-  const [confirmDeleteVisible, setConfirmDeleteVisible] = useState(false);
-  const [chatToDelete, setChatToDelete] = useState<string | null>(null);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filteredGroups, setFilteredGroups] = useState<{[key: string]: ChatHistory[]}>({});
-  const [mainModels, setMainModels] = useState(defaultMainModels);
-  const [additionalModels, setAdditionalModels] = useState(defaultAdditionalModels);
-  const [apiModels, setApiModels] = useState<any>({});
-  const [isLoadingModels, setIsLoadingModels] = useState(false);
-  const [componentMounted, setComponentMounted] = useState(false);
-  const [remountKey, setRemountKey] = useState(0);
+
+   // 3) Leia ?model= da URL e use como estado inicial
+   const initialModel = searchParams?.get('model') ?? 'chatgpt-4o-latest';
+   const [selectedModel, setSelectedModel] = useState<string>(initialModel);
+   const [selectedModelName, setSelectedModelName] = useState<string>(() => {
+     const m = [...defaultMainModels, ...defaultAdditionalModels].find(m => m.id === initialModel);
+     return m?.name ?? 'ChatGPT 4o';
+   });
+   const [currentChatTitle, setCurrentChatTitle] = useState<string>('Nova conversa');
+
+   // Histórico e agrupamentos
+   const [chatHistories, setChatHistories] = useState<ChatHistory[]>([]);
+   const [groupedChats, setGroupedChats] = useState<Record<string, ChatHistory[]>>({});
+   const [isLoadingChats, setIsLoadingChats] = useState(true);
+   const [filteredGroups, setFilteredGroups] = useState<Record<string, ChatHistory[]>>({});
+   const [searchTerm, setSearchTerm] = useState('');
+   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
+ 
+   // Controles de UI
+   const [showModelDropdown, setShowModelDropdown] = useState(false);
+   const [showMoreModels, setShowMoreModels] = useState(false);
+   const [activeCategory, setActiveCategory] = useState<string | null>(null);
+   const [activeContextMenu, setActiveContextMenu] = useState<string | null>(null);
+   const [renameModalVisible, setRenameModalVisible] = useState(false);
+   const [chatToRename, setChatToRename] = useState<ChatHistory | null>(null);
+   const [newChatTitle, setNewChatTitle] = useState('');
+   const [confirmDeleteVisible, setConfirmDeleteVisible] = useState(false);
+   const [chatToDelete, setChatToDelete] = useState<string | null>(null);
+ 
+   // Modelos da API
+   const [mainModels, setMainModels] = useState<Model[]>(defaultMainModels);
+   const [additionalModels, setAdditionalModels] = useState<Model[]>(defaultAdditionalModels);
+   const [apiModels, setApiModels] = useState<any>({});
+   const [isLoadingModels, setIsLoadingModels] = useState(false);
+ 
+   // Remount key para ChatwitIA
+   const [remountKey, setRemountKey] = useState(0);
+   const [componentMounted, setComponentMounted] = useState(false);
+ 
+   // Refs para fechar menus
+   const contextMenuRef = useRef<HTMLDivElement>(null);
+   const modelDropdownRef = useRef<HTMLDivElement>(null);
   
-  const contextMenuRef = useRef<HTMLDivElement>(null);
-  const modelDropdownRef = useRef<HTMLDivElement>(null);
   
-  // Tentar extrair uma mensagem inicial da URL (se existir)
-  const [initialMessageFromURL, setInitialMessageFromURL] = useState<string | null>(null);
+  // Replace state with ref to avoid re-renders
+  /** guarda a mensagem inicial apenas uma vez */
+  const initialMessageRef = useRef<string | null>(null);
   
-  // Detectar mensagem inicial da URL
+  /* ------------------------------------------------------------------ */
+  /* 1. Captura da initialMessage – só uma vez, sem ficar em "state"    */
+  /* ------------------------------------------------------------------ */
   useEffect(() => {
-    // Verificar se temos uma mensagem inicial nos parâmetros da URL
-    if (typeof window !== 'undefined') {
-      const urlParams = new URLSearchParams(window.location.search);
-      const message = urlParams.get('initialMessage');
-      
-      if (message) {
-        console.log("Mensagem inicial detectada na URL:", message);
-        setInitialMessageFromURL(decodeURIComponent(message));
-        
-        // Limpar URL para não reprocessar a mesma mensagem em caso de refresh
-        const url = new URL(window.location.href);
-        url.searchParams.delete('initialMessage');
-        window.history.replaceState({}, document.title, url.toString());
-      }
+    if (typeof window === 'undefined') return;
+
+    const url = new URL(window.location.href);
+    const msg = url.searchParams.get('initialMessage');
+    if (msg) {
+      initialMessageRef.current = decodeURIComponent(msg);
+      url.searchParams.delete('initialMessage');
+      window.history.replaceState({}, document.title, url.toString());
+      console.log("ChatwitIA [id] page: URL cleaned to prevent reprocessing");
     }
-  }, []);
-  
-  // Mark component as mounted
+    
+    // Remove model parameter after component is mounted but preserve during initial load
+    setTimeout(() => {
+      const currentUrl = new URL(window.location.href);
+      if (currentUrl.searchParams.has('model')) {
+        currentUrl.searchParams.delete('model');
+        window.history.replaceState({}, document.title, currentUrl.toString());
+        console.log("ChatwitIA [id] page: model parameter cleaned from URL");
+      }
+    }, 2000); // Add a delay to ensure the model is loaded first
+  }, []);                               // <<< sem dependências!
+
+  /* ------------------------------------------------------------------ */
+  /* 2. Remontar ChatwitIA apenas se o chatId mudar                      */
+  /* ------------------------------------------------------------------ */
   useEffect(() => {
-    console.log(`ChatwitIA [id] page montada com chatId: ${chatId}`);
+    console.log(`ChatwitIA [id] page montada com chatId: ${chatId}, modelo: ${selectedModel}`);
     setComponentMounted(true);
     
-    // Force remount of ChatwitIA component when page mounts
+    // Force remount of ChatwitIA component only when chatId changes
     setRemountKey(prev => prev + 1);
     
     return () => {
       setComponentMounted(false);
     };
-  }, [chatId]);
+  }, [chatId]);                         // <<< só depende do id
   
   // Close dropdowns when clicking outside
   useEffect(() => {
@@ -471,23 +509,17 @@ export default function ChatPage() {
 
   // Organizing modelos adicionais por categoria
   const getModelsByCategory = () => {
-    const categories: {[key: string]: Array<{
-      id: string;
-      name: string;
-      description: string;
-      category: string;
-      beta?: boolean;
-      experimental?: boolean;
-    }>} = {};
+    const modelCategories: {[key: string]: Model[]} = {};
     
     additionalModels.forEach(model => {
-      if (!categories[model.category]) {
-        categories[model.category] = [];
+      const categoryName = model.category || 'Outros';
+      if (!modelCategories[categoryName]) {
+        modelCategories[categoryName] = [];
       }
-      categories[model.category].push(model);
+      modelCategories[categoryName].push(model);
     });
     
-    return categories;
+    return modelCategories;
   };
 
   // Carregar modelos disponíveis da API
@@ -604,7 +636,7 @@ export default function ChatPage() {
     loadAvailableModels();
   }, []);
 
-  // Load chat info on page load to get the model being used
+  // Uncomment and fix the load chat info effect
   useEffect(() => {
     if (chatId) {
       const fetchChatInfo = async () => {
@@ -613,6 +645,7 @@ export default function ChatPage() {
           if (response.ok) {
             const data = await response.json();
             if (data.model) {
+              console.log(`Carregando modelo do chat: ${data.model}`);
               // Update selected model based on the chat's model
               setSelectedModel(data.model);
               
@@ -632,6 +665,20 @@ export default function ChatPage() {
       fetchChatInfo();
     }
   }, [chatId, mainModels, additionalModels]);
+
+  // Atualizar modelName quando selectedModel mudar
+  useEffect(() => {
+    console.log(`Atualizando nome do modelo para: ${selectedModel}`);
+    // Find model name from available models
+    const allModels = [...mainModels, ...additionalModels];
+    const modelInfo = allModels.find(m => m.id === selectedModel);
+    if (modelInfo) {
+      setSelectedModelName(modelInfo.name);
+    } else {
+      // Tentar formatar o nome do modelo
+      setSelectedModelName(selectedModel.replace('gpt-', 'GPT-').replace(/-/g, ' '));
+    }
+  }, [selectedModel, mainModels, additionalModels]);
 
   return (
     <div className="flex h-screen">
@@ -972,12 +1019,12 @@ export default function ChatPage() {
         
         {/* Chat Interface */}
         <div className="flex-1 overflow-hidden">
-          <ChatwitIA 
+          <ChatwitIA
             key={`chat-${remountKey}-${chatId}`}
-            modelId={selectedModel}
             chatId={chatId}
-            onChatTitleChange={handleChatTitleChange}
-            initialMessage={initialMessageFromURL}
+            modelId={selectedModel}
+            initialMessage={initialMessageRef.current}
+            onTitleChange={handleChatTitleChange}
           />
         </div>
       </div>

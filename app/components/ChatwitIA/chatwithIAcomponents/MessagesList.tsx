@@ -18,10 +18,25 @@ export default function MessagesList({
   containerRef,
   endRef,
 }: MessagesListProps) {
-  // rolar sempre que chegar nova msg
+  // Verificar se já temos uma resposta em progresso (stream começou)
+  const hasResponseInProgress = React.useMemo(() => {
+    if (messages.length === 0) return false;
+    
+    const lastMessage = messages[messages.length - 1];
+    // Considera stream iniciado se for uma mensagem do assistente e tiver qualquer conteúdo
+    return lastMessage.role === 'assistant' && lastMessage.content !== '';
+  }, [messages]);
+  
+  // Verificar se o streaming está ativo ou se já acabou
+  const isStreamActive = isLoading && hasResponseInProgress;
+
+  // rolar sempre que chegar nova msg ou quando a resposta em stream mudar
   useEffect(() => {
-    endRef.current?.scrollIntoView();
-  }, [messages.length]);
+    // Usar scrollIntoView com comportamento suave quando novas mensagens chegarem
+    if (messages.length) {
+      endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    }
+  }, [messages.length, hasResponseInProgress]);
 
   if (!messages.length)
     return (
@@ -59,7 +74,10 @@ export default function MessagesList({
                         </p>
                       </div>
                     ) : (
-                      <MessageContent content={m.content} />
+                      <MessageContent 
+                        content={m.content} 
+                        isStreaming={isLoading && i === messages.length - 1 && m.role === 'assistant'} 
+                      />
                     )
                   ) : (
                     <p className="text-red-500">Formato de conteúdo não suportado</p>
@@ -70,9 +88,17 @@ export default function MessagesList({
           );
         })}
 
-        {isLoading && (
-          <div className="mb-6 flex justify-center text-gray-500 italic">
-            Gerando resposta...
+        {/* Mostrar animação de carregamento apenas se estiver carregando E não tiver resposta em progresso */}
+        {isLoading && !hasResponseInProgress && (
+          <div className="mb-6 flex justify-center">
+            <div className="loading-message bg-blue-50 border border-blue-100 rounded-lg px-5 py-3 flex items-center gap-3">
+              <div className="loading-dots flex space-x-1">
+                <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: '600ms' }}></div>
+              </div>
+              <span className="text-blue-700 font-medium text-sm">Processando sua solicitação</span>
+            </div>
           </div>
         )}
         {error && (

@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, MessageSquare, Plus, ChevronDown, User2, X, ChevronRight, MoreVertical, Share, Edit, Archive, Trash2, LightbulbIcon, ArrowUp, Type, Mic, Settings, Upload, Image, Bold, Italic, List, ListOrdered, Heading, Code, FileCode } from 'lucide-react';
 import ChatwitIA from '@/app/components/ChatwitIA/ChatwithIA';
-import ChatwitIAWrapper from '@/app/components/ChatwitIA/ChatwitIAWrapper';
+import ChatInputForm from '@/app/components/ChatInputForm';
 
 interface ChatHistory {
   id: string;
@@ -59,6 +59,7 @@ export default function ChatPage() {
   const [isLoadingModels, setIsLoadingModels] = useState(false);
   const [pendingMessage, setPendingMessage] = useState<string | null>(null);
   const [forceRemount, setForceRemount] = useState(0);
+  const [inputValue, setInputValue] = useState('');
   
   const contextMenuRef = useRef<HTMLDivElement>(null);
   const modelDropdownRef = useRef<HTMLDivElement>(null);
@@ -525,13 +526,18 @@ export default function ChatPage() {
   }, [router]);
 
   // Function to handle initial user message submission
-  const handleInitialMessage = async (userInput: string) => {
-    if (!userInput.trim()) return;
+  const isSubmittingRef = useRef(false);
+  
+  const handleInitialMessage = useCallback((userInput: string) => {
+    if (!userInput.trim() || isSubmittingRef.current) return;
+    
+    // Prevent duplicate submissions
+    isSubmittingRef.current = true;
     
     try {
       console.log("Criando nova sessão para mensagem:", userInput);
       // 1. Create a new session with the current model
-      const response = await fetch('/api/chatwitia/sessions', {
+      fetch('/api/chatwitia/sessions', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -540,23 +546,31 @@ export default function ChatPage() {
           title: 'Nova conversa',
           model: selectedModel
         })
-      });
-      
-      if (response.ok) {
-        const newChat = await response.json();
+      })
+      .then(response => {
+        if (response.ok) return response.json();
+        throw new Error('Failed to create session');
+      })
+      .then(newChat => {
         console.log("Nova sessão criada com ID:", newChat.id);
         
         // 2. Store the pending message to be sent after navigation
-        setPendingMessage(userInput);
-        console.log("Mensagem armazenada para envio após navegação:", userInput);
+        setInputValue(''); // Clear input immediately
         
         // 3. Navigate to the new chat with the message in query params for reliability
-        router.push(`/chatwitia/${newChat.id}?initialMessage=${encodeURIComponent(userInput)}`);
-      }
+        router.push(`/chatwitia/${newChat.id}?initialMessage=${encodeURIComponent(userInput)}&model=${selectedModel}`);
+      })
+      .catch(error => {
+        console.error("Error creating new chat:", error);
+        // Reset submission state in case of error
+        isSubmittingRef.current = false;
+      });
     } catch (error) {
-      console.error("Error creating new chat:", error);
+      console.error("Error in handleInitialMessage:", error);
+      // Reset submission state in case of error
+      isSubmittingRef.current = false;
     }
-  };
+  }, [router, selectedModel]);
 
   return (
     <div className="flex h-screen">
@@ -885,9 +899,76 @@ export default function ChatPage() {
           <div className="w-8"></div> {/* Spacer for balance */}
         </div>
         
-        {/* Chat Interface - Agora usando o wrapper em vez do componente real */}
+        {/* Chat Interface - Agora usando diretamente o ChatInputForm */}
         <div className="flex-1 overflow-hidden">
-          <ChatwitIAWrapper onSendInitialMessage={handleInitialMessage} />
+          <div className="flex flex-col h-full">
+            <div className="flex-1 overflow-y-auto pb-32">
+              <div className="h-full flex flex-col items-center justify-center px-4">
+                <h1 className="text-4xl font-bold mb-8">ChatwitIA</h1>
+                
+                <div className="max-w-2xl">
+                  <h2 className="text-2xl font-medium text-center mb-5">Por onde começamos?</h2>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-8">
+                    <button 
+                      className="bg-gray-50 p-4 rounded-lg border hover:bg-gray-100 transition-colors text-left"
+                      onClick={() => handleInitialMessage("Explique como o GPT-4 funciona para um desenvolvedor")}
+                    >
+                      <div className="font-medium mb-1">Explique como o GPT-4 funciona</div>
+                      <div className="text-sm text-gray-600">Para um desenvolvedor que quer entender a tecnologia</div>
+                    </button>
+                    
+                    <button 
+                      className="bg-gray-50 p-4 rounded-lg border hover:bg-gray-100 transition-colors text-left"
+                      onClick={() => handleInitialMessage("Crie um plano de estudo para aprender React e Next.js em 8 semanas")}
+                    >
+                      <div className="font-medium mb-1">Crie um plano de estudo</div>
+                      <div className="text-sm text-gray-600">Para aprender React e Next.js em 8 semanas</div>
+                    </button>
+                    
+                    <button 
+                      className="bg-gray-50 p-4 rounded-lg border hover:bg-gray-100 transition-colors text-left"
+                      onClick={() => handleInitialMessage("Escreva uma API REST em Node.js para um sistema de agendamento")}
+                    >
+                      <div className="font-medium mb-1">Escreva uma API REST</div>
+                      <div className="text-sm text-gray-600">Em Node.js para um sistema de agendamento</div>
+                    </button>
+                    
+                    <button 
+                      className="bg-gray-50 p-4 rounded-lg border hover:bg-gray-100 transition-colors text-left"
+                      onClick={() => handleInitialMessage("Gere um código para analisar e visualizar dados em Python com matplotlib")}
+                    >
+                      <div className="font-medium mb-1">Gere um código para análise de dados</div>
+                      <div className="text-sm text-gray-600">Em Python com matplotlib</div>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Direct usage of ChatInputForm for home page */}
+            <ChatInputForm 
+              key={`form-${selectedModel}`}
+              input={inputValue}
+              setInput={setInputValue}
+              onSubmit={handleInitialMessage}
+              isLoading={isSubmittingRef.current}
+              systemPrompt={''}
+              setSystemPrompt={() => {}}
+              onAudioCapture={() => {}}
+              onImageGenerate={() => {}}
+              handleTranscriptReady={(t) => setInputValue((p) => (p ? `${p} ${t}` : t))}
+              files={[]}
+              onUploadFile={() => Promise.resolve()}
+              onDeleteFile={() => Promise.resolve()}
+              onEditImage={() => Promise.resolve()}
+              onVariationImage={() => Promise.resolve()}
+              isFileLoading={false}
+              currentSessionId={undefined}
+              isCnisAnalysisActive={false}
+              onToggleCnisAnalysis={() => {}}
+            />
+          </div>
         </div>
       </div>
       

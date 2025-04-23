@@ -238,7 +238,7 @@ export async function GET() {
     // Buscar lista de modelos disponíveis na API da OpenAI
     const modelsList = await openai.models.list();
     
-    console.log('Total de modelos encontrados na API da OpenAI:', modelsList.data.length);
+    //console.log('Total de modelos encontrados na API da OpenAI:', modelsList.data.length);
     
     // Organizar modelos por categoria, sem filtrar nenhum
     const categorizedModels: {
@@ -303,9 +303,9 @@ export async function GET() {
         
         // Armazenar o modelo mais recente no mapa global
         global.latestOSeriesModels[baseModel] = modelsOfType[0].id;
-        console.log(`Modelo mais recente para ${baseModel}: ${modelsOfType[0].id}`);
+        //console.log(`Modelo mais recente para ${baseModel}: ${modelsOfType[0].id}`);
       } else {
-        console.log(`Nenhum modelo disponível para ${baseModel}`);
+        //console.log(`Nenhum modelo disponível para ${baseModel}`);
       }
     });
     
@@ -313,8 +313,8 @@ export async function GET() {
     let anthropicModels: any[] = [];
     try {
       const anthropicModelsList = await anthropic.models.list();
-      console.log('Total de modelos encontrados na API da Anthropic:', anthropicModelsList.data.length);
-      console.log('Modelos Anthropic disponíveis:', anthropicModelsList.data.map((m: any) => m.id));
+      //console.log('Total de modelos encontrados na API da Anthropic:', anthropicModelsList.data.length);
+      //console.log('Modelos Anthropic disponíveis:', anthropicModelsList.data.map((m: any) => m.id));
       
       anthropicModels = anthropicModelsList.data;
       
@@ -325,8 +325,8 @@ export async function GET() {
     }
     
     // Imprimir todos os modelos para debug
-    console.log('Todos os modelos disponíveis:', modelsList.data.map(m => m.id));
-    console.log('Modelos O Series:', modelsList.data.filter(m => /^o[1-9]/.test(m.id)).map(m => m.id));
+   // console.log('Todos os modelos disponíveis:', modelsList.data.map(m => m.id));
+    //console.log('Modelos O Series:', modelsList.data.filter(m => /^o[1-9]/.test(m.id)).map(m => m.id));
     
     return NextResponse.json({
       success: true,
