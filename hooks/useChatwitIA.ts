@@ -55,9 +55,9 @@ export type FileWithContent = {
 export function useChatwitIA(chatId?: string | null, initialModel = 'chatgpt-4o-latest') {
   const { data: authSession } = useSession();
   const [messages, setMessages] = useState<Message[]>([]);
+  const [model, setModel] = useState(initialModel);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [model, setModel] = useState(initialModel);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(chatId || null);
   const [isFetchingSession, setIsFetchingSession] = useState(false);
   const streamContentRef = useRef('');
@@ -68,6 +68,33 @@ export function useChatwitIA(chatId?: string | null, initialModel = 'chatgpt-4o-
   
   /** Prevent duplicate message sends */
   const isProcessingRef = useRef(false);
+  const messagesRef = useRef(messages);
+
+  // Atualiza a referência quando as mensagens mudam
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+
+  // Atualizar o modelo quando initialModel mudar
+  useEffect(() => {
+    console.log(`Atualizando modelo para: ${initialModel}`);
+    setModel(initialModel);
+  }, [initialModel]);
+
+  // Update currentSessionId when chatId changes
+  useEffect(() => {
+    setCurrentSessionId(chatId || null);
+  }, [chatId]);
+  
+  // Carregar chat do banco de dados quando o ID mudar
+  useEffect(() => {
+    if (chatId) {
+      loadChatFromDB(chatId);
+    } else {
+      // Reset messages when no chatId is provided (new chat)
+      setMessages([]);
+    }
+  }, [chatId, authSession]);
 
   // Carregar mensagens quando o chatId mudar ou o usuário estiver autenticado
   useEffect(() => {
@@ -78,12 +105,6 @@ export function useChatwitIA(chatId?: string | null, initialModel = 'chatgpt-4o-
       setCurrentSessionId(null);
     }
   }, [chatId, authSession?.user]);
-
-  // Atualizar o modelo quando initialModel mudar
-  useEffect(() => {
-    console.log(`Atualizando modelo para: ${initialModel}`);
-    setModel(initialModel);
-  }, [initialModel]);
 
   // Carregar chat do banco de dados
   const loadChatFromDB = async (id: string) => {
@@ -193,15 +214,18 @@ export function useChatwitIA(chatId?: string | null, initialModel = 'chatgpt-4o-
     
     isProcessingRef.current = true;
     
-    if (selectedModel && selectedModel !== model) {
-      console.log(`Modelo alterado de "${model}" para "${selectedModel}"`);
-      setModel(selectedModel);
-    }
-    
+    // Always use the selectedModel parameter if provided, falling back to current model state
     const modelToUse = selectedModel || model;
     console.log(`Enviando mensagem usando modelo: ${modelToUse}`);
+    
+    // Update the model state to match what we're using for this message
+    if (modelToUse !== model) {
+      console.log(`Modelo alterado de "${model}" para "${modelToUse}"`);
+      setModel(modelToUse);
+    }
+    
     setIsLoading(true);
-      setError(null);
+    setError(null);
 
     try {
       // Garantir que temos uma sessão para salvar as mensagens
@@ -209,6 +233,7 @@ export function useChatwitIA(chatId?: string | null, initialModel = 'chatgpt-4o-
       let isNewSession = false;
       
       if (!sessionIdToUse && authSession?.user) {
+        // Pass the explicitly selected model to createChatSession
         sessionIdToUse = await createChatSession('Nova conversa', modelToUse);
         isNewSession = true;
       }
@@ -317,15 +342,6 @@ export function useChatwitIA(chatId?: string | null, initialModel = 'chatgpt-4o-
       // Atualiza o estado com a mensagem do usuário para visualização
       const updatedMessages = [...messages, displayUserMessage];
       setMessages(updatedMessages);
-
-      // Salvar a mensagem do usuário no banco se tivermos uma sessão (duplicado?)
-      //if (sessionIdToUse && authSession?.user) {
-        //await saveChatMessageToDB(
-         // sessionIdToUse, 
-          //userMessage, 
-          //contentType
-        //);
-      //}
 
       // Se for um documento, adicione informações para o processamento de embedding
       let additionalData = {};

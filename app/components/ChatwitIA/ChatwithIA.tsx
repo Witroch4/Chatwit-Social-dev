@@ -1,8 +1,9 @@
+//ChatwitIA.tsx
 "use client";
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { useChatwitIA } from "@/hooks/useChatwitIA";
 import { useSession } from "next-auth/react";
-
+import { useRouter } from "next/navigation";
 import ChatHeader from "./chatwithIAcomponents/ChatHeader";
 import MessagesList from "./chatwithIAcomponents/MessagesList";
 import ScrollToBottomButton from "./chatwithIAcomponents/ScrollToBottomButton";
@@ -24,6 +25,7 @@ export default function ChatwitIA({
   initialMessage = null,
   onTitleChange,
 }: Props) {
+  const router = useRouter();
   const { data: authSession } = useSession();
   const {
     messages,
@@ -37,7 +39,17 @@ export default function ChatwitIA({
     deleteFile,
     editImage,
     createImageVariation,
+    currentSessionId,
   } = useChatwitIA(chatId, modelId) as any;
+
+  /** Depois que o hook gera a primeira sessão, trocamos de rota
+ *  (isso acontece em milissegundos, sem recarregar o componente). */
+useEffect(() => {
+  if (!chatId && currentSessionId) {
+    router.replace(`/chatwitia/${currentSessionId}`);
+  }
+}, [chatId, currentSessionId, router]);
+
 
   const [input, setInput] = useState("");
   const [systemPrompt, setSystemPrompt] = useState(defaultSystemPrompt);
@@ -50,7 +62,7 @@ export default function ChatwitIA({
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  // ------ ⬇️ novos/ajustados trechos ---------------------------------
+  // Flag to track whether the initial message has been sent
   const initialMessageSentRef = useRef(false);
 
   /* ----- scroll helpers (inalterados) ----- */
@@ -117,6 +129,7 @@ export default function ChatwitIA({
   const handleSubmit = useCallback(
     async (content: string) => {
       if (!content.trim() || isLoading) return;
+      // Always pass the modelId to ensure it's used
       await sendMessage(content, systemPrompt, modelId);
       setInput("");
       inputRef.current?.focus();
@@ -124,18 +137,26 @@ export default function ChatwitIA({
     [isLoading, sendMessage, systemPrompt, modelId]
   );
 
-  // 1. libera de novo quando o usuário troca para outro chat
+  // Reset the initialMessageSent flag when chatId changes
   useEffect(() => {
     initialMessageSentRef.current = false;
-  }, [chatId]);
+  }, [chatId, modelId]); // Also reset when modelId changes
 
-  // 2. envia a mensagem inicial uma única vez
+  // Process initial message once when component mounts or chatId/modelId changes
   useEffect(() => {
     if (!initialMessage || isLoading || initialMessageSentRef.current) return;
+    
+    console.log(`Processing initial message with model: ${modelId}`);
     initialMessageSentRef.current = true;
-    setTimeout(() => handleSubmit(initialMessage), 0);
-  }, [initialMessage, isLoading, handleSubmit]);
-  // -------------------------------------------------------------------
+
+    // Small timeout to ensure component is fully mounted
+    setTimeout(() => handleSubmit(initialMessage), 100);
+
+    // Clean up pending message from sessionStorage
+    if (typeof window !== 'undefined' && chatId) {
+      sessionStorage.removeItem(`pending_${chatId}`);
+    }
+  }, [initialMessage, isLoading, handleSubmit, chatId, modelId]);
 
   /* ----- CNIS analysis toggle ----- */
   const handleToggleCnisAnalysis = (isActive: boolean) => {

@@ -1,3 +1,4 @@
+//app/chatwitia/[id]/page.tsx
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -49,80 +50,72 @@ export default function ChatPage() {
   const searchParams = useSearchParams();
   const chatId = params?.id as string;
   
-
-   // 3) Leia ?model= da URL e use como estado inicial
-   const initialModel = searchParams?.get('model') ?? 'chatgpt-4o-latest';
-   const [selectedModel, setSelectedModel] = useState<string>(initialModel);
-   const [selectedModelName, setSelectedModelName] = useState<string>(() => {
-     const m = [...defaultMainModels, ...defaultAdditionalModels].find(m => m.id === initialModel);
-     return m?.name ?? 'ChatGPT 4o';
-   });
-   const [currentChatTitle, setCurrentChatTitle] = useState<string>('Nova conversa');
-
-   // Histórico e agrupamentos
-   const [chatHistories, setChatHistories] = useState<ChatHistory[]>([]);
-   const [groupedChats, setGroupedChats] = useState<Record<string, ChatHistory[]>>({});
-   const [isLoadingChats, setIsLoadingChats] = useState(true);
-   const [filteredGroups, setFilteredGroups] = useState<Record<string, ChatHistory[]>>({});
-   const [searchTerm, setSearchTerm] = useState('');
-   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
- 
-   // Controles de UI
-   const [showModelDropdown, setShowModelDropdown] = useState(false);
-   const [showMoreModels, setShowMoreModels] = useState(false);
-   const [activeCategory, setActiveCategory] = useState<string | null>(null);
-   const [activeContextMenu, setActiveContextMenu] = useState<string | null>(null);
-   const [renameModalVisible, setRenameModalVisible] = useState(false);
-   const [chatToRename, setChatToRename] = useState<ChatHistory | null>(null);
-   const [newChatTitle, setNewChatTitle] = useState('');
-   const [confirmDeleteVisible, setConfirmDeleteVisible] = useState(false);
-   const [chatToDelete, setChatToDelete] = useState<string | null>(null);
- 
-   // Modelos da API
-   const [mainModels, setMainModels] = useState<Model[]>(defaultMainModels);
-   const [additionalModels, setAdditionalModels] = useState<Model[]>(defaultAdditionalModels);
-   const [apiModels, setApiModels] = useState<any>({});
-   const [isLoadingModels, setIsLoadingModels] = useState(false);
- 
-   // Remount key para ChatwitIA
-   const [remountKey, setRemountKey] = useState(0);
-   const [componentMounted, setComponentMounted] = useState(false);
- 
-   // Refs para fechar menus
-   const contextMenuRef = useRef<HTMLDivElement>(null);
-   const modelDropdownRef = useRef<HTMLDivElement>(null);
+  // Get pending message data (message + model) from sessionStorage
+  const pendingData = typeof window !== "undefined" 
+    ? sessionStorage.getItem(`pending_${chatId}`) 
+    : null;
   
+  // Try to parse the pending data as JSON, fall back to treating it as a plain message
+  let pendingMsg = null;
+  let pendingModelId = null;
   
-  // Replace state with ref to avoid re-renders
-  /** guarda a mensagem inicial apenas uma vez */
-  const initialMessageRef = useRef<string | null>(null);
-  
-  /* ------------------------------------------------------------------ */
-  /* 1. Captura da initialMessage – só uma vez, sem ficar em "state"    */
-  /* ------------------------------------------------------------------ */
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-
-    const url = new URL(window.location.href);
-    const msg = url.searchParams.get('initialMessage');
-    if (msg) {
-      initialMessageRef.current = decodeURIComponent(msg);
-      url.searchParams.delete('initialMessage');
-      window.history.replaceState({}, document.title, url.toString());
-      console.log("ChatwitIA [id] page: URL cleaned to prevent reprocessing");
+  if (pendingData) {
+    try {
+      // Try to parse as JSON first (new format with model)
+      const parsed = JSON.parse(pendingData);
+      pendingMsg = parsed.message;
+      pendingModelId = parsed.model;
+      console.log("Parsed pending message data:", pendingMsg, "with model:", pendingModelId);
+    } catch (e) {
+      // Fall back to treating as plain string (old format)
+      pendingMsg = pendingData;
+      console.log("Using legacy format pending message:", pendingMsg);
     }
-    
-    // Remove model parameter after component is mounted but preserve during initial load
-    setTimeout(() => {
-      const currentUrl = new URL(window.location.href);
-      if (currentUrl.searchParams.has('model')) {
-        currentUrl.searchParams.delete('model');
-        window.history.replaceState({}, document.title, currentUrl.toString());
-        console.log("ChatwitIA [id] page: model parameter cleaned from URL");
-      }
-    }, 2000); // Add a delay to ensure the model is loaded first
-  }, []);                               // <<< sem dependências!
+  }
 
+  // 3) Get model from URL query params or pending data or default
+  const urlModel = searchParams?.get('model');
+  const initialModel = urlModel || pendingModelId || 'chatgpt-4o-latest';
+  const [selectedModel, setSelectedModel] = useState<string>(initialModel);
+  const [selectedModelName, setSelectedModelName] = useState<string>(() => {
+    const m = [...defaultMainModels, ...defaultAdditionalModels].find(m => m.id === initialModel);
+    return m?.name ?? 'ChatGPT 4o';
+  });
+  const [currentChatTitle, setCurrentChatTitle] = useState<string>('Nova conversa');
+
+  // Histórico e agrupamentos
+  const [chatHistories, setChatHistories] = useState<ChatHistory[]>([]);
+  const [groupedChats, setGroupedChats] = useState<Record<string, ChatHistory[]>>({});
+  const [isLoadingChats, setIsLoadingChats] = useState(true);
+  const [filteredGroups, setFilteredGroups] = useState<Record<string, ChatHistory[]>>({});
+  const [searchTerm, setSearchTerm] = useState('');
+  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
+
+  // Controles de UI
+  const [showModelDropdown, setShowModelDropdown] = useState(false);
+  const [showMoreModels, setShowMoreModels] = useState(false);
+  const [activeCategory, setActiveCategory] = useState<string | null>(null);
+  const [activeContextMenu, setActiveContextMenu] = useState<string | null>(null);
+  const [renameModalVisible, setRenameModalVisible] = useState(false);
+  const [chatToRename, setChatToRename] = useState<ChatHistory | null>(null);
+  const [newChatTitle, setNewChatTitle] = useState('');
+  const [confirmDeleteVisible, setConfirmDeleteVisible] = useState(false);
+  const [chatToDelete, setChatToDelete] = useState<string | null>(null);
+
+  // Modelos da API
+  const [mainModels, setMainModels] = useState<Model[]>(defaultMainModels);
+  const [additionalModels, setAdditionalModels] = useState<Model[]>(defaultAdditionalModels);
+  const [apiModels, setApiModels] = useState<any>({});
+  const [isLoadingModels, setIsLoadingModels] = useState(false);
+
+  // Remount key para ChatwitIA
+  const [remountKey, setRemountKey] = useState(0);
+  const [componentMounted, setComponentMounted] = useState(false);
+
+  // Refs para fechar menus
+  const contextMenuRef = useRef<HTMLDivElement>(null);
+  const modelDropdownRef = useRef<HTMLDivElement>(null);
+  
   /* ------------------------------------------------------------------ */
   /* 2. Remontar ChatwitIA apenas se o chatId mudar                      */
   /* ------------------------------------------------------------------ */
@@ -307,13 +300,47 @@ export default function ChatPage() {
     }
   };
   
+  // Add this function to update the session's model in the database
+  const updateSessionModel = async (sessionId: string, model: string) => {
+    try {
+      const response = await fetch(`/api/chatwitia/sessions/${sessionId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ model })
+      });
+      
+      if (response.ok) {
+        console.log(`Model updated in database to: ${model}`);
+        return true;
+      } else {
+        console.error("Failed to update model in database");
+        return false;
+      }
+    } catch (error) {
+      console.error("Error updating model in database:", error);
+      return false;
+    }
+  };
+
+  // Modify handleModelSelect function
   const handleModelSelect = (modelId: string, modelName: string) => {
     console.log(`Modelo selecionado - ID: ${modelId}, Nome: ${modelName}`);
+    
+    // First update the UI state
     setSelectedModel(modelId);
     setSelectedModelName(modelName);
     setShowModelDropdown(false);
     setShowMoreModels(false);
     setActiveCategory(null);
+    
+    // Then update the database if we have a chat session
+    if (chatId) {
+      updateSessionModel(chatId, modelId);
+      // Force remount of ChatwitIA to use the new model
+      setRemountKey(prev => prev + 1);
+    }
   };
   
   // Debug de modelo selecionado
@@ -680,6 +707,51 @@ export default function ChatPage() {
     }
   }, [selectedModel, mainModels, additionalModels]);
 
+  // Clean up URL parameters after initial load and update model in database
+  useEffect(() => {
+    if (typeof window === 'undefined' || !chatId || !componentMounted) return;
+
+    const updateModelIfNeeded = async () => {
+      // First verify if we need to update the model in the database
+      try {
+        const response = await fetch(`/api/chatwitia/sessions/${chatId}`);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.model !== selectedModel) {
+            console.log(`Updating model in database from ${data.model} to ${selectedModel}`);
+            await updateSessionModel(chatId, selectedModel);
+          }
+        }
+      } catch (error) {
+        console.error("Error checking current model:", error);
+      }
+    };
+
+    // Clean up URL parameters after the model has been set
+    const cleanupUrlParams = () => {
+      const url = new URL(window.location.href);
+      let modified = false;
+      
+      if (url.searchParams.has('model')) {
+        url.searchParams.delete('model');
+        modified = true;
+      }
+      
+      if (modified) {
+        window.history.replaceState({}, document.title, url.toString());
+        console.log("URL parameters cleaned up");
+      }
+    };
+
+    // Execute both operations
+    const timer = setTimeout(() => {
+      updateModelIfNeeded();
+      cleanupUrlParams();
+    }, 500); // Short delay to ensure component is fully mounted
+    
+    return () => clearTimeout(timer);
+  }, [chatId, selectedModel, componentMounted]);
+
   return (
     <div className="flex h-screen">
       {/* Sidebar with chat history */}
@@ -1020,10 +1092,10 @@ export default function ChatPage() {
         {/* Chat Interface */}
         <div className="flex-1 overflow-hidden">
           <ChatwitIA
-            key={`chat-${remountKey}-${chatId}`}
+            key={`chat-${remountKey}-${chatId}-${selectedModel}`}
             chatId={chatId}
             modelId={selectedModel}
-            initialMessage={initialMessageRef.current}
+            initialMessage={pendingMsg}
             onTitleChange={handleChatTitleChange}
           />
         </div>

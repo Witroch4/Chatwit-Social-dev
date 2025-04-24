@@ -1,3 +1,4 @@
+//app/chatwitia/page.tsx
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -162,7 +163,7 @@ export default function ChatPage() {
           const createdAt = new Date(session.createdAt);
           return {
             id: session.id,
-            title: session.title || 'Nova conversa',
+            title: session.title || `Conversa de ${formatDate(createdAt)}`,
             date: formatDate(createdAt),
             createdAt: createdAt,
             dateGroup: getDateGroup(createdAt)
@@ -205,21 +206,34 @@ export default function ChatPage() {
 
   const createNewChat = async () => {
     try {
+        // Create a friendly title with date and time
+        const now = new Date();
+        const formattedDate = now.toLocaleDateString('pt-BR', {
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric'
+        });
+        const formattedTime = now.toLocaleTimeString('pt-BR', {
+          hour: '2-digit',
+          minute: '2-digit'
+        });
+        const chatTitle = `Conversa de ${formattedDate} às ${formattedTime}`;
+        
         const response = await fetch('/api/chatwitia/sessions', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({
-            title: 'Nova conversa',
-          model: selectedModel
+            title: chatTitle,
+            model: selectedModel
           })
         });
         
         if (response.ok) {
           const newChat = await response.json();
-        // Recarregar o histórico de chats
-        await loadChatHistories();
+          // Recarregar o histórico de chats
+          await loadChatHistories();
           router.push(`/chatwitia/${newChat.id}`);
         }
       } catch (error) {
@@ -529,47 +543,71 @@ export default function ChatPage() {
   const isSubmittingRef = useRef(false);
   
   const handleInitialMessage = useCallback((userInput: string) => {
-    if (!userInput.trim() || isSubmittingRef.current) return;
+    if (!userInput.trim() || isSubmittingRef.current) return Promise.resolve();
     
     // Prevent duplicate submissions
     isSubmittingRef.current = true;
     
-    try {
-      console.log("Criando nova sessão para mensagem:", userInput);
-      // 1. Create a new session with the current model
-      fetch('/api/chatwitia/sessions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          title: 'Nova conversa',
-          model: selectedModel
+    // Return a promise that resolves when the operation is complete
+    return new Promise<void>((resolve) => {
+      try {
+        console.log("Criando nova sessão para mensagem:", userInput);
+        console.log("Usando modelo selecionado:", selectedModel);
+        
+        // Generate a title from the user's message
+        const userContent = userInput.replace(/\n/g, ' ').trim();
+        const title = userContent.length > 40
+          ? userContent.substring(0, 37) + '...'
+          : userContent;
+          
+        // 1. Create a new session with the current model
+        fetch('/api/chatwitia/sessions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            title: title || 'Nova conversa',
+            model: selectedModel
+          })
         })
-      })
-      .then(response => {
-        if (response.ok) return response.json();
-        throw new Error('Failed to create session');
-      })
-      .then(newChat => {
-        console.log("Nova sessão criada com ID:", newChat.id);
-        
-        // 2. Store the pending message to be sent after navigation
-        setInputValue(''); // Clear input immediately
-        
-        // 3. Navigate to the new chat with the message in query params for reliability
-        router.push(`/chatwitia/${newChat.id}?initialMessage=${encodeURIComponent(userInput)}&model=${selectedModel}`);
-      })
-      .catch(error => {
-        console.error("Error creating new chat:", error);
+        .then(response => {
+          if (response.ok) return response.json();
+          throw new Error('Failed to create session');
+        })
+        .then(newChat => {
+          console.log("Nova sessão criada com ID:", newChat.id);
+          
+          // 2. Store the pending message to be sent after navigation
+          setInputValue(''); // Clear input immediately
+          
+          // 3. Store both the message and the model in sessionStorage
+          if (typeof window !== "undefined") {
+            // Store both message and model as a JSON string
+            const pendingData = JSON.stringify({
+              message: userInput,
+              model: selectedModel
+            });
+            sessionStorage.setItem(`pending_${newChat.id}`, pendingData);
+            
+            // Add model to URL for immediate correct model loading
+            router.push(`/chatwitia/${newChat.id}?model=${selectedModel}`);
+          }
+          resolve();
+        })
+        .catch(error => {
+          console.error("Error creating new chat:", error);
+          // Reset submission state in case of error
+          isSubmittingRef.current = false;
+          resolve();
+        });
+      } catch (error) {
+        console.error("Error in handleInitialMessage:", error);
         // Reset submission state in case of error
         isSubmittingRef.current = false;
-      });
-    } catch (error) {
-      console.error("Error in handleInitialMessage:", error);
-      // Reset submission state in case of error
-      isSubmittingRef.current = false;
-    }
+        resolve();
+      }
+    });
   }, [router, selectedModel]);
 
   return (
@@ -893,7 +931,7 @@ export default function ChatPage() {
           
           {/* Title display in header */}
           <div className="flex-1 text-center overflow-hidden px-4">
-            <h1 className="text-sm font-medium truncate">Nova conversa</h1>
+            <h1 className="text-sm font-medium truncate">ChatwitIA</h1>
           </div>
           
           <div className="w-8"></div> {/* Spacer for balance */}
