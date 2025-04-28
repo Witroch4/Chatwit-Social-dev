@@ -108,9 +108,28 @@ export default function ChatPage() {
   const [apiModels, setApiModels] = useState<any>({});
   const [isLoadingModels, setIsLoadingModels] = useState(false);
 
+  // Remount key para ChatwitIA
+  const [remountKey, setRemountKey] = useState(0);
+  const [componentMounted, setComponentMounted] = useState(false);
+
   // Refs para fechar menus
   const contextMenuRef = useRef<HTMLDivElement>(null);
   const modelDropdownRef = useRef<HTMLDivElement>(null);
+  
+  /* ------------------------------------------------------------------ */
+  /* 2. Remontar ChatwitIA apenas se o chatId mudar                      */
+  /* ------------------------------------------------------------------ */
+  useEffect(() => {
+    console.log(`ChatwitIA [id] page montada com chatId: ${chatId}, modelo: ${selectedModel}`);
+    setComponentMounted(true);
+    
+    // Force remount of ChatwitIA component only when chatId changes
+    setRemountKey(prev => prev + 1);
+    
+    return () => {
+      setComponentMounted(false);
+    };
+  }, [chatId]);                         // <<< só depende do id
   
   // Close dropdowns when clicking outside
   useEffect(() => {
@@ -137,7 +156,7 @@ export default function ChatPage() {
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, []);
-
+  
   // Format dates helper
   const formatDate = (date: Date) => {
     const now = new Date();
@@ -319,6 +338,8 @@ export default function ChatPage() {
     // Then update the database if we have a chat session
     if (chatId) {
       updateSessionModel(chatId, modelId);
+      // Force remount of ChatwitIA to use the new model
+      setRemountKey(prev => prev + 1);
     }
   };
   
@@ -686,28 +707,50 @@ export default function ChatPage() {
     }
   }, [selectedModel, mainModels, additionalModels]);
 
-  // 🚀 Verifica modelo e limpa ?model= apenas uma vez por chatId
+  // Clean up URL parameters after initial load and update model in database
   useEffect(() => {
-    if (!chatId) return;
-    (async () => {
+    if (typeof window === 'undefined' || !chatId || !componentMounted) return;
+
+    const updateModelIfNeeded = async () => {
+      // First verify if we need to update the model in the database
       try {
-        const res = await fetch(`/api/chatwitia/sessions/${chatId}`);
-        const data = await res.json();
-        if (data.model !== selectedModel) {
-          await updateSessionModel(chatId, selectedModel);
+        const response = await fetch(`/api/chatwitia/sessions/${chatId}`);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.model !== selectedModel) {
+            console.log(`Updating model in database from ${data.model} to ${selectedModel}`);
+            await updateSessionModel(chatId, selectedModel);
+          }
         }
-      } catch (e) {
-        console.error(e);
+      } catch (error) {
+        console.error("Error checking current model:", error);
       }
-      if (typeof window !== 'undefined') {
-        const url = new URL(window.location.href);
-        if (url.searchParams.has('model')) {
-          url.searchParams.delete('model');
-          window.history.replaceState({}, document.title, url.toString());
-        }
+    };
+
+    // Clean up URL parameters after the model has been set
+    const cleanupUrlParams = () => {
+      const url = new URL(window.location.href);
+      let modified = false;
+      
+      if (url.searchParams.has('model')) {
+        url.searchParams.delete('model');
+        modified = true;
       }
-    })();
-  }, [chatId]);
+      
+      if (modified) {
+        window.history.replaceState({}, document.title, url.toString());
+        console.log("URL parameters cleaned up");
+      }
+    };
+
+    // Execute both operations
+    const timer = setTimeout(() => {
+      updateModelIfNeeded();
+      cleanupUrlParams();
+    }, 500); // Short delay to ensure component is fully mounted
+    
+    return () => clearTimeout(timer);
+  }, [chatId, selectedModel, componentMounted]);
 
   return (
     <div className="flex h-screen">
@@ -1049,7 +1092,7 @@ export default function ChatPage() {
         {/* Chat Interface */}
         <div className="flex-1 overflow-hidden">
           <ChatwitIA
-            key={chatId}
+            key={`chat-${remountKey}-${chatId}-${selectedModel}`}
             chatId={chatId}
             modelId={selectedModel}
             initialMessage={pendingMsg}

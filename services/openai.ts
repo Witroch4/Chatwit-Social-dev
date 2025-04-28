@@ -1,6 +1,14 @@
+// services/openai.ts
 import OpenAI, { toFile } from 'openai';  
 import { Message } from '@/hooks/useChatwitIA';
 
+// Importações condicionais para evitar problemas com o bundler no navegador
+// Isso é necessário porque o código pode ser importado durante o build pelo Webpack/Next.js,
+// mesmo que a função específica que usa fs nunca seja executada no navegador
+// O typeof window verifica se estamos em ambiente de navegador (não Node.js)
+const isServer = typeof window === 'undefined';
+
+// Código que pode ser carregado pelo bundler (webpack/vite) mas nunca é executado no navegador
 // Tipos para os modelos disponíveis da OpenAI
 export type GPTModel = 
   | 'gpt-4o-latest' 
@@ -75,6 +83,7 @@ export interface IOpenAIService {
   moderateContent(input: string | string[]): Promise<any>;
   listModels(): Promise<any>;
   uploadFile(file: File, options: FileUploadOptions): Promise<any>;
+  uploadFileFromPath(filePath: string, opts: { filename: string; mimeType: string; purpose: FilePurpose }): Promise<any>;
   listFiles(purpose?: FilePurpose): Promise<any>;
   retrieveFile(fileId: string): Promise<any>;
   retrieveFileContent(fileId: string): Promise<any>;
@@ -399,6 +408,32 @@ class ServerOpenAIService implements IOpenAIService {
     } catch (err: any) {
       console.error('Servidor: erro no uploadFile()', err);
       throw err;
+    }
+  }
+  
+  async uploadFileFromPath(
+    filePath: string,
+    opts: { filename: string; mimeType: string; purpose: FilePurpose }
+  ) {
+    try {
+      // Check if running in a server environment
+      if (typeof window !== 'undefined') {
+        throw new Error('uploadFileFromPath só pode ser usado no lado do servidor');
+      }
+      
+      // Usar require diretamente (que só funciona no Node.js)
+      // O código abaixo só é executado no servidor, nunca no navegador
+      const fs = require('fs');
+      
+      const response = await this.client.files.create({
+        file: fs.createReadStream(filePath),
+        purpose: opts.purpose as 'assistants' | 'fine-tune' | 'vision' | 'user_data',
+      });
+      
+      return response;
+    } catch (error) {
+      console.error('Erro ao enviar arquivo do caminho:', filePath, error);
+      throw error;
     }
   }
   
@@ -918,6 +953,20 @@ class ClientOpenAIService implements IOpenAIService {
     }
   }
   
+  async uploadFileFromPath(
+    filePath: string,
+    opts: { filename: string; mimeType: string; purpose: FilePurpose }
+  ) {
+    try {
+      // Client-side implementation should never be called directly
+      // Just to fulfill the interface
+      throw new Error('uploadFileFromPath não disponível no cliente');
+    } catch (error) {
+      console.error('Erro: uploadFileFromPath chamado no cliente', error);
+      throw error;
+    }
+  }
+  
   async listFiles(purpose?: FilePurpose) {
     try {
       const url = purpose 
@@ -1181,12 +1230,14 @@ class ClientOpenAIService implements IOpenAIService {
 
 // Factory function to create the appropriate service based on environment
 const createOpenAIService = (apiKey?: string): IOpenAIService => {
-  // Check if we're running on server or client
-  const isServer = typeof window === 'undefined';
+  // Verificação mais robusta se estamos no servidor ou cliente
+  const isServer = typeof window === 'undefined' && typeof process !== 'undefined' && process.versions && process.versions.node;
   
   if (isServer) {
+    console.log('Criando ServerOpenAIService para ambiente Node.js');
     return new ServerOpenAIService(apiKey);
   } else {
+    console.log('Criando ClientOpenAIService para ambiente do navegador');
     return new ClientOpenAIService();
   }
 };

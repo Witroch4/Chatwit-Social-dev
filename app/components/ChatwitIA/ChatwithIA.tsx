@@ -9,6 +9,7 @@ import MessagesList from "./chatwithIAcomponents/MessagesList";
 import ScrollToBottomButton from "./chatwithIAcomponents/ScrollToBottomButton";
 import SettingsModal from "./chatwithIAcomponents/SettingsModal";
 import ChatInputForm from "../ChatInputForm";
+import { UploadPurpose } from "../ChatInputForm";
 
 const defaultSystemPrompt = /* …mesmo texto gigante… */ "";
 
@@ -42,14 +43,27 @@ export default function ChatwitIA({
     currentSessionId,
   } = useChatwitIA(chatId, modelId) as any;
 
-  /** Depois que o hook gera a primeira sessão, trocamos de rota
- *  (isso acontece em milissegundos, sem recarregar o componente). */
-useEffect(() => {
-  if (!chatId && currentSessionId) {
-    router.replace(`/chatwitia/${currentSessionId}`);
-  }
-}, [chatId, currentSessionId, router]);
+  // Função de upload para garantir que PDFs sempre usem 'user_data'
+  const handleUploadFile = async (file: File, purpose: UploadPurpose, fileId?: string) => {
+    // Para PDFs, sempre usar 'user_data' conforme recomendação moderna da OpenAI
+    const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+    const finalPurpose = isPdf ? 'user_data' as UploadPurpose : purpose;
+    
+    if (isPdf && purpose !== 'user_data') {
+      console.log(`Convertendo purpose de ${purpose} para user_data para PDF: ${file.name}`);
+    }
+    
+    // Chamar a função de upload do hook com o purpose adequado
+    return await uploadFile(file, finalPurpose, fileId);
+  };
 
+  /** Depois que o hook gera a primeira sessão, trocamos de rota
+  * (isso acontece em milissegundos, sem recarregar o componente). */
+  useEffect(() => {
+    if (!chatId && currentSessionId) {
+      router.replace(`/chatwitia/${currentSessionId}`);
+    }
+  }, [chatId, currentSessionId, router]);
 
   const [input, setInput] = useState("");
   const [systemPrompt, setSystemPrompt] = useState(defaultSystemPrompt);
@@ -235,7 +249,7 @@ useEffect(() => {
         onImageGenerate={() => {}}
         handleTranscriptReady={(t) => setInput((p) => (p ? `${p} ${t}` : t))}
         files={files}
-        onUploadFile={uploadFile}
+        onUploadFile={handleUploadFile}
         onDeleteFile={deleteFile}
         onEditImage={editImage}
         onVariationImage={createImageVariation}

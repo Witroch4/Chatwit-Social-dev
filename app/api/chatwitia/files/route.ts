@@ -1,10 +1,11 @@
 // app/api/chatwitia/files/route.ts
 import { NextResponse, NextRequest } from 'next/server';
 import { openaiService } from '@/services/openai';
-import { auth } from '@/auth';
 import { uploadFileWithAssistants } from '@/services/assistantsFileHandler';
 import type { FilePurpose } from '@/services/openai';
 import { db } from '@/lib/db';
+import { uploadToMinIO } from '@/lib/minio';
+import { auth } from '@/auth';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -19,132 +20,138 @@ export async function POST(req: NextRequest) {
     if (!session?.user) {
       return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
     }
-    
-    const ct = req.headers.get('content-type') || '';
-    
-    /* -------------------- JSON → extração -------------------- */
-    if (ct.includes('application/json')) {
+
+    const contentType = req.headers.get('content-type') || '';
+
+    // JSON → extração de PDF existente
+    if (contentType.includes('application/json')) {
       const { fileId, prompt = 'Extract the content from the PDF.' } = await req.json();
-      if (!fileId) return NextResponse.json({ error: 'fileId missing' }, { status: 400 });
+      if (!fileId) {
+        return NextResponse.json({ error: 'fileId missing' }, { status: 400 });
+      }
       const text = await openaiService.extractPdfWithAssistant(fileId, prompt);
       return NextResponse.json({ text, fileId });
     }
 
-    /* ---------------- multipart upload ----------------------- */
-    const formData = await req.formData();
-    const file = formData.get('file') as File | null;
-    let purpose = (formData.get('purpose') as FilePurpose) || 'vision';
-    const extract = formData.get('extract') === 'true';
-    const prompt = (formData.get('prompt') as string) || 'Extract the content from the PDF.';
-    const sessionId = formData.get('sessionId') as string | null;
+    // multipart/form-data → upload
+    const form = await req.formData();
+    const file     = form.get('file') as File | null;
+    let purpose    = (form.get('purpose') as FilePurpose) || 'vision';
+    const extract  = form.get('extract') === 'true';
+    const prompt   = (form.get('prompt') as string) || 'Extract the content from the PDF.';
+    const sessionId = form.get('sessionId') as string | null;
 
-    if (!file) return NextResponse.json({ error: 'No file provided' }, { status: 400 });
-
-    const isPdf = file.type === 'application/pdf';
-    if (purpose === 'vision' && isPdf) {
-      // "vision" ainda não aceita PDF → segue docs e troca para user_data
-      purpose = 'user_data';
+    if (!file) {
+      return NextResponse.json({ error: 'No file provided' }, { status: 400 });
     }
 
+    // Detectar se é PDF e garantir purpose correto conforme recomendações atuais da OpenAI
+    const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+    if (isPdf) {
+      // PDFs devem sempre usar 'user_data' conforme recomendação atual da OpenAI
+      purpose = 'user_data';
+      console.log(`PDF detectado (${file.name}), definindo purpose: user_data`);
+    } else if (purpose === 'vision' && isPdf) {
+      purpose = 'user_data';
+    }
     if (isPdf && purpose === 'user_data' && file.size > 32 * 1024 * 1024) {
       return NextResponse.json({ error: 'PDF too large (32 MB max).' }, { status: 413 });
     }
 
-    // Verificar se o arquivo já existe antes de fazer o upload
-    // Hash do arquivo para identificação única (simples baseado no nome e tamanho)
-    const fileIdentifier = `${file.name}-${file.size}`;
-    
-    // Tentar localizar na base de dados
-    let existingFile = null;
-    if (sessionId) {
-      try {
-        existingFile = await db.chatFile.findFirst({
-          where: {
-            sessionId: sessionId,
-            filename: file.name,
-            fileType: file.type,
-          }
-        });
-      } catch (dbError) {
-        console.error('Erro ao buscar arquivo existente:', dbError);
-        // Continuar mesmo com erro no banco
+    // 1️⃣ Upload ao MinIO
+    const buffer = Buffer.from(await file.arrayBuffer());
+    const { url: storageUrl, thumbnail_url } = await uploadToMinIO(buffer, file.name, file.type, true);
+
+    // 2️⃣ Gravar (ou recuperar) no DB
+    let dbFile = await db.chatFile.findFirst({
+      where: { 
+        sessionId: sessionId || undefined, 
+        filename: file.name, 
+        fileType: file.type 
       }
-    }
-    
-    let uploaded;
-    if (existingFile) {
-      console.log(`Arquivo já existe no banco: ${existingFile.fileId} (${file.name})`);
-      // Tentar obter o arquivo do OpenAI usando o método existente
-      try {
-        // Usando a API diretamente, já que o serviço pode não ter o método getFile
-        const response = await fetch(`https://api.openai.com/v1/files/${existingFile.fileId}`, {
-          headers: {
-            'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
-            'Content-Type': 'application/json'
-          }
-        });
-        
-        if (response.ok) {
-          uploaded = await response.json();
-          console.log(`Arquivo encontrado na OpenAI: ${existingFile.fileId}`);
-        }
-      } catch (error) {
-        console.error(`Erro ao buscar arquivo da OpenAI: ${existingFile.fileId}`, error);
-        // Se falhar, vamos fazer o upload novamente
+    });
+
+    if (!dbFile) {
+      // Preparar os dados base para criar o arquivo
+      const fileData: any = {
+        storageUrl,
+        thumbnail_url,
+        filename: file.name,
+        fileType: file.type,
+        purpose,
+        status: 'stored',
+      };
+      
+      // Adicionar sessionId apenas se existir
+      if (sessionId) {
+        fileData.sessionId = sessionId;
       }
-    }
-    
-    // Se não encontrou um arquivo existente, faz o upload
-    if (!uploaded) {
-      console.log(`Fazendo upload de novo arquivo: ${file.name}`);
-      uploaded = purpose === 'assistants'
-        ? await uploadFileWithAssistants(file, purpose) // retrieval embedding
-        : await openaiService.uploadFile(file, { purpose });
+      
+      dbFile = await db.chatFile.create({
+        data: fileData
+      });
     }
 
-    // Salvar referência do arquivo no banco de dados se houver um sessionId
-    if (sessionId) {
-      try {
-        // Verificar se já existe para evitar duplicação
-        const existingDbFile = await db.chatFile.findFirst({
-          where: {
-            sessionId: sessionId,
-            fileId: uploaded.id
-          }
-        });
+    // 3️⃣ Sincronização com OpenAI
+    let uploaded: any = null;
 
-        if (!existingDbFile) {
-          // Criar referência do arquivo no banco de dados
-          await db.chatFile.create({
+    // Sempre sincronizar arquivos (principalmente PDFs) com OpenAI 
+    // Apenas imagens inline podem ficar sem sincronização
+    if (purpose !== 'vision' || isPdf) {
+      if (dbFile.openaiFileId) {
+        uploaded = { id: dbFile.openaiFileId };
+        console.log(`Arquivo já tem openaiFileId: ${uploaded.id}`);
+      } else {
+        try {
+          console.log(`Sincronizando arquivo ${file.name} com OpenAI usando purpose: ${purpose}`);
+          uploaded = purpose === 'assistants'
+            ? await uploadFileWithAssistants(file, purpose)
+            : await openaiService.uploadFile(file, { purpose });
+    
+          await db.chatFile.update({
+            where: { id: dbFile.id },
             data: {
-              sessionId: sessionId,
-              fileId: uploaded.id,
-              filename: file.name,
-              fileType: file.type,
-              purpose: purpose
+              openaiFileId: uploaded.id,
+              status:       'synced',
+              syncedAt:     new Date(),
             }
           });
-          console.log(`Referência do arquivo salva no banco: ${uploaded.id} (${file.name})`);
-        } else {
-          console.log(`Referência já existe no banco: ${uploaded.id} (${file.name})`);
+          console.log(`Arquivo sincronizado, openaiFileId: ${uploaded.id}`);
+        } catch (error) {
+          console.error('Erro ao sincronizar com OpenAI:', error);
+          return NextResponse.json({ 
+            error: 'Falha ao sincronizar com OpenAI',
+            details: error instanceof Error ? error.message : 'Erro desconhecido'
+          }, { status: 500 });
         }
-      } catch (dbError) {
-        console.error('Erro ao salvar referência do arquivo:', dbError);
-        // Continuar mesmo com erro no banco, já que o upload já foi feito
       }
     }
 
-    // Extração opcional
-    if (extract && isPdf) {
-      try {
-        const text = await openaiService.extractPdfWithAssistant(uploaded.id, prompt);
-        return NextResponse.json({ ...uploaded, text });
-      } catch (err: any) {
-        return NextResponse.json({ error: err.message, file: uploaded }, { status: 500 });
-      }
+    // 4️⃣ Extração opcional de PDF
+    if (extract && isPdf && uploaded?.id) {
+      const text = await openaiService.extractPdfWithAssistant(uploaded.id, prompt);
+      return NextResponse.json({
+        fileId:       uploaded.id,
+        storageUrl,
+        thumbnail_url,
+        filename:     file.name,
+        mime_type:    file.type,
+        text,
+      });
     }
 
-    return NextResponse.json(uploaded);
+    // 5️⃣ Resposta final
+    return NextResponse.json({
+      fileId:       uploaded?.id    ?? null,
+      internalId:   dbFile.id,       // deixa explícito pro front
+      openaiFileId: uploaded?.id    ?? null,  // explicitamente inclui o openaiFileId
+      storageUrl,
+      thumbnail_url,
+      filename:     file.name,
+      mime_type:    file.type,
+      status:       dbFile.status,
+    });
+
   } catch (err: any) {
     console.error('files POST error', err);
     return NextResponse.json({ error: err.message || 'Upload error' }, { status: 500 });
@@ -160,58 +167,20 @@ export async function GET(req: NextRequest) {
     if (!session?.user) {
       return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
     }
-    
-    const url = new URL(req.url);
-    const purpose = url.searchParams.get('purpose') as FilePurpose | null;
+
+    const url       = new URL(req.url);
     const sessionId = url.searchParams.get('sessionId');
-    
-    // Se tiver sessionId, buscar arquivos associados à sessão do banco
-    if (sessionId) {
-      try {
-        const chatFiles = await db.chatFile.findMany({
-          where: {
-            sessionId: sessionId,
-            ...(purpose ? { purpose: purpose } : {})
-          }
-        });
-        
-        // Se encontrou arquivos no banco, buscar detalhes de cada um na OpenAI
-        if (chatFiles.length > 0) {
-          const filesDetails = await Promise.all(
-            chatFiles.map(async (dbFile) => {
-              try {
-                // Usar a API diretamente para buscar detalhes do arquivo
-                const response = await fetch(`https://api.openai.com/v1/files/${dbFile.fileId}`, {
-                  headers: {
-                    'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
-                    'Content-Type': 'application/json'
-                  }
-                });
-                
-                if (response.ok) {
-                  return await response.json();
-                }
-                return null;
-              } catch (error) {
-                console.error(`Erro ao buscar detalhes do arquivo ${dbFile.fileId}:`, error);
-                return null;
-              }
-            })
-          );
-          
-          // Filtrar arquivos que retornaram erro (null)
-          const validFiles = filesDetails.filter(Boolean);
-          return NextResponse.json({ data: validFiles });
-        }
-      } catch (dbError) {
-        console.error('Erro ao buscar arquivos do banco:', dbError);
-        // Continuar para buscar da OpenAI se falhar no banco
+    const purpose   = url.searchParams.get('purpose') as FilePurpose | null;
+
+    const files = await db.chatFile.findMany({
+      where: {
+        sessionId: sessionId ?? undefined,
+        ...(purpose ? { purpose } : {}),
       }
-    }
-    
-    // Se não tem sessionId ou não encontrou arquivos, buscar todos da OpenAI
-    const list = await openaiService.listFiles(purpose || undefined);
-    return NextResponse.json(list);
+    });
+
+    return NextResponse.json({ data: files });
+
   } catch (err: any) {
     console.error('files GET error', err);
     return NextResponse.json({ error: err.message }, { status: 500 });

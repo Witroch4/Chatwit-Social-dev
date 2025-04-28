@@ -19,6 +19,12 @@ import { processLeadChatwitTask } from './WebhookWorkerTasks/leads-chatwit.task'
 
 dotenv.config();
 
+// Definindo a interface para o progresso do job de leads
+interface LeadJobProgress {
+  processed?: boolean;
+  leadId?: string;
+}
+
 // Worker de agendamento
 const agendamentoWorker = new Worker(
   'agendamento',
@@ -32,12 +38,17 @@ const manuscritoWorker = new Worker(
   processManuscritoTask,
   { connection }
 );
-// Worker de leads‑chatwit  🔥
+
+// Worker de leads‑chatwit 🔥
 const leadsChatwitWorker = new Worker(
-    LEADS_QUEUE_NAME,
-    processLeadChatwitTask,
-    { connection, concurrency: 5 }   // limite de concorrência
-  );
+  LEADS_QUEUE_NAME,
+  processLeadChatwitTask,
+  { 
+    connection, 
+    concurrency: 10,  // Aumentamos a concorrência pois agora acumulamos jobs
+    lockDuration: 30000,  // Aumentamos o tempo de bloqueio para 30s para permitir acumulação
+  }
+);
 
 // Worker para processar notificações automáticas
 const autoNotificationsWorker = new Worker<IAutoNotificationJobData>(
@@ -74,6 +85,14 @@ const autoNotificationsWorker = new Worker<IAutoNotificationJobData>(
   worker.on('failed', (job, error) => {
     console.error(`[BullMQ] Job ${job?.id} falhou: ${error.message}`);
   });
+});
+
+// Eventos específicos para o worker de leads
+leadsChatwitWorker.on('progress', (job, progress) => {
+  const leadProgress = progress as unknown as LeadJobProgress;
+  if (leadProgress.processed) {
+    console.log(`[BullMQ] Job ${job.id} processado em lote para leadId: ${leadProgress.leadId}`);
+  }
 });
 
 /**
@@ -177,6 +196,18 @@ export async function initManuscritoWorker() {
   }
 }
 
+// Exportar a função de inicialização do worker de leads
+export async function initLeadsChatwitWorker() {
+  try {
+    console.log('[BullMQ] Inicializando worker de leads...');
+    await leadsChatwitWorker.waitUntilReady();
+    console.log('[BullMQ] Worker de leads inicializado com sucesso');
+  } catch (error) {
+    console.error('[BullMQ] Erro ao inicializar worker de leads:', error);
+    throw error;
+  }
+}
+
 // Tratamento de encerramento gracioso
 process.on('SIGTERM', async () => {
   console.log('Encerrando workers...');
@@ -196,6 +227,7 @@ process.on('SIGINT', async () => {
     agendamentoWorker.close(),
     manuscritoWorker.close(),
     autoNotificationsWorker.close(),
+    leadsChatwitWorker.close(),
   ]);
   await prisma.$disconnect();
   process.exit(0);

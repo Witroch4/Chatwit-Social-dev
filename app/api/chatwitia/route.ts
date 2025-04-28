@@ -517,10 +517,26 @@ async function handleOpenAIRequest(messages: Message[], model: string, sessionId
       // Extrair a última mensagem do usuário para usar como prompt
       const lastUserMessage = [...messages].reverse().find(m => m.role === 'user');
       let userContent = '';
+      let imageUrls: string[] = [];
       
       if (lastUserMessage) {
         if (typeof lastUserMessage.content === 'string') {
-          userContent = lastUserMessage.content.replace(/\[.*?\]\(file_id:.*?\)/g, '').trim();
+          // Extrair URLs de imagens se presentes no formato especial
+          const imageJsonMatch = lastUserMessage.content.match(/<!-- IMAGES_JSON (.*?) -->/);
+          
+          if (imageJsonMatch && imageJsonMatch[1]) {
+            try {
+              const imageData = JSON.parse(imageJsonMatch[1]);
+              imageUrls = imageData.map((img: any) => img.url);
+              // Remover o bloco de JSON das imagens do conteúdo
+              userContent = lastUserMessage.content.replace(/<!-- IMAGES_JSON .*? -->/g, '').trim();
+            } catch (e) {
+              console.error('Erro ao processar JSON de imagens:', e);
+            }
+          } else {
+            // Se não houver imagens, apenas remover referências de arquivos
+            userContent = lastUserMessage.content.replace(/\[.*?\]\(file_id:.*?\)/g, '').trim();
+          }
         } else if (Array.isArray(lastUserMessage.content)) {
           const textItem = lastUserMessage.content.find(item => item.type === 'text');
           if (textItem && textItem.text) {
@@ -540,6 +556,15 @@ async function handleOpenAIRequest(messages: Message[], model: string, sessionId
       // Adicionar cada arquivo como um item separado no content
       fileIds.forEach(fileId => {
         content.push({ type: "input_file", file_id: fileId });
+      });
+      
+      // Adicionar URLs de imagem diretamente, se presentes
+      imageUrls.forEach(imageUrl => {
+        content.push({ 
+          type: "input_image", 
+          image_url: { url: imageUrl },
+          detail: "high"
+        });
       });
       
       // Configurar a stream para retornar os dados de volta ao cliente
@@ -662,7 +687,7 @@ async function handleOpenAIRequest(messages: Message[], model: string, sessionId
           console.log('Usando API sem streaming como fallback');
           
           // Criar objeto de opções sem o parâmetro temperature para modelos da série O
-          const responseOptions: any = {
+          const nonStreamOptions: any = {
             model: openaiModel,
             input: [
               {
@@ -675,12 +700,12 @@ async function handleOpenAIRequest(messages: Message[], model: string, sessionId
           
           // Adicionar temperatura com valor adequado para cada tipo de modelo
           if (openaiModel.startsWith('o')) {
-            responseOptions.temperature = 1;
+            nonStreamOptions.temperature = 1;
           } else {
-            responseOptions.temperature = 0.7;
+            nonStreamOptions.temperature = 0.7;
           }
           
-          const nonStreamResponse = await openai.responses.create(responseOptions);
+          const nonStreamResponse = await openai.responses.create(nonStreamOptions);
           
           // Extrair o texto de saída da resposta não streamada
           let responseText = '';

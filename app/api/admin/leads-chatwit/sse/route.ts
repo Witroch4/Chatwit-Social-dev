@@ -56,8 +56,12 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Lead não encontrado" }, { status: 404 });
     }
 
-    // Configurar stream de resposta
+    // Configurar encoder
     const encoder = new TextEncoder();
+    
+    // Criar response e stream juntos
+    let responseObject: Response;
+    
     const stream = new ReadableStream({
       start(controller) {
         // Enviar evento inicial
@@ -67,19 +71,6 @@ export async function GET(req: NextRequest) {
         if (!connections[leadId]) {
           connections[leadId] = [];
         }
-        
-        // Armazenar a resposta para enviar eventos posteriormente
-        const response = new Response(stream, {
-          headers: {
-            'Content-Type': 'text/event-stream',
-            'Cache-Control': 'no-cache',
-            'Connection': 'keep-alive',
-          },
-        });
-        
-        connections[leadId].push(response);
-        
-        console.log(`[SSE] Nova conexão estabelecida para o lead ${leadId}`);
         
         // Verificar se o manuscrito já foi processado
         prisma.leadChatwit.findUnique({
@@ -101,7 +92,7 @@ export async function GET(req: NextRequest) {
       cancel() {
         // Remover a conexão quando o cliente desconectar
         if (connections[leadId]) {
-          connections[leadId] = connections[leadId].filter(resp => resp !== this);
+          connections[leadId] = connections[leadId].filter(resp => resp !== responseObject);
           
           // Se não houver mais conexões para este lead, remover do objeto
           if (connections[leadId].length === 0) {
@@ -112,14 +103,24 @@ export async function GET(req: NextRequest) {
       }
     });
 
-    // Retornar a resposta de stream
-    return new Response(stream, {
+    // Criar o objeto de resposta
+    responseObject = new Response(stream, {
       headers: {
         'Content-Type': 'text/event-stream',
         'Cache-Control': 'no-cache',
         'Connection': 'keep-alive',
       },
     });
+    
+    // Armazenar a resposta para enviar eventos posteriormente
+    if (connections[leadId]) {
+      connections[leadId].push(responseObject);
+    }
+    
+    console.log(`[SSE] Nova conexão estabelecida para o lead ${leadId}`);
+
+    // Retornar a resposta de stream
+    return responseObject;
   } catch (error: any) {
     console.error("[SSE] Erro ao estabelecer conexão SSE:", error);
     return NextResponse.json(

@@ -1,3 +1,4 @@
+//useChatwitIA.ts
 import { useState, useEffect, useRef } from 'react';
 import { useSession } from 'next-auth/react';
 import axios from 'axios';
@@ -608,95 +609,55 @@ export function useChatwitIA(chatId?: string | null, initialModel = 'chatgpt-4o-
   // File handling methods
   
   // Upload a file
-  const uploadFile = async (file: File, purpose: FilePurpose = 'user_data') => {
-    let retryCount = 0;
-    const maxRetries = 3;
-    const timeout = 120000; // 2 minutes
+  const uploadFile = async (file: File, purpose: FilePurpose = "user_data") => {
+    // Para PDFs, sempre usar purpose 'user_data' conforme recomendação atual da OpenAI
+    const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+    const finalPurpose: FilePurpose = isPdf ? 'user_data' : purpose;
     
-    const attemptUpload = async (): Promise<any> => {
-      try {
-        setIsFileLoading(true);
-        setFileError(null);
-        
-        console.log(`Tentativa ${retryCount + 1}/${maxRetries + 1} - Iniciando upload do arquivo: ${file.name}, tamanho: ${file.size}, tipo: ${file.type}, propósito: ${purpose}`);
-        
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('purpose', purpose);
-        
-        // Switch to using fetch API instead of axios
-        console.log('Enviando requisição para API interna via fetch...');
-        
-        // Create abort controller for timeout
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), timeout);
-        
-        try {
-          const response = await fetch('/api/chatwitia/files', {
-            method: 'POST',
-            body: formData,
-            signal: controller.signal
-          });
-          
-          clearTimeout(timeoutId);
-          
-          console.log(`Upload respondeu com status: ${response.status}`);
-          
-          if (!response.ok) {
-            const errorText = await response.text();
-            console.error('Error response:', errorText);
-            throw new Error(`Server responded with ${response.status}: ${errorText}`);
-          }
-          
-          const data = await response.json();
-          
-          if (data && !data.error) {
-            console.log('Upload concluído com sucesso:', data);
-            
-            // Add to files list
-            setFiles(prev => [...prev, data]);
-            
-            return data;
-          } else {
-            throw new Error(data.error || "Erro desconhecido no upload");
-          }
-        } catch (fetchError: any) {
-          if (fetchError.name === 'AbortError') {
-            throw new Error('Upload timeout: A requisição excedeu o tempo limite');
-          }
-          throw fetchError;
-        }
-      } catch (error: any) {
-        console.error(`Tentativa ${retryCount + 1} falhou:`, error);
-        
-        if (retryCount < maxRetries) {
-          retryCount++;
-          console.log(`Aguardando ${2 ** retryCount}s antes da próxima tentativa...`);
-          // Exponential backoff
-          await new Promise(resolve => setTimeout(resolve, 1000 * 2 ** retryCount));
-          return attemptUpload();
-        }
-        
-        // Se chegou aqui, esgotou as tentativas
-        console.error('Todas as tentativas de upload falharam:', error);
-        
-        if (error.name === 'AbortError') {
-          setFileError('O upload excedeu o tempo limite. Verifique sua conexão ou tente um arquivo menor.');
-        } else if (error.message.includes('Server responded with')) {
-          setFileError(`Erro do servidor: ${error.message}`);
-        } else {
-          setFileError(`Erro ao fazer upload: ${error.message}`);
-        }
-        
-        return null;
-      } finally {
-        setIsFileLoading(false);
+    console.log(`Enviando arquivo ${file.name} com purpose: ${finalPurpose} (original: ${purpose})`);
+    
+    // 1️⃣ envia para nosso novo endpoint
+    const form = new FormData();
+    form.append("file", file);
+    if (currentSessionId) form.append("sessionId", currentSessionId);
+    form.append("purpose", finalPurpose);
+
+    try {
+      setIsFileLoading(true);
+      setFileError(null);
+      
+      const res = await fetch("/api/chatwitia/files", { method: "POST", body: form });
+      if (!res.ok) {
+        const errorText = await res.text();
+        console.error(`Erro no upload: ${res.status} - ${errorText}`);
+        throw new Error(`Upload failed: ${res.status}`);
       }
-    };
-    
-    return attemptUpload();
+      
+      const meta = await res.json();
+      console.log("Upload completo:", meta);
+      
+      // atualiza lista local - garantindo que temos o openaiFileId
+      const fileData = {
+        ...meta,
+        id: meta.openaiFileId || meta.id, // Preferir o ID da OpenAI
+        filename: meta.filename || file.name,
+        purpose: finalPurpose,
+        bytes: file.size,
+        created_at: new Date().getTime()
+      };
+      
+      setFiles(prev => [...prev, fileData]);
+      
+      return fileData;
+    } catch (error) {
+      console.error("Erro durante upload:", error);
+      setFileError(`Erro ao enviar arquivo: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
+      throw error;
+    } finally {
+      setIsFileLoading(false);
+    }
   };
-  
+
   // List all files
   const listFiles = async (purpose?: string) => {
     try {

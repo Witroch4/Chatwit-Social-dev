@@ -1,3 +1,4 @@
+// app/api/chatwitia/files/process/route.ts
 import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { processFileWithAssistant } from '@/services/assistantsFileHandler';

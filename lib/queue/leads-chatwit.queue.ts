@@ -10,19 +10,28 @@ export interface ILeadJobData {
 
 export const leadsQueue = new Queue<ILeadJobData>(
   LEADS_QUEUE_NAME,
-  { connection }
-);
-
-export async function addLeadJob(data: ILeadJobData) {
-  await leadsQueue.add(
-    `lead-${data.payload.origemLead.source_id}`,
-    data,
-    {
+  { 
+    connection,
+    defaultJobOptions: {
       attempts: 5,
       backoff: { type: 'exponential', delay: 1_000 },
       removeOnComplete: 10_000,
       removeOnFail: 5_000
     }
+  }
+);
+
+export async function addLeadJob(data: ILeadJobData) {
+  const sourceId = data.payload.origemLead.source_id;
+  
+  // Use o sourceId como nome do job para facilitar o rastreamento
+  await leadsQueue.add(
+    `lead-${sourceId}`,
+    data,
+    {
+      // Não define novas opções aqui para usar as padrões,
+      // evitando sobrescrever os valores definidos acima
+    }
   );
-  console.log(`[BullMQ] Job enfileirado para lead ${data.payload.origemLead.source_id}`);
+  console.log(`[BullMQ] Job enfileirado para lead ${sourceId}`);
 }

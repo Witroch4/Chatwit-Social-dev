@@ -1,4 +1,4 @@
-import { initAgendamentoWorker, initManuscritoWorker } from './webhook.worker';
+import { initAgendamentoWorker, initManuscritoWorker, initLeadsChatwitWorker } from './webhook.worker';
 import { initializeExistingAgendamentos } from '@/lib/scheduler-bullmq';
 import { initJobs } from './webhook.worker';
 import dotenv from 'dotenv';
@@ -17,6 +17,9 @@ export async function initializeWorkers() {
 
     // Inicializa o worker de manuscrito
     await initManuscritoWorker();
+    
+    // Inicializa o worker de leads-chatwit
+    await initLeadsChatwitWorker();
 
     // Inicializa os jobs recorrentes (apenas uma vez)
     await initJobs();

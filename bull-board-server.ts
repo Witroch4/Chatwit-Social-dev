@@ -18,12 +18,17 @@ const serverAdapter = new ExpressAdapter();
 serverAdapter.setBasePath('/admin/queues');
 
 // Registra todas as filas no Bull Board
-createBullBoard({
+const bullBoard = createBullBoard({
   queues: [
+    // @ts-ignore - Ignorando erro de tipos devido à incompatibilidade entre versões
     new BullMQAdapter(agendamentoQueue),
+    // @ts-ignore - Ignorando erro de tipos devido à incompatibilidade entre versões
     new BullMQAdapter(instagramWebhookQueue),
+    // @ts-ignore - Ignorando erro de tipos devido à incompatibilidade entre versões
     new BullMQAdapter(autoNotificationsQueue),
+    // @ts-ignore - Ignorando erro de tipos devido à incompatibilidade entre versões
     new BullMQAdapter(followUpQueue),
+    // @ts-ignore - Ignorando erro de tipos devido à incompatibilidade entre versões
     new BullMQAdapter(manuscritoQueue)
   ],
   serverAdapter,

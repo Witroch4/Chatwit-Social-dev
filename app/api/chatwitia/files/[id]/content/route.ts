@@ -1,3 +1,4 @@
+// app/api/chatwitia/files/[id]/content/route.ts
 import { NextResponse } from 'next/server';
 import { openaiService } from '@/services/openai';
 import { auth } from '@/auth';

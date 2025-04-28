@@ -513,12 +513,21 @@ model ChatFile {
   id            String      @id @default(cuid())
   sessionId     String
   session       ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  fileId        String      // ID do arquivo na OpenAI
-  filename      String      // Nome original do arquivo
-  fileType      String      // Tipo de arquivo (ex: "application/pdf")
-  purpose       String      // Propósito do arquivo (ex: "vision", "assistants")
+
+  /* NOVOS CAMPOS ----------------------------------------------*/
+  storageUrl    String      // URL assinado ou público no MinIO
+  openaiFileId  String?     // ID retornado pela OpenAI (nulo enquanto não houver sync)
+  status        String      @default("stored") // stored | syncing | synced | failed
+  purpose       String?     // user_data | vision | assistants …
+  thumbnail_url String?     // URL da thumbnail no MinIO (opcional)
+  /* -----------------------------------------------------------*/
+
+  filename      String
+  fileType      String
   createdAt     DateTime    @default(now())
+  syncedAt      DateTime?   // Quando o arquivo foi aceito pela OpenAI
 
   @@index([sessionId])
+  @@index([openaiFileId])
 }
 
