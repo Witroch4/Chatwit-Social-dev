@@ -24,6 +24,7 @@ export interface LeadChatwit {
   provaManuscrita?: string | null;
   manuscritoProcessado: boolean;
   aguardandoManuscrito: boolean;
+  espelhoCorrecao?: string | null;
   createdAt: string;
   updatedAt: string;
   usuarioId: string;

@@ -424,6 +424,7 @@ export function LeadsList({ searchQuery, onRefresh, initialLoading, refreshCount
                 <TableHead className="w-[80px]">PDF</TableHead>
                 <TableHead className="w-[80px]">Imagens</TableHead>
                 <TableHead className="w-[100px]">Manuscrito</TableHead>
+                <TableHead className="w-[120px]">Espelho de Correção</TableHead>
                 <TableHead className="w-[60px]">Ações</TableHead>
               </TableRow>
             </TableHeader>

@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/context-menu";
 import { ReactNode } from "react";
 
-export type ContextType = 'geral' | 'pdf' | 'imagem' | 'arquivo' | 'manuscrito';
+export type ContextType = 'geral' | 'pdf' | 'imagem' | 'arquivo' | 'manuscrito' | 'espelho';
 export type ContextAction = 
   | 'atualizarLista' 
   | 'abrirLead' 
@@ -26,7 +26,10 @@ export type ContextAction =
   | 'excluirArquivo'
   | 'reenviarManuscrito'
   | 'excluirManuscrito'
-  | 'editarManuscrito';
+  | 'editarManuscrito'
+  | 'selecionarEspelho'
+  | 'verEspelho'
+  | 'excluirEspelho';
 
 interface LeadContextMenuProps {
   contextType: ContextType;
@@ -95,6 +98,32 @@ export function LeadContextMenu({ contextType, onAction, children, data }: LeadC
                   className="text-red-500 focus:text-red-500 focus:bg-red-50"
                 >
                   Excluir Manuscrito
+                </ContextMenuItem>
+              </>
+            )}
+          </>
+        )}
+
+        {/* Opções para espelho de correção */}
+        {contextType === 'espelho' && (
+          <>
+            {data.hasEspelho ? (
+              <ContextMenuItem onClick={() => onAction('verEspelho', data)}>
+                Ver Espelho
+              </ContextMenuItem>
+            ) : (
+              <ContextMenuItem onClick={() => onAction('selecionarEspelho', data)}>
+                Selecionar Espelho
+              </ContextMenuItem>
+            )}
+            {data.hasEspelho && (
+              <>
+                <ContextMenuSeparator />
+                <ContextMenuItem 
+                  onClick={() => onAction('excluirEspelho', data)}
+                  className="text-red-500 focus:text-red-500 focus:bg-red-50"
+                >
+                  Excluir Espelho
                 </ContextMenuItem>
               </>
             )}

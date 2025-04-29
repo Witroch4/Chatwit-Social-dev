@@ -116,9 +116,19 @@ export function LeadItem({
   const [confirmDeleteManuscrito, setConfirmDeleteManuscrito] = useState(false);
   const [manuscritoToDelete, setManuscritoToDelete] = useState<string | null>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
+  // Estados para o espelho de correção
+  const [showEspelhoSeletor, setShowEspelhoSeletor] = useState(false);
+  const [selectedEspelhoImages, setSelectedEspelhoImages] = useState<string[]>([]);
+  const [isEnviandoEspelho, setIsEnviandoEspelho] = useState(false);
+  const [hasEspelho, setHasEspelho] = useState(!!lead.espelhoCorrecao);
 
   const displayName = lead.nomeReal || lead.name || "Lead sem nome";
   const formattedDate = format(new Date(lead.createdAt ?? new Date()), "dd/MM/yyyy HH:mm", { locale: ptBR });
+  
+  // Efeito para detectar alterações no campo espelhoCorrecao do lead
+  useEffect(() => {
+    setHasEspelho(!!lead.espelhoCorrecao);
+  }, [lead.espelhoCorrecao]);
   
   // Efeito para configurar um EventSource para ouvir eventos de manuscrito processado
   useEffect(() => {
@@ -544,7 +554,14 @@ export function LeadItem({
   };
 
   const handleDigitarClick = async () => {
-    // Se já estiver processando ou aguardando manuscrito, não faz nada
+    // Se o manuscrito já estiver processado, abre o dialog de edição independente de outros estados
+    if (lead.manuscritoProcessado) {
+      setIsDigitando(false); // Importante: desativa o estado de digitação antes de abrir o diálogo
+      setShowManuscritoDialog(true);
+      return;
+    }
+    
+    // Para criar novo manuscrito, verifica se já está processando
     if (isDigitando || lead.aguardandoManuscrito) return;
     
     // Verifica se há um diálogo aberto e fecha se necessário
@@ -555,13 +572,6 @@ export function LeadItem({
     
     setIsDigitando(true);
     try {
-      // Se o manuscrito já estiver processado, abre o dialog de edição
-      if (lead.manuscritoProcessado) {
-        setIsDigitando(false); // Importante: desativa o estado de digitação antes de abrir o diálogo
-        setShowManuscritoDialog(true);
-        return;
-      }
-
       // Marca o lead como aguardando manuscrito antes de enviar para o processamento
       // Isso evita múltiplos cliques enquanto está em processamento
       await onEdit({
@@ -912,6 +922,178 @@ export function LeadItem({
     });
   };
 
+  // Função para lidar com a seleção de imagens para o espelho de correção
+  const handleToggleEspelhoImage = (imageUrl: string) => {
+    setSelectedEspelhoImages(prev => {
+      if (prev.includes(imageUrl)) {
+        return prev.filter(url => url !== imageUrl);
+      } else {
+        return [...prev, imageUrl];
+      }
+    });
+  };
+
+  // Função para abrir o seletor de espelho
+  const handleOpenEspelhoSeletor = () => {
+    // Resetar a seleção antes de abrir
+    setSelectedEspelhoImages([]);
+    setShowEspelhoSeletor(true);
+  };
+
+  // Função para enviar as imagens selecionadas como espelho de correção
+  const handleEnviarEspelho = async () => {
+    if (selectedEspelhoImages.length === 0) {
+      toast({
+        title: "Aviso",
+        description: "Selecione pelo menos uma imagem para o espelho de correção.",
+        variant: "default",
+      });
+      return;
+    }
+
+    setIsEnviandoEspelho(true);
+    try {
+      // Salvar as imagens selecionadas no lead primeiro
+      await onEdit({
+        ...lead,
+        espelhoCorrecao: JSON.stringify(selectedEspelhoImages),
+        _skipDialog: true
+      });
+
+      // Preparar o payload para o webhook
+      const payload = {
+        leadID: lead.id,
+        nome: lead.nomeReal || lead.name || "Lead sem nome",
+        telefone: lead.phoneNumber,
+        espelho: true,
+        arquivos: lead.arquivos.map((a: { id: string; dataUrl: string; fileType: string }) => ({
+          id: a.id,
+          url: a.dataUrl,
+          tipo: a.fileType,
+          nome: a.fileType
+        })),
+        arquivos_pdf: lead.pdfUnificado ? [{
+          id: lead.id,
+          url: lead.pdfUnificado,
+          nome: "PDF Unificado"
+        }] : [],
+        arquivos_imagens_espelho: selectedEspelhoImages.map((url: string, index: number) => ({
+          id: `${lead.id}-espelho-${index}`,
+          url: url,
+          nome: `Espelho ${index + 1}`
+        })),
+        metadata: {
+          leadUrl: lead.leadUrl,
+          sourceId: lead.sourceId,
+          concluido: lead.concluido,
+          fezRecurso: lead.fezRecurso,
+          manuscritoProcessado: lead.manuscritoProcessado
+        }
+      };
+
+      // Enviar para a API de espelho
+      const response = await fetch("/api/admin/leads-chatwit/enviar-manuscrito", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || "Erro ao enviar espelho de correção");
+      }
+
+      toast({
+        title: "Sucesso",
+        description: "Espelho de correção enviado com sucesso!",
+        variant: "default",
+      });
+
+      // Fechar o seletor após o envio bem-sucedido
+      setShowEspelhoSeletor(false);
+    } catch (error: any) {
+      console.error("Erro ao enviar espelho de correção:", error);
+      toast({
+        title: "Erro",
+        description: error.message || "Não foi possível enviar o espelho de correção. Tente novamente.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsEnviandoEspelho(false);
+    }
+  };
+
+  // Função para lidar com o menu de contexto do espelho
+  const handleEspelhoContextAction = async (action: ContextAction, data?: any) => {
+    // Forçamos o fechamento do menu de contexto antes de qualquer ação
+    document.body.click(); // Força o fechamento de qualquer menu aberto
+    
+    // Pequeno delay para garantir que o menu fechou antes de executar a ação
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
+    switch (action) {
+      case 'selecionarEspelho':
+        handleOpenEspelhoSeletor();
+        break;
+      case 'verEspelho':
+        if (lead.espelhoCorrecao) {
+          // Abrir o visualizador de imagens com as imagens do espelho
+          try {
+            const imagens = JSON.parse(lead.espelhoCorrecao);
+            if (Array.isArray(imagens) && imagens.length > 0) {
+              // Dando preferência ao visualizador existente
+              setSelectedEspelhoImages(imagens);
+              setShowEspelhoSeletor(true);
+            }
+          } catch (error) {
+            console.error("Erro ao processar espelho:", error);
+            toast({
+              title: "Erro",
+              description: "Não foi possível carregar o espelho de correção.",
+              variant: "destructive",
+            });
+          }
+        }
+        break;
+      case 'excluirEspelho':
+        if (lead.espelhoCorrecao) {
+          handleExcluirEspelho();
+        }
+        break;
+      default:
+        break;
+    }
+  };
+
+  // Função para excluir o espelho de correção
+  const handleExcluirEspelho = async () => {
+    try {
+      // Atualizar o lead para remover o espelho
+      await onEdit({
+        ...lead,
+        espelhoCorrecao: null,
+        _skipDialog: true
+      });
+      
+      toast({
+        title: "Sucesso",
+        description: "Espelho de correção excluído com sucesso!",
+        variant: "default",
+      });
+      
+      setHasEspelho(false);
+    } catch (error: any) {
+      console.error("Erro ao excluir espelho de correção:", error);
+      toast({
+        title: "Erro",
+        description: error.message || "Não foi possível excluir o espelho de correção. Tente novamente.",
+        variant: "destructive",
+      });
+    }
+  };
+
   return (
     <>
       <TableRow className="group hover:bg-secondary/30">
@@ -1101,7 +1283,7 @@ export function LeadItem({
               variant="outline"
               size="sm"
               onClick={handleDigitarClick}
-              disabled={isDigitando || lead.aguardandoManuscrito}
+              disabled={lead.manuscritoProcessado ? false : (isDigitando || lead.aguardandoManuscrito)}
               className="whitespace-nowrap w-full"
             >
               {lead.manuscritoProcessado ? (
@@ -1122,6 +1304,39 @@ export function LeadItem({
               )}
             </Button>
           </LeadContextMenu>
+        </TableCell>
+        
+        <TableCell className="w-[120px] p-2">
+          {lead.manuscritoProcessado && (
+            <LeadContextMenu
+              contextType="espelho"
+              onAction={handleEspelhoContextAction}
+              data={{
+                id: lead.id,
+                hasEspelho: hasEspelho
+              }}
+            >
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleOpenEspelhoSeletor}
+                disabled={isEnviandoEspelho}
+                className="whitespace-nowrap w-full"
+              >
+                {hasEspelho ? (
+                  <>
+                    <Eye className="h-4 w-4 mr-1" />
+                    Ver Espelho
+                  </>
+                ) : (
+                  <>
+                    <ImageIcon className={`h-4 w-4 mr-1 ${isEnviandoEspelho ? "animate-spin" : ""}`} />
+                    {isEnviandoEspelho ? "Enviando..." : "Selecionar Espelho"}
+                  </>
+                )}
+              </Button>
+            </LeadContextMenu>
+          )}
         </TableCell>
         
         <TableCell className="w-[60px] p-2">
@@ -1260,6 +1475,83 @@ export function LeadItem({
             </Button>
             <Button variant="destructive" onClick={executeManuscritoDelete}>
               Excluir
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog para seleção das imagens do espelho de correção */}
+      <Dialog open={showEspelhoSeletor} onOpenChange={(open) => !open && setShowEspelhoSeletor(false)}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-auto">
+          <DialogHeader>
+            <DialogTitle>Selecionar Espelho de Correção</DialogTitle>
+            <DialogDescription>
+              Selecione as imagens que serão utilizadas como espelho de correção. Você pode selecionar mais de uma imagem.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="py-4">
+            <div className="mb-4 text-sm text-muted-foreground">
+              {selectedEspelhoImages.length === 0 ? (
+                "Nenhuma imagem selecionada"
+              ) : (
+                `${selectedEspelhoImages.length} ${selectedEspelhoImages.length === 1 ? 'imagem selecionada' : 'imagens selecionadas'}`
+              )}
+            </div>
+            
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+              {getConvertedImages().map((imageUrl, index) => (
+                <div 
+                  key={index} 
+                  className={`cursor-pointer border rounded-md overflow-hidden relative group ${
+                    selectedEspelhoImages.includes(imageUrl) ? 'ring-2 ring-primary' : ''
+                  }`}
+                  onClick={() => handleToggleEspelhoImage(imageUrl)}
+                >
+                  <div className="w-full h-40 flex items-center justify-center relative">
+                    <img 
+                      src={imageUrl}
+                      alt={`Imagem ${index + 1}`}
+                      className="w-full h-full object-contain"
+                    />
+                    
+                    {selectedEspelhoImages.includes(imageUrl) && (
+                      <div className="absolute top-2 right-2 bg-primary text-white rounded-full w-6 h-6 flex items-center justify-center">
+                        ✓
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
+                    <span className="text-white bg-black/60 px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity">
+                      Imagem {index + 1}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+          
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowEspelhoSeletor(false)}
+            >
+              Cancelar
+            </Button>
+            <Button
+              variant="default"
+              onClick={handleEnviarEspelho}
+              disabled={selectedEspelhoImages.length === 0 || isEnviandoEspelho}
+            >
+              {isEnviandoEspelho ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Enviando...
+                </>
+              ) : (
+                'Enviar Espelho'
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
