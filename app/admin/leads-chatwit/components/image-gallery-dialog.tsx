@@ -10,8 +10,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { toast, useToast } from "@/hooks/use-toast";
 import { ToastAction } from "@/components/ui/toast";
-import { Download, ExternalLink, ChevronLeft, ChevronRight, RefreshCw, X } from "lucide-react";
+import { Download, ExternalLink, ChevronLeft, ChevronRight, RefreshCw, X, Check, Loader2, Send } from "lucide-react";
 import { downloadImagesAsZip } from "../utils/download-zip";
+import { Checkbox } from "@/components/ui/checkbox";
 
 interface ImageGalleryDialogProps {
   isOpen: boolean;
@@ -20,6 +21,8 @@ interface ImageGalleryDialogProps {
   title?: string;
   description?: string;
   leadId?: string;
+  onSend?: (selectedImages: string[]) => Promise<void>;
+  selectionMode?: boolean;
 }
 
 export function ImageGalleryDialog({
@@ -27,8 +30,10 @@ export function ImageGalleryDialog({
   onClose,
   images,
   title = "Galeria de Imagens",
-  description = "Imagens convertidas do PDF. Clique em uma miniatura para ver a imagem completa.",
-  leadId
+  description = "Selecione as imagens da prova para enviar. Clique em uma miniatura para ver a imagem completa.",
+  leadId,
+  onSend,
+  selectionMode = false
 }: ImageGalleryDialogProps) {
   const { toast } = useToast();
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
@@ -39,6 +44,8 @@ export function ImageGalleryDialog({
   const [fullImageLoading, setFullImageLoading] = useState(false);
   const [fullImageError, setFullImageError] = useState(false);
   const [showDebug, setShowDebug] = useState(false);
+  const [selectedImages, setSelectedImages] = useState<string[]>([]);
+  const [isSending, setIsSending] = useState(false);
   
   // Função para fazer download de todas as imagens como ZIP
   const handleDownloadAllImages = async () => {
@@ -81,6 +88,59 @@ export function ImageGalleryDialog({
       });
     } finally {
       setIsDownloading(false);
+    }
+  };
+
+  // Função para toggle da seleção de imagem
+  const toggleImageSelection = (imageUrl: string, event?: React.MouseEvent) => {
+    // Se event for fornecido, impedir a propagação para evitar abrir a imagem
+    if (event) {
+      event.stopPropagation();
+    }
+    
+    setSelectedImages(prev => {
+      if (prev.includes(imageUrl)) {
+        return prev.filter(url => url !== imageUrl);
+      } else {
+        return [...prev, imageUrl];
+      }
+    });
+  };
+
+  // Função para enviar imagens selecionadas
+  const handleSendImages = async () => {
+    if (!onSend) return;
+    
+    if (selectedImages.length === 0) {
+      toast({
+        title: "Aviso",
+        description: "Selecione pelo menos uma imagem para enviar.",
+        variant: "default",
+      });
+      return;
+    }
+    
+    setIsSending(true);
+    try {
+      await onSend(selectedImages);
+      
+      toast({
+        title: "Sucesso",
+        description: "Imagens enviadas com sucesso!",
+        variant: "default",
+      });
+      
+      // Fechar o diálogo após envio bem-sucedido
+      onClose();
+    } catch (error: any) {
+      console.error("Erro ao enviar imagens:", error);
+      toast({
+        title: "Erro",
+        description: error.message || "Não foi possível enviar as imagens. Tente novamente.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSending(false);
     }
   };
   
@@ -200,49 +260,79 @@ export function ImageGalleryDialog({
             <DialogDescription>{description}</DialogDescription>
           </DialogHeader>
           
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 py-4">
-            {images.map((imageUrl, index) => (
-              <div 
-                key={index} 
-                className="cursor-pointer border rounded-md overflow-hidden relative group"
-                onClick={() => openImage(imageUrl, index)}
-              >
-                <div className="w-full h-40 flex items-center justify-center relative">
-                  {loadingImages[index] && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-background/50 z-10">
-                      <RefreshCw className="h-6 w-6 animate-spin text-primary" />
-                    </div>
-                  )}
-                  
-                  <img 
-                    src={getThumbnailUrl(imageUrl)}
-                    alt={`Imagem ${index + 1}`}
-                    className={`w-full h-full object-contain ${imageErrors[index] ? 'opacity-60' : ''}`}
-                    onLoad={() => handleImageLoading(index, false)}
-                    onLoadStart={() => handleImageLoading(index, true)}
-                    onError={(e) => {
-                      console.warn(`Erro ao carregar miniatura: ${getThumbnailUrl(imageUrl)}`);
-                      handleImageLoading(index, false);
-                      handleImageError(index, true);
-                      // Fallback para a imagem original em caso de erro
-                      e.currentTarget.src = imageUrl;
-                    }}
-                  />
-                  
-                  {imageErrors[index] && (
-                    <div className="absolute bottom-1 left-1 right-1 bg-red-500/70 text-white text-xs p-1 rounded text-center">
-                      Erro na miniatura
-                    </div>
-                  )}
-                </div>
-                
-                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
-                  <span className="text-white bg-black/60 px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity">
-                    Imagem {index + 1}
-                  </span>
-                </div>
+          <div className="py-4">
+            {selectionMode && (
+              <div className="mb-4 text-sm text-muted-foreground">
+                {selectedImages.length === 0 ? (
+                  "Nenhuma imagem selecionada"
+                ) : (
+                  `${selectedImages.length} ${selectedImages.length === 1 ? 'imagem selecionada' : 'imagens selecionadas'}`
+                )}
               </div>
-            ))}
+            )}
+            
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+              {images.map((imageUrl, index) => (
+                <div 
+                  key={index} 
+                  className={`cursor-pointer border rounded-md overflow-hidden relative group ${
+                    selectedImages.includes(imageUrl) ? 'ring-2 ring-primary' : ''
+                  }`}
+                  onClick={() => openImage(imageUrl, index)}
+                >
+                  <div className="w-full h-40 flex items-center justify-center relative">
+                    {loadingImages[index] && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-background/50 z-10">
+                        <RefreshCw className="h-6 w-6 animate-spin text-primary" />
+                      </div>
+                    )}
+                    
+                    <img 
+                      src={getThumbnailUrl(imageUrl)}
+                      alt={`Imagem ${index + 1}`}
+                      className={`w-full h-full object-contain ${imageErrors[index] ? 'opacity-60' : ''}`}
+                      onLoad={() => handleImageLoading(index, false)}
+                      onLoadStart={() => handleImageLoading(index, true)}
+                      onError={(e) => {
+                        console.warn(`Erro ao carregar miniatura: ${getThumbnailUrl(imageUrl)}`);
+                        handleImageLoading(index, false);
+                        handleImageError(index, true);
+                        // Fallback para a imagem original em caso de erro
+                        e.currentTarget.src = imageUrl;
+                      }}
+                    />
+                    
+                    {/* Checkbox para seleção de imagens */}
+                    {selectionMode && (
+                      <div 
+                        className="absolute top-2 right-2 z-20"
+                        onClick={(e) => toggleImageSelection(imageUrl, e)}
+                      >
+                        <div className={`w-6 h-6 rounded-full flex items-center justify-center ${
+                          selectedImages.includes(imageUrl) 
+                            ? 'bg-primary text-white' 
+                            : 'bg-background/80 border border-gray-300'
+                        }`}>
+                          {selectedImages.includes(imageUrl) && <Check className="h-4 w-4" />}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {imageErrors[index] && (
+                      <div className="absolute bottom-1 left-1 right-1 bg-red-500/70 text-white text-xs p-1 rounded text-center">
+                        Erro na miniatura
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
+                    <span className="text-white bg-black/60 px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity">
+                      Imagem {index + 1}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
           
           <DialogFooter className="flex justify-between items-center">
@@ -298,9 +388,30 @@ export function ImageGalleryDialog({
               </div>
             )}
             
-            <Button variant="outline" onClick={onClose}>
-              Fechar
-            </Button>
+            <div className="flex gap-2">
+              {selectionMode && onSend && (
+                <Button
+                  variant="default"
+                  onClick={handleSendImages}
+                  disabled={selectedImages.length === 0 || isSending}
+                >
+                  {isSending ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Enviando...
+                    </>
+                  ) : (
+                    <>
+                      <Send className="h-4 w-4 mr-2" />
+                      Enviar Selecionadas
+                    </>
+                  )}
+                </Button>
+              )}
+              <Button variant="outline" onClick={onClose}>
+                Fechar
+              </Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -382,6 +493,22 @@ export function ImageGalleryDialog({
                 <ExternalLink className="h-4 w-4 mr-2" />
                 Abrir em Nova Aba
               </Button>
+              
+              {selectionMode && selectedImage && (
+                <Button
+                  variant={selectedImages.includes(selectedImage) ? "default" : "outline"}
+                  onClick={() => toggleImageSelection(selectedImage)}
+                >
+                  {selectedImages.includes(selectedImage) ? (
+                    <>
+                      <Check className="h-4 w-4 mr-2" />
+                      Selecionada
+                    </>
+                  ) : (
+                    "Selecionar esta imagem"
+                  )}
+                </Button>
+              )}
             </div>
             
             <div className="flex gap-2">

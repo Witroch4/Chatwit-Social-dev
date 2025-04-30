@@ -708,6 +708,42 @@ export function LeadItem({
     }
   };
 
+  // Função para cancelar o processamento do manuscrito
+  const handleCancelarProcessamentoManuscrito = async () => {
+    try {
+      // Exibir um toast informando que está cancelando o processamento
+      toast({
+        title: "Cancelando processamento",
+        description: "Cancelando o processamento do manuscrito...",
+      });
+      
+      // Atualizar o lead para marcar como não aguardando mais
+      await onEdit({
+        ...lead,
+        aguardandoManuscrito: false,
+        _skipDialog: true
+      });
+      
+      toast({
+        title: "Processamento cancelado",
+        description: "O processamento do manuscrito foi cancelado com sucesso.",
+        variant: "default",
+        action: (
+          <ToastAction altText="Tentar novamente" onClick={handleDigitarClick}>
+            Tentar novamente
+          </ToastAction>
+        ),
+      });
+    } catch (error: any) {
+      console.error("Erro ao cancelar processamento:", error);
+      toast({
+        title: "Erro",
+        description: error.message || "Não foi possível cancelar o processamento. Tente novamente.",
+        variant: "destructive",
+      });
+    }
+  };
+
   const handleManuscritoContextAction = async (action: ContextAction, data?: any) => {
     if (!data || !data.id) return;
     
@@ -722,6 +758,12 @@ export function LeadItem({
       case 'editarManuscrito':
         if (lead.manuscritoProcessado) {
           setShowManuscritoDialog(true);
+        }
+        break;
+        
+      case 'cancelarProcessamentoManuscrito':
+        if (lead.aguardandoManuscrito) {
+          handleCancelarProcessamentoManuscrito();
         }
         break;
         
@@ -1094,6 +1136,80 @@ export function LeadItem({
     }
   };
 
+  // Função para enviar imagens selecionadas como prova
+  const handleSendSelectedImages = async (selectedImages: string[]) => {
+    if (selectedImages.length === 0) {
+      toast({
+        title: "Aviso", 
+        description: "Selecione pelo menos uma imagem para enviar.",
+        variant: "default",
+      });
+      return;
+    }
+
+    try {
+      // Preparar o payload para o webhook
+      const payload = {
+        leadID: lead.id,
+        nome: lead.nomeReal || lead.name || "Lead sem nome",
+        telefone: lead.phoneNumber,
+        prova: true, // Este é um envio de prova
+        arquivos: lead.arquivos.map((a: { id: string; dataUrl: string; fileType: string }) => ({
+          id: a.id,
+          url: a.dataUrl,
+          tipo: a.fileType,
+          nome: a.fileType
+        })),
+        arquivos_pdf: lead.pdfUnificado ? [{
+          id: lead.id,
+          url: lead.pdfUnificado,
+          nome: "PDF Unificado"
+        }] : [],
+        arquivos_imagens_prova: selectedImages.map((url: string, index: number) => ({
+          id: `${lead.id}-prova-${index}`,
+          url: url,
+          nome: `Prova ${index + 1}`
+        })),
+        metadata: {
+          manuscrito: true,
+          leadUrl: lead.leadUrl,
+          sourceId: lead.sourceId,
+          concluido: lead.concluido,
+          fezRecurso: lead.fezRecurso,
+          manuscritoProcessado: lead.manuscritoProcessado
+        }
+      };
+
+      // Enviar para a API
+      const response = await fetch("/api/admin/leads-chatwit/enviar-manuscrito", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || "Erro ao enviar imagens da prova");
+      }
+
+      toast({
+        title: "Sucesso",
+        description: "Imagens da prova enviadas com sucesso!",
+        variant: "default",
+      });
+    } catch (error: any) {
+      console.error("Erro ao enviar imagens da prova:", error);
+      toast({
+        title: "Erro",
+        description: error.message || "Não foi possível enviar as imagens da prova. Tente novamente.",
+        variant: "destructive",
+      });
+      throw error; // Re-lançar o erro para que o componente ImageGalleryDialog possa tratá-lo
+    }
+  };
+
   return (
     <>
       <TableRow className="group hover:bg-secondary/30">
@@ -1276,7 +1392,8 @@ export function LeadItem({
             onAction={handleManuscritoContextAction}
             data={{
               id: lead.id,
-              manuscritoProcessado: !!lead.manuscritoProcessado
+              manuscritoProcessado: !!lead.manuscritoProcessado,
+              aguardandoManuscrito: !!lead.aguardandoManuscrito
             }}
           >
             <Button
@@ -1431,7 +1548,9 @@ export function LeadItem({
         images={getConvertedImages()}
         leadId={lead.id}
         title={`Imagens de ${displayName}`}
-        description="Imagens convertidas do PDF. Clique em uma miniatura para ver a imagem completa."
+        description="Selecione as imagens da prova para enviar. Clique em uma miniatura para ver a imagem completa."
+        selectionMode={true}
+        onSend={handleSendSelectedImages}
       />
 
       <ProcessDialog

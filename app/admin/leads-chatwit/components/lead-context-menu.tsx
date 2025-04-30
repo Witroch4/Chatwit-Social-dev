@@ -27,6 +27,7 @@ export type ContextAction =
   | 'reenviarManuscrito'
   | 'excluirManuscrito'
   | 'editarManuscrito'
+  | 'cancelarProcessamentoManuscrito'
   | 'selecionarEspelho'
   | 'verEspelho'
   | 'excluirEspelho';
@@ -87,9 +88,18 @@ export function LeadContextMenu({ contextType, onAction, children, data }: LeadC
                 Editar Manuscrito
               </ContextMenuItem>
             )}
-            <ContextMenuItem onClick={() => onAction('reenviarManuscrito', data)}>
-              Reenviar Manuscrito
-            </ContextMenuItem>
+            {data.aguardandoManuscrito ? (
+              <ContextMenuItem 
+                onClick={() => onAction('cancelarProcessamentoManuscrito', data)}
+                className="text-orange-500 focus:text-orange-500 focus:bg-orange-50"
+              >
+                Cancelar Processamento
+              </ContextMenuItem>
+            ) : (
+              <ContextMenuItem onClick={() => onAction('reenviarManuscrito', data)}>
+                Reenviar Manuscrito
+              </ContextMenuItem>
+            )}
             {data.manuscritoProcessado && (
               <>
                 <ContextMenuSeparator />
