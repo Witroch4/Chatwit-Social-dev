@@ -64,6 +64,7 @@ import { DialogDetalheLead } from "./dialog-detalhe-lead";
 import { ProcessDialog, ProcessType } from "./process-dialog";
 import { LeadChatwit } from "../types";
 import { ManuscritoDialog } from "./manuscrito-dialog";
+import { EspelhoDialog } from "./espelho-dialog";
 
 interface ArquivoLeadChatwit {
   id: string;
@@ -120,15 +121,18 @@ export function LeadItem({
   const [showEspelhoSeletor, setShowEspelhoSeletor] = useState(false);
   const [selectedEspelhoImages, setSelectedEspelhoImages] = useState<string[]>([]);
   const [isEnviandoEspelho, setIsEnviandoEspelho] = useState(false);
-  const [hasEspelho, setHasEspelho] = useState(!!lead.espelhoCorrecao);
+  const [hasEspelho, setHasEspelho] = useState(!!lead.espelhoCorrecao || !!lead.textoDOEspelho);
+  const [showEspelhoDialog, setShowEspelhoDialog] = useState(false);
+  // Adicionando um novo estado para o seletor de imagens de manuscrito
+  const [showManuscritoImageSeletor, setShowManuscritoImageSeletor] = useState(false);
 
   const displayName = lead.nomeReal || lead.name || "Lead sem nome";
   const formattedDate = format(new Date(lead.createdAt ?? new Date()), "dd/MM/yyyy HH:mm", { locale: ptBR });
   
   // Efeito para detectar alterações no campo espelhoCorrecao do lead
   useEffect(() => {
-    setHasEspelho(!!lead.espelhoCorrecao);
-  }, [lead.espelhoCorrecao]);
+    setHasEspelho(!!lead.espelhoCorrecao || !!lead.textoDOEspelho);
+  }, [lead.espelhoCorrecao, lead.textoDOEspelho]);
   
   // Efeito para configurar um EventSource para ouvir eventos de manuscrito processado
   useEffect(() => {
@@ -570,10 +574,24 @@ export function LeadItem({
       return;
     }
     
+    // Abre o seletor de imagens para o manuscrito
+    setShowManuscritoImageSeletor(true);
+  };
+
+  // Nova função para processar o envio do manuscrito após seleção das imagens
+  const handleEnviarManuscrito = async (selectedImages: string[]) => {
+    if (selectedImages.length === 0) {
+      toast({
+        title: "Aviso",
+        description: "Selecione pelo menos uma imagem para o manuscrito.",
+        variant: "default",
+      });
+      return;
+    }
+
     setIsDigitando(true);
     try {
       // Marca o lead como aguardando manuscrito antes de enviar para o processamento
-      // Isso evita múltiplos cliques enquanto está em processamento
       await onEdit({
         ...lead,
         aguardandoManuscrito: true,
@@ -603,11 +621,12 @@ export function LeadItem({
           url: lead.pdfUnificado,
           nome: "PDF Unificado"
         }] : [],
-        arquivos_imagens: lead.imagensConvertidas ? JSON.parse(lead.imagensConvertidas).map((url: string, index: number) => ({
+        // Usa apenas as imagens selecionadas pelo usuário
+        arquivos_imagens: selectedImages.map((url: string, index: number) => ({
           id: `${lead.id}-img-${index}`,
           url: url,
           nome: `Página ${index + 1}`
-        })) : [],
+        })),
         metadata: {
           leadUrl: lead.leadUrl,
           sourceId: lead.sourceId,
@@ -983,8 +1002,8 @@ export function LeadItem({
   };
 
   // Função para enviar as imagens selecionadas como espelho de correção
-  const handleEnviarEspelho = async () => {
-    if (selectedEspelhoImages.length === 0) {
+  const handleEnviarEspelho = async (selectedImages: string[]) => {
+    if (selectedImages.length === 0) {
       toast({
         title: "Aviso",
         description: "Selecione pelo menos uma imagem para o espelho de correção.",
@@ -998,7 +1017,7 @@ export function LeadItem({
       // Salvar as imagens selecionadas no lead primeiro
       await onEdit({
         ...lead,
-        espelhoCorrecao: JSON.stringify(selectedEspelhoImages),
+        espelhoCorrecao: JSON.stringify(selectedImages),
         _skipDialog: true
       });
 
@@ -1019,7 +1038,7 @@ export function LeadItem({
           url: lead.pdfUnificado,
           nome: "PDF Unificado"
         }] : [],
-        arquivos_imagens_espelho: selectedEspelhoImages.map((url: string, index: number) => ({
+        arquivos_imagens_espelho: selectedImages.map((url: string, index: number) => ({
           id: `${lead.id}-espelho-${index}`,
           url: url,
           nome: `Espelho ${index + 1}`
@@ -1081,22 +1100,8 @@ export function LeadItem({
         break;
       case 'verEspelho':
         if (lead.espelhoCorrecao) {
-          // Abrir o visualizador de imagens com as imagens do espelho
-          try {
-            const imagens = JSON.parse(lead.espelhoCorrecao);
-            if (Array.isArray(imagens) && imagens.length > 0) {
-              // Dando preferência ao visualizador existente
-              setSelectedEspelhoImages(imagens);
-              setShowEspelhoSeletor(true);
-            }
-          } catch (error) {
-            console.error("Erro ao processar espelho:", error);
-            toast({
-              title: "Erro",
-              description: "Não foi possível carregar o espelho de correção.",
-              variant: "destructive",
-            });
-          }
+          // Abrir o dialog de edição do espelho
+          setShowEspelhoDialog(true);
         }
         break;
       case 'excluirEspelho':
@@ -1112,25 +1117,54 @@ export function LeadItem({
   // Função para excluir o espelho de correção
   const handleExcluirEspelho = async () => {
     try {
-      // Atualizar o lead para remover o espelho
+      // Atualiza o lead para remover o espelho
       await onEdit({
         ...lead,
-        espelhoCorrecao: null,
+        espelhoCorrecao: "", // Usar string vazia ao invés de null
         _skipDialog: true
       });
       
       toast({
-        title: "Sucesso",
-        description: "Espelho de correção excluído com sucesso!",
+        title: "Espelho excluído",
+        description: "O espelho de correção foi removido com sucesso.",
         variant: "default",
       });
       
       setHasEspelho(false);
     } catch (error: any) {
-      console.error("Erro ao excluir espelho de correção:", error);
+      console.error("Erro ao excluir espelho:", error);
       toast({
         title: "Erro",
-        description: error.message || "Não foi possível excluir o espelho de correção. Tente novamente.",
+        description: error.message || "Não foi possível excluir o espelho. Tente novamente.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Função para editar/salvar o espelho
+  const handleSaveEspelho = async (textoEspelho: any, imagensEspelho: string[]) => {
+    try {
+      // Atualizar o lead com o texto e imagens do espelho
+      await onEdit({
+        ...lead,
+        espelhoCorrecao: JSON.stringify(imagensEspelho),
+        textoDOEspelho: textoEspelho,
+        _skipDialog: true
+      });
+      
+      toast({
+        title: "Sucesso",
+        description: "Espelho de correção atualizado com sucesso!",
+        variant: "default",
+      });
+      
+      setHasEspelho(imagensEspelho.length > 0 || !!textoEspelho);
+      setShowEspelhoDialog(false);
+    } catch (error: any) {
+      console.error("Erro ao atualizar espelho de correção:", error);
+      toast({
+        title: "Erro",
+        description: error.message || "Não foi possível atualizar o espelho de correção. Tente novamente.",
         variant: "destructive",
       });
     }
@@ -1436,14 +1470,14 @@ export function LeadItem({
               <Button
                 variant="outline"
                 size="sm"
-                onClick={handleOpenEspelhoSeletor}
+                onClick={hasEspelho ? () => setShowEspelhoDialog(true) : handleOpenEspelhoSeletor}
                 disabled={isEnviandoEspelho}
                 className="whitespace-nowrap w-full"
               >
                 {hasEspelho ? (
                   <>
                     <Eye className="h-4 w-4 mr-1" />
-                    Ver Espelho
+                    Editar Espelho
                   </>
                 ) : (
                   <>
@@ -1600,81 +1634,37 @@ export function LeadItem({
       </Dialog>
 
       {/* Dialog para seleção das imagens do espelho de correção */}
-      <Dialog open={showEspelhoSeletor} onOpenChange={(open) => !open && setShowEspelhoSeletor(false)}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-auto">
-          <DialogHeader>
-            <DialogTitle>Selecionar Espelho de Correção</DialogTitle>
-            <DialogDescription>
-              Selecione as imagens que serão utilizadas como espelho de correção. Você pode selecionar mais de uma imagem.
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="py-4">
-            <div className="mb-4 text-sm text-muted-foreground">
-              {selectedEspelhoImages.length === 0 ? (
-                "Nenhuma imagem selecionada"
-              ) : (
-                `${selectedEspelhoImages.length} ${selectedEspelhoImages.length === 1 ? 'imagem selecionada' : 'imagens selecionadas'}`
-              )}
-            </div>
-            
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-              {getConvertedImages().map((imageUrl, index) => (
-                <div 
-                  key={index} 
-                  className={`cursor-pointer border rounded-md overflow-hidden relative group ${
-                    selectedEspelhoImages.includes(imageUrl) ? 'ring-2 ring-primary' : ''
-                  }`}
-                  onClick={() => handleToggleEspelhoImage(imageUrl)}
-                >
-                  <div className="w-full h-40 flex items-center justify-center relative">
-                    <img 
-                      src={imageUrl}
-                      alt={`Imagem ${index + 1}`}
-                      className="w-full h-full object-contain"
-                    />
-                    
-                    {selectedEspelhoImages.includes(imageUrl) && (
-                      <div className="absolute top-2 right-2 bg-primary text-white rounded-full w-6 h-6 flex items-center justify-center">
-                        ✓
-                      </div>
-                    )}
-                  </div>
-                  
-                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
-                    <span className="text-white bg-black/60 px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity">
-                      Imagem {index + 1}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-          
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setShowEspelhoSeletor(false)}
-            >
-              Cancelar
-            </Button>
-            <Button
-              variant="default"
-              onClick={handleEnviarEspelho}
-              disabled={selectedEspelhoImages.length === 0 || isEnviandoEspelho}
-            >
-              {isEnviandoEspelho ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Enviando...
-                </>
-              ) : (
-                'Enviar Espelho'
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ImageGalleryDialog
+        isOpen={showEspelhoSeletor}
+        onClose={() => setShowEspelhoSeletor(false)}
+        images={getConvertedImages()}
+        leadId={lead.id}
+        title="Selecionar Espelho de Correção"
+        description="Selecione as imagens que serão utilizadas como espelho de correção. Você pode selecionar mais de uma imagem."
+        selectionMode={true}
+        onSend={handleEnviarEspelho}
+      />
+
+      <EspelhoDialog
+        isOpen={showEspelhoDialog}
+        onClose={() => setShowEspelhoDialog(false)}
+        leadId={lead.id}
+        textoEspelho={lead.textoDOEspelho || null}
+        imagensEspelho={lead.espelhoCorrecao ? JSON.parse(lead.espelhoCorrecao) : []}
+        onSave={handleSaveEspelho}
+      />
+
+      {/* Adicione um novo ImageGalleryDialog para seleção de imagens do manuscrito */}
+      <ImageGalleryDialog
+        isOpen={showManuscritoImageSeletor}
+        onClose={() => setShowManuscritoImageSeletor(false)}
+        images={getConvertedImages()}
+        leadId={lead.id}
+        title="Selecionar Imagens para Manuscrito"
+        description="Selecione as imagens que serão usadas para o processo de digitação do manuscrito."
+        selectionMode={true}
+        onSend={handleEnviarManuscrito}
+      />
     </>
   );
 }

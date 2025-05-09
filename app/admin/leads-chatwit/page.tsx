@@ -36,6 +36,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { LeadsList } from "./components/leads-list";
+import { UsuariosList } from "./components/usuarios-list";
 
 export default function LeadsChatwitPage() {
   const [isLoading, setIsLoading] = useState(true);
@@ -50,6 +52,7 @@ export default function LeadsChatwitPage() {
   const [showDashboard, setShowDashboard] = useState(false);
   const [filterPeriod, setFilterPeriod] = useState("ultimos7");
   const [refreshCounter, setRefreshCounter] = useState(0);
+  const [activeTab, setActiveTab] = useState("leads");
 
   useEffect(() => {
     fetchStats();
@@ -202,7 +205,7 @@ export default function LeadsChatwitPage() {
         
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Usuários</CardTitle>
+            <CardTitle className="text-sm font-medium">Total de Usuários</CardTitle>
           </CardHeader>
           <CardContent>
             {isLoading ? (
@@ -210,7 +213,7 @@ export default function LeadsChatwitPage() {
             ) : (
               <>
                 <div className="text-2xl font-bold">{stats.totalUsuarios}</div>
-                <p className="text-xs text-muted-foreground">Usuários com leads</p>
+                <p className="text-xs text-muted-foreground">Usuários com leads cadastrados</p>
               </>
             )}
           </CardContent>
@@ -218,7 +221,7 @@ export default function LeadsChatwitPage() {
         
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Arquivos</CardTitle>
+            <CardTitle className="text-sm font-medium">Total de Arquivos</CardTitle>
           </CardHeader>
           <CardContent>
             {isLoading ? (
@@ -226,7 +229,7 @@ export default function LeadsChatwitPage() {
             ) : (
               <>
                 <div className="text-2xl font-bold">{stats.totalArquivos}</div>
-                <p className="text-xs text-muted-foreground">Total de arquivos recebidos</p>
+                <p className="text-xs text-muted-foreground">Arquivos anexados aos leads</p>
               </>
             )}
           </CardContent>
@@ -234,7 +237,7 @@ export default function LeadsChatwitPage() {
         
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Pendentes</CardTitle>
+            <CardTitle className="text-sm font-medium">Leads Pendentes</CardTitle>
           </CardHeader>
           <CardContent>
             {isLoading ? (
@@ -242,87 +245,86 @@ export default function LeadsChatwitPage() {
             ) : (
               <>
                 <div className="text-2xl font-bold">{stats.pendentes}</div>
-                <p className="text-xs text-muted-foreground">Leads não concluídos</p>
+                <p className="text-xs text-muted-foreground">Aguardando processamento</p>
               </>
             )}
           </CardContent>
         </Card>
       </div>
       
-      {/* Dashboard / Relatórios */}
-      {showDashboard && (
-        <Card className="shadow-md">
-          <CardHeader className="pb-2">
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle>Dashboard de Leads</CardTitle>
-                <CardDescription>
-                  Visualize estatísticas e gráficos de desempenho
-                </CardDescription>
-              </div>
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                onClick={toggleDashboard}
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-          </CardHeader>
-          
-          <CardContent>
-            <LeadsDashboard isOpen={showDashboard} />
-          </CardContent>
-        </Card>
-      )}
-      
-      {/* Card com a lista de leads */}
-      <Card className="shadow-md">
-        <CardHeader className="pb-2">
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle>Gerenciamento de Leads Chatwit</CardTitle>
-              <CardDescription>
-                Visualize, gerencie e processe leads recebidos via webhook
-              </CardDescription>
-            </div>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              className="gap-1"
-              onClick={toggleDashboard}
+      {/* Toggles e Dashboard */}
+      <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
+        <div className="flex items-center gap-2">
+          <Button 
+            variant={showDashboard ? "default" : "outline"} 
+            size="sm"
+            onClick={toggleDashboard}
+          >
+            <BarChart className="h-4 w-4 mr-2" />
+            {showDashboard ? "Ocultar Dashboard" : "Mostrar Dashboard"}
+          </Button>
+        </div>
+        
+        <div className="relative">
+          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Input
+            type="search"
+            placeholder="Buscar leads..."
+            className="w-full md:w-[300px] pl-8"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+          {searchQuery && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="absolute right-0 top-0 h-full px-3"
+              onClick={() => setSearchQuery("")}
             >
-              <BarChart className="h-4 w-4" />
-              <span>Relatórios</span>
-              <ChevronDown className="h-3 w-3 opacity-50" />
+              <X className="h-4 w-4" />
             </Button>
-          </div>
-        </CardHeader>
-
-        <CardContent className="overflow-auto">
-          <div className="mb-4">
-            <div className="relative">
-              <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Buscar por nome, telefone ou usuário..."
-                className="pl-8" 
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-            </div>
-          </div>
-
-          <LeadsTabs 
-            isLoading={isLoading} 
-            searchQuery={searchQuery} 
+          )}
+        </div>
+      </div>
+      
+      {/* Dashboard */}
+      {showDashboard && (
+        <div className="grid grid-cols-1 gap-4">
+          <LeadsDashboard 
+            period={filterPeriod} 
             refreshCounter={refreshCounter}
           />
-        </CardContent>
-        
-        <CardFooter className="border-t px-6 py-3 text-xs text-muted-foreground">
-          Os dados são atualizados automaticamente quando novos leads são recebidos via webhook.
-        </CardFooter>
-      </Card>
+        </div>
+      )}
+      
+      {/* Tabs */}
+      <LeadsTabs 
+        activeTab={activeTab}
+        onChange={setActiveTab}
+      />
+      
+      {/* Lista de Leads */}
+      {activeTab === "leads" && (
+        <div className="border rounded-md">
+          <LeadsList 
+            searchQuery={searchQuery}
+            onRefresh={handleRefresh}
+            initialLoading={isLoading}
+            refreshCounter={refreshCounter}
+          />
+        </div>
+      )}
+      
+      {/* Lista de Usuários */}
+      {activeTab === "usuarios" && (
+        <div className="border rounded-md">
+          <UsuariosList 
+            searchQuery={searchQuery}
+            onRefresh={handleRefresh}
+            initialLoading={isLoading}
+          />
+        </div>
+      )}
     </div>
   );
 }

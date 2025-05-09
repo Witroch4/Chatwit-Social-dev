@@ -2,6 +2,7 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
+import "katex/dist/katex.min.css";
 import { ThemeProvider } from "@/components/providers/theme-provider";
 import { SessionProvider } from "@/components/providers/session-provider";
 import ErrorBoundary from "@/components/providers/error-boundary";

@@ -366,6 +366,8 @@ model LeadChatwit {
   provaManuscrita   Json? // Texto da prova digitalizada
   manuscritoProcessado Boolean    @default(false) // Indica se o manuscrito foi processado
   aguardandoManuscrito Boolean    @default(false) // Indica se está aguardando processamento do manuscrito
+  espelhoCorrecao   String?       // Lista de URLs das imagens do espelho em formato JSON
+  textoDOEspelho    Json?         // Texto do espelho de correção processado
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
 

@@ -119,7 +119,7 @@ export function LeadContextMenu({ contextType, onAction, children, data }: LeadC
           <>
             {data.hasEspelho ? (
               <ContextMenuItem onClick={() => onAction('verEspelho', data)}>
-                Ver Espelho
+                Editar Espelho
               </ContextMenuItem>
             ) : (
               <ContextMenuItem onClick={() => onAction('selecionarEspelho', data)}>

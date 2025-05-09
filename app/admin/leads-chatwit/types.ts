@@ -9,24 +9,25 @@ export interface ArquivoLeadChatwit {
 export interface LeadChatwit {
   id: string;
   sourceId: string;
-  name?: string | null;
-  nomeReal?: string | null;
-  phoneNumber?: string | null;
-  email?: string | null;
-  thumbnail?: string | null;
+  name?: string;
+  nomeReal?: string;
+  phoneNumber?: string;
+  email?: string;
+  thumbnail?: string;
   concluido: boolean;
-  anotacoes?: string | null;
-  pdfUnificado?: string | null;
-  imagensConvertidas?: string | null;
-  leadUrl?: string | null;
+  anotacoes?: string;
+  pdfUnificado?: string;
+  imagensConvertidas?: string;
+  leadUrl?: string;
   fezRecurso: boolean;
-  datasRecurso?: string | null;
-  provaManuscrita?: string | null;
+  datasRecurso?: string;
+  provaManuscrita?: any;
   manuscritoProcessado: boolean;
   aguardandoManuscrito: boolean;
-  espelhoCorrecao?: string | null;
-  createdAt: string;
-  updatedAt: string;
+  espelhoCorrecao?: string;
+  textoDOEspelho?: any;
+  createdAt?: string;
+  updatedAt?: string;
   usuarioId: string;
   usuario: {
     id: string;
@@ -39,7 +40,7 @@ export interface LeadChatwit {
     inboxId?: number | null;
     inboxName?: string | null;
   };
-  arquivos: ArquivoLeadChatwit[];
+  arquivos: any[];
   _internal?: boolean;
   _skipDialog?: boolean;
   _forceUpdate?: boolean;
