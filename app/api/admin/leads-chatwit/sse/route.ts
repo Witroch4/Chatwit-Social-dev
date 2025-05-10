@@ -1,33 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { PrismaClient } from '@prisma/client';
 import { auth } from "@/auth";
 
-const prisma = new PrismaClient();
-
-// Armazenamento temporário das conexões SSE
-// Chave: leadId, Valor: array de objetos de resposta
-const connections: Record<string, Response[]> = {};
-
-// Função para enviar evento para todas as conexões de um lead específico
-export async function sendEventToLead(leadId: string, eventName: string, data: any) {
-  if (connections[leadId]) {
-    const eventData = `event: ${eventName}\ndata: ${JSON.stringify(data)}\n\n`;
-    
-    // Enviar o evento para todas as conexões deste lead
-    connections[leadId].forEach(response => {
-      const writer = (response as any).body?.getWriter();
-      if (writer) {
-        writer.write(new TextEncoder().encode(eventData));
-        writer.releaseLock();
-      }
-    });
-    
-    console.log(`[SSE] Evento '${eventName}' enviado para o lead ${leadId}`);
-  } else {
-    console.log(`[SSE] Nenhuma conexão ativa para o lead ${leadId}`);
-  }
-}
-
+/**
+ * Esta rota não é mais utilizada para processamento de manuscritos em tempo real.
+ * Todo o processamento de manuscritos acontece de forma síncrona agora.
+ */
 export async function GET(req: NextRequest) {
   try {
     // Verificar autenticação usando auth.js v5
@@ -38,96 +15,28 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
     }
 
-    // Obter o ID do lead da query string
-    const url = new URL(req.url);
-    const leadId = url.searchParams.get("leadId");
-
-    if (!leadId) {
-      return NextResponse.json({ error: "ID do lead não fornecido" }, { status: 400 });
-    }
-
-    // Verificar se o lead existe
-    const lead = await prisma.leadChatwit.findUnique({
-      where: { id: leadId },
-      select: { id: true }
-    });
-
-    if (!lead) {
-      return NextResponse.json({ error: "Lead não encontrado" }, { status: 404 });
-    }
-
-    // Configurar encoder
-    const encoder = new TextEncoder();
-    
-    // Criar response e stream juntos
-    let responseObject: Response;
-    
-    const stream = new ReadableStream({
-      start(controller) {
-        // Enviar evento inicial
-        controller.enqueue(encoder.encode(`: conexão estabelecida\n\n`));
-        
-        // Registrar conexão
-        if (!connections[leadId]) {
-          connections[leadId] = [];
-        }
-        
-        // Verificar se o manuscrito já foi processado
-        prisma.leadChatwit.findUnique({
-          where: { id: leadId },
-          select: { manuscritoProcessado: true, provaManuscrita: true }
-        }).then(leadData => {
-          if (leadData && leadData.manuscritoProcessado) {
-            // Enviar evento imediatamente se já estiver processado
-            const eventData = `event: manuscrito_processado\ndata: ${JSON.stringify({
-              leadId,
-              manuscritoProcessado: true,
-              provaManuscrita: leadData.provaManuscrita
-            })}\n\n`;
-            
-            controller.enqueue(encoder.encode(eventData));
-          }
-        });
-      },
-      cancel() {
-        // Remover a conexão quando o cliente desconectar
-        if (connections[leadId]) {
-          connections[leadId] = connections[leadId].filter(resp => resp !== responseObject);
-          
-          // Se não houver mais conexões para este lead, remover do objeto
-          if (connections[leadId].length === 0) {
-            delete connections[leadId];
-          }
-        }
-        console.log(`[SSE] Conexão fechada para o lead ${leadId}`);
-      }
-    });
-
-    // Criar o objeto de resposta
-    responseObject = new Response(stream, {
-      headers: {
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache',
-        'Connection': 'keep-alive',
-      },
+    // Retornar uma resposta explicativa sobre a mudança
+    return NextResponse.json({ 
+      message: "Esta funcionalidade foi descontinuada.",
+      details: "O processamento de manuscritos agora é síncrono. O botão muda para 'Editar Manuscrito' imediatamente após o envio."
     });
     
-    // Armazenar a resposta para enviar eventos posteriormente
-    if (connections[leadId]) {
-      connections[leadId].push(responseObject);
-    }
-    
-    console.log(`[SSE] Nova conexão estabelecida para o lead ${leadId}`);
-
-    // Retornar a resposta de stream
-    return responseObject;
   } catch (error: any) {
-    console.error("[SSE] Erro ao estabelecer conexão SSE:", error);
+    console.error("[SSE] Erro:", error);
     return NextResponse.json(
-      { error: error.message || "Erro ao estabelecer conexão" },
+      { error: error.message || "Erro interno" },
       { status: 500 }
     );
   }
+}
+
+/**
+ * Função placeholder para compatibilidade com o trigger-sse.
+ * Esta função não faz nada pois não há mais conexões SSE ativas.
+ */
+export function sendEventToLead(leadId: string, eventName: string, data: any) {
+  console.log(`[SSE] Evento ignorado (funcionalidade descontinuada): ${eventName} para lead ${leadId}`);
+  return true; // Retorna true para não quebrar o fluxo de chamadas existentes
 }
 
 export const dynamic = 'force-dynamic';

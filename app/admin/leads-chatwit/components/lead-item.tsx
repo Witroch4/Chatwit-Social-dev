@@ -116,99 +116,69 @@ export function LeadItem({
   const [showManuscritoDialog, setShowManuscritoDialog] = useState(false);
   const [confirmDeleteManuscrito, setConfirmDeleteManuscrito] = useState(false);
   const [manuscritoToDelete, setManuscritoToDelete] = useState<string | null>(null);
-  const eventSourceRef = useRef<EventSource | null>(null);
-  // Estados para o espelho de correção
   const [showEspelhoSeletor, setShowEspelhoSeletor] = useState(false);
   const [selectedEspelhoImages, setSelectedEspelhoImages] = useState<string[]>([]);
   const [isEnviandoEspelho, setIsEnviandoEspelho] = useState(false);
-  const [hasEspelho, setHasEspelho] = useState(!!lead.espelhoCorrecao || !!lead.textoDOEspelho);
+  const temImagensEspelho = lead.espelhoCorrecao && 
+                            lead.espelhoCorrecao !== '[]' && 
+                            lead.espelhoCorrecao !== '""';
+  const temTextoEspelho = !!lead.textoDOEspelho && (
+    (typeof lead.textoDOEspelho === 'string' && lead.textoDOEspelho.trim() !== '') ||
+    (Array.isArray(lead.textoDOEspelho) && lead.textoDOEspelho.length > 0) ||
+    (typeof lead.textoDOEspelho === 'object' && lead.textoDOEspelho !== null)
+  );
+  const [hasEspelho, setHasEspelho] = useState(temImagensEspelho || temTextoEspelho);
   const [showEspelhoDialog, setShowEspelhoDialog] = useState(false);
-  // Adicionando um novo estado para o seletor de imagens de manuscrito
+  const [confirmDeleteEspelho, setConfirmDeleteEspelho] = useState(false);
   const [showManuscritoImageSeletor, setShowManuscritoImageSeletor] = useState(false);
+  const [manuscritoProcessadoLocal, setManuscritoProcessadoLocal] = useState(!!lead.manuscritoProcessado);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   const displayName = lead.nomeReal || lead.name || "Lead sem nome";
   const formattedDate = format(new Date(lead.createdAt ?? new Date()), "dd/MM/yyyy HH:mm", { locale: ptBR });
   
-  // Efeito para detectar alterações no campo espelhoCorrecao do lead
   useEffect(() => {
-    setHasEspelho(!!lead.espelhoCorrecao || !!lead.textoDOEspelho);
+    // Verificar corretamente se há espelho (imagens ou texto)
+    const temImagens = lead.espelhoCorrecao && 
+                      lead.espelhoCorrecao !== '[]' && 
+                      lead.espelhoCorrecao !== '""';
+    const temTexto = !!lead.textoDOEspelho && (
+      (typeof lead.textoDOEspelho === 'string' && lead.textoDOEspelho.trim() !== '') ||
+      (Array.isArray(lead.textoDOEspelho) && lead.textoDOEspelho.length > 0) ||
+      (typeof lead.textoDOEspelho === 'object' && lead.textoDOEspelho !== null)
+    );
+    
+    // Log para depuração
+    console.log('Estado do espelho atualizado:', {
+      leadId: lead.id,
+      temImagens,
+      temTexto,
+      espelhoCorrecao: lead.espelhoCorrecao,
+      textoDOEspelho: lead.textoDOEspelho
+    });
+    
+    // Atualizar o estado local
+    setHasEspelho(temImagens || temTexto);
+    
+    // Força re-renderização do componente quando o estado do espelho for atualizado
+    setRefreshKey(prev => prev + 1);
   }, [lead.espelhoCorrecao, lead.textoDOEspelho]);
-  
-  // Efeito para configurar um EventSource para ouvir eventos de manuscrito processado
+
   useEffect(() => {
-    // Verifica se o lead está aguardando um manuscrito e não está com o manuscrito processado
-    if (lead.aguardandoManuscrito && !lead.manuscritoProcessado) {
-      // Fecha qualquer EventSource existente
-      if (eventSourceRef.current) {
-        eventSourceRef.current.close();
-        eventSourceRef.current = null;
-      }
-      
-      // Cria um novo EventSource para ouvir eventos específicos para este lead
-      const eventSource = new EventSource(`/api/admin/leads-chatwit/sse?leadId=${lead.id}`);
-      eventSourceRef.current = eventSource;
-      
-      // Configura o handler para o evento 'manuscrito_processado'
-      eventSource.addEventListener('manuscrito_processado', (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          
-          // Verifica se o evento é para este lead
-          if (data.leadId === lead.id) {
-            // Atualiza o lead com os novos dados
-            onEdit({
-              ...lead,
-              manuscritoProcessado: true,
-              aguardandoManuscrito: false,
-              provaManuscrita: data.provaManuscrita || lead.provaManuscrita,
-              _skipDialog: true
-            });
-            
-            // Mostra um toast notificando que o manuscrito foi processado
-            toast({
-              title: "Manuscrito processado",
-              description: "O manuscrito foi processado com sucesso e está disponível para edição.",
-              variant: "default",
-              action: (
-                <ToastAction altText="Editar" onClick={() => setShowManuscritoDialog(true)}>
-                  Editar agora
-                </ToastAction>
-              )
-            });
-            
-            // Fecha o EventSource, pois não precisamos mais ouvir
-            eventSource.close();
-            eventSourceRef.current = null;
-            
-            // Desativa o estado de digitação
-            setIsDigitando(false);
-          }
-        } catch (error) {
-          console.error("Erro ao processar evento de manuscrito:", error);
-        }
-      });
-      
-      // Configura handlers para erros
-      eventSource.onerror = (error) => {
-        console.error("Erro no EventSource:", error);
-        // Fecha o EventSource em caso de erro
-        eventSource.close();
-        eventSourceRef.current = null;
-      };
-      
-      // Retorna uma função de limpeza
-      return () => {
-        eventSource.close();
-        eventSourceRef.current = null;
-      };
-    } else {
-      // Se o lead não está aguardando manuscrito, fecha qualquer EventSource existente
-      if (eventSourceRef.current) {
-        eventSourceRef.current.close();
-        eventSourceRef.current = null;
-      }
-    }
-  }, [lead.id, lead.aguardandoManuscrito, lead.manuscritoProcessado, onEdit, toast]);
+    setManuscritoProcessadoLocal(!!lead.manuscritoProcessado);
+    setRefreshKey(prev => prev + 1);
+  }, [lead.manuscritoProcessado]);
+
+  useEffect(() => {
+    // Força re-renderização do componente quando o estado de manuscrito for atualizado
+    setRefreshKey(prev => prev + 1);
+  }, [manuscritoProcessadoLocal]);
+
+  // Adicionar um useEffect específico para o hasEspelho
+  useEffect(() => {
+    // Força re-renderização do componente quando o estado do espelho for atualizado
+    setRefreshKey(prev => prev + 1);
+  }, [hasEspelho]);
 
   const handleDelete = () => {
     setConfirmDelete(false);
@@ -344,7 +314,6 @@ export function LeadItem({
   
   const handleContextMenuAction = async (action: ContextAction, data?: any) => {
     // Forçamos o fechamento do menu de contexto antes de qualquer ação
-    // Isso evita que o menu permaneça aberto quando um diálogo é aberto
     document.body.click(); // Força o fechamento de qualquer menu aberto
     
     // Pequeno delay para garantir que o menu fechou antes de executar a ação
@@ -558,27 +527,20 @@ export function LeadItem({
   };
 
   const handleDigitarClick = async () => {
-    // Se o manuscrito já estiver processado, abre o dialog de edição independente de outros estados
-    if (lead.manuscritoProcessado) {
-      setIsDigitando(false); // Importante: desativa o estado de digitação antes de abrir o diálogo
+    // Se já tiver manuscrito processado, apenas abra o diálogo de edição
+    if (manuscritoProcessadoLocal || lead.manuscritoProcessado) {
       setShowManuscritoDialog(true);
       return;
     }
     
-    // Para criar novo manuscrito, verifica se já está processando
-    if (isDigitando || lead.aguardandoManuscrito) return;
-    
-    // Verifica se há um diálogo aberto e fecha se necessário
-    if (showManuscritoDialog) {
-      setShowManuscritoDialog(false);
-      return;
-    }
+    // Se estiver processando, não faça nada
+    if (isDigitando) return;
     
     // Abre o seletor de imagens para o manuscrito
     setShowManuscritoImageSeletor(true);
   };
 
-  // Nova função para processar o envio do manuscrito após seleção das imagens
+  // Função para processar o envio do manuscrito após seleção das imagens
   const handleEnviarManuscrito = async (selectedImages: string[]) => {
     if (selectedImages.length === 0) {
       toast({
@@ -589,21 +551,13 @@ export function LeadItem({
       return;
     }
 
+    // Fechar o seletor de imagens
+    setShowManuscritoImageSeletor(false);
+    
+    // Mostrar o estado de carregamento
     setIsDigitando(true);
+    
     try {
-      // Marca o lead como aguardando manuscrito antes de enviar para o processamento
-      await onEdit({
-        ...lead,
-        aguardandoManuscrito: true,
-        _skipDialog: true
-      });
-
-      // Exibe o toast antes de chamar a API
-      toast({
-        title: "Iniciando processo",
-        description: "Iniciando processo de digitação do manuscrito...",
-      });
-
       // Preparar o payload para envio
       const payload = {
         leadID: lead.id,
@@ -635,7 +589,7 @@ export function LeadItem({
         }
       };
 
-      // Enviar para a nova rota de processamento
+      // Enviar para a rota de processamento
       const response = await fetch("/api/admin/leads-chatwit/enviar-manuscrito", {
         method: "POST",
         headers: {
@@ -646,40 +600,34 @@ export function LeadItem({
 
       if (!response.ok) {
         const data = await response.json();
-        
-        // Se houver erro, desmarcar o estado de aguardando manuscrito
-        await onEdit({
-          ...lead,
-          aguardandoManuscrito: false,
-          _skipDialog: true
-        });
-        
         throw new Error(data.error || "Erro ao enviar manuscrito para processamento");
       }
 
       // Se chegou aqui, deu sucesso
       toast({
-        title: "Processo iniciado com sucesso",
-        description: "O processo de digitação foi iniciado e você será notificado quando estiver concluído.",
+        title: "Manuscrito processado com sucesso",
+        description: "Você já pode editar o manuscrito.",
         variant: "default",
-        action: (
-          <ToastAction altText="Atualizar" onClick={handleRefreshList}>
-            Atualizar lista
-          </ToastAction>
-        ),
       });
       
-      // Mantém o estado de digitação por 3 segundos para mostrar a animação
-      setTimeout(() => {
-        setIsDigitando(false);
-      }, 3000);
+      // Atualizar o estado local do componente
+      setManuscritoProcessadoLocal(true);
+      
+      // Forçar refresh do componente para garantir que a UI seja atualizada
+      setRefreshKey(prev => prev + 1);
+      
+      // Limpar o estado de digitação
+      setIsDigitando(false);
+      
+      // Abrir o diálogo de edição imediatamente
+      setShowManuscritoDialog(true);
       
     } catch (error: any) {
       setIsDigitando(false);
       toast({
         variant: "destructive",
-        title: "Erro ao iniciar processo",
-        description: error.message || "Não foi possível iniciar o processo de digitação. Tente novamente.",
+        title: "Erro ao enviar manuscrito",
+        description: error.message || "Não foi possível enviar o manuscrito. Tente novamente.",
       });
     }
   };
@@ -727,47 +675,8 @@ export function LeadItem({
     }
   };
 
-  // Função para cancelar o processamento do manuscrito
-  const handleCancelarProcessamentoManuscrito = async () => {
-    try {
-      // Exibir um toast informando que está cancelando o processamento
-      toast({
-        title: "Cancelando processamento",
-        description: "Cancelando o processamento do manuscrito...",
-      });
-      
-      // Atualizar o lead para marcar como não aguardando mais
-      await onEdit({
-        ...lead,
-        aguardandoManuscrito: false,
-        _skipDialog: true
-      });
-      
-      toast({
-        title: "Processamento cancelado",
-        description: "O processamento do manuscrito foi cancelado com sucesso.",
-        variant: "default",
-        action: (
-          <ToastAction altText="Tentar novamente" onClick={handleDigitarClick}>
-            Tentar novamente
-          </ToastAction>
-        ),
-      });
-    } catch (error: any) {
-      console.error("Erro ao cancelar processamento:", error);
-      toast({
-        title: "Erro",
-        description: error.message || "Não foi possível cancelar o processamento. Tente novamente.",
-        variant: "destructive",
-      });
-    }
-  };
-
   const handleManuscritoContextAction = async (action: ContextAction, data?: any) => {
-    if (!data || !data.id) return;
-    
     // Forçamos o fechamento do menu de contexto antes de qualquer ação
-    // Isso evita que o menu permaneça aberto quando um diálogo é aberto
     document.body.click(); // Força o fechamento de qualquer menu aberto
     
     // Pequeno delay para garantir que o menu fechou antes de executar a ação
@@ -775,136 +684,16 @@ export function LeadItem({
     
     switch (action) {
       case 'editarManuscrito':
-        if (lead.manuscritoProcessado) {
-          setShowManuscritoDialog(true);
-        }
-        break;
-        
-      case 'cancelarProcessamentoManuscrito':
-        if (lead.aguardandoManuscrito) {
-          handleCancelarProcessamentoManuscrito();
-        }
+        // Abrir o diálogo de edição de manuscrito
+        setShowManuscritoDialog(true);
         break;
         
       case 'reenviarManuscrito':
-        // Verifica se está aguardando manuscrito
-        if (lead.aguardandoManuscrito) {
-          toast({
-            title: "Processamento em andamento",
-            description: "Este manuscrito já está sendo processado. Aguarde a conclusão.",
-            variant: "default",
-          });
-          return;
-        }
-        
-        // Para reenviar manuscrito, precisamos evitar que ele abra o diálogo
-        // se o manuscrito já estiver processado
-        if (lead.manuscritoProcessado) {
-          // Desativa a flag de manuscrito processado temporariamente para forçar o reenvio
-          // Esta abordagem modifica temporariamente o estado local para permitir reenvio
-          await onEdit({
-            ...lead,
-            manuscritoProcessado: false,
-            aguardandoManuscrito: true,
-            _internal: true,
-            _skipDialog: true
-          });
-          
-          // Pequeno delay para garantir que o estado foi atualizado
-          await new Promise(resolve => setTimeout(resolve, 300));
-        } else {
-          // Se não estiver processado, marca como aguardando
-          await onEdit({
-            ...lead,
-            aguardandoManuscrito: true,
-            _skipDialog: true
-          });
-        }
-        
-        // Agora que o estado foi atualizado, podemos enviar o manuscrito
-        // sem abrir o diálogo de edição
-        setIsDigitando(true);
-        try {
-          const payload = {
-            leadID: lead.id,
-            nome: lead.nomeReal || lead.name || "Lead sem nome",
-            telefone: lead.phoneNumber,
-            manuscrito: true,
-            arquivos: lead.arquivos.map((a: { id: string; dataUrl: string; fileType: string }) => ({
-              id: a.id,
-              url: a.dataUrl,
-              tipo: a.fileType,
-              nome: a.fileType
-            })),
-            arquivos_pdf: lead.pdfUnificado ? [{
-              id: lead.id,
-              url: lead.pdfUnificado,
-              nome: "PDF Unificado"
-            }] : [],
-            arquivos_imagens: lead.imagensConvertidas ? JSON.parse(lead.imagensConvertidas).map((url: string, index: number) => ({
-              id: `${lead.id}-img-${index}`,
-              url: url,
-              nome: `Página ${index + 1}`
-            })) : [],
-            metadata: {
-              leadUrl: lead.leadUrl,
-              sourceId: lead.sourceId,
-              concluido: lead.concluido,
-              fezRecurso: lead.fezRecurso
-            }
-          };
-
-          const response = await fetch("/api/admin/leads-chatwit/enviar-manuscrito", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify(payload),
-          });
-
-          if (!response.ok) {
-            const data = await response.json();
-            
-            // Se houver erro, desmarcar o estado de aguardando manuscrito
-            await onEdit({
-              ...lead,
-              aguardandoManuscrito: false,
-              _skipDialog: true
-            });
-            
-            throw new Error(data.error || "Erro ao enviar manuscrito para processamento");
-          }
-
-          toast({
-            title: "Manuscrito reenviado",
-            description: "O processo de digitação foi reiniciado com sucesso.",
-            variant: "default",
-          });
-          
-          // Mantém o estado de digitação por alguns segundos para feedback
-          setTimeout(() => {
-            setIsDigitando(false);
-          }, 2000);
-        } catch (error: any) {
-          setIsDigitando(false);
-          toast({
-            variant: "destructive",
-            title: "Erro ao reenviar manuscrito",
-            description: error.message || "Não foi possível reenviar o manuscrito. Tente novamente.",
-          });
-        }
+        // Implementação simplificada: apenas abrir o seletor de imagens novamente
+        setShowManuscritoImageSeletor(true);
         break;
         
       case 'excluirManuscrito':
-        // Verifica se está aguardando manuscrito
-        if (lead.aguardandoManuscrito) {
-          toast({
-            title: "Processamento em andamento",
-            description: "Este manuscrito está sendo processado e não pode ser excluído neste momento.",
-            variant: "default",
-          });
-          return;
-        }
         handleExcluirManuscrito(data.id);
         break;
         
@@ -948,6 +737,9 @@ export function LeadItem({
           _forceUpdate: true
         });
       }
+      
+      // Atualizar o estado local do manuscrito processado
+      setManuscritoProcessadoLocal(false);
 
       toast({
         title: "Sucesso",
@@ -1072,6 +864,9 @@ export function LeadItem({
         variant: "default",
       });
 
+      // Fecha o diálogo de confirmação
+      setConfirmDeleteEspelho(false);
+
       // Fechar o seletor após o envio bem-sucedido
       setShowEspelhoSeletor(false);
     } catch (error: any) {
@@ -1099,14 +894,41 @@ export function LeadItem({
         handleOpenEspelhoSeletor();
         break;
       case 'verEspelho':
-        if (lead.espelhoCorrecao) {
-          // Abrir o dialog de edição do espelho
+        // Abrir o dialog de edição do espelho mesmo se apenas o textoDoEspelho existir
+        if (lead.espelhoCorrecao || lead.textoDOEspelho) {
           setShowEspelhoDialog(true);
+        } else {
+          // Caso nenhum dos dois exista, mostrar mensagem informativa
+          toast({
+            title: "Espelho não encontrado",
+            description: "Não foi possível encontrar o espelho de correção. Crie um novo selecionando imagens.",
+            variant: "default",
+          });
         }
         break;
       case 'excluirEspelho':
-        if (lead.espelhoCorrecao) {
-          handleExcluirEspelho();
+        // Verificar se existe espelho (imagens ou texto)
+        const temImagens = lead.espelhoCorrecao && lead.espelhoCorrecao !== '[]';
+        const temTexto = !!lead.textoDOEspelho && (
+          (typeof lead.textoDOEspelho === 'string' && lead.textoDOEspelho.trim() !== '') ||
+          (Array.isArray(lead.textoDOEspelho) && lead.textoDOEspelho.length > 0) ||
+          (typeof lead.textoDOEspelho === 'object' && lead.textoDOEspelho !== null)
+        );
+        
+        if (temImagens || temTexto) {
+          // Abrir diálogo de confirmação
+          setConfirmDeleteEspelho(true);
+        } else {
+          // Se não existe espelho, apenas definir hasEspelho como false
+          // e forçar a atualização do botão
+          setHasEspelho(false);
+          setRefreshKey(prev => prev + 1);
+          
+          toast({
+            title: "Aviso",
+            description: "Não há espelho para excluir.",
+            variant: "default",
+          });
         }
         break;
       default:
@@ -1117,25 +939,85 @@ export function LeadItem({
   // Função para excluir o espelho de correção
   const handleExcluirEspelho = async () => {
     try {
-      // Atualiza o lead para remover o espelho
-      await onEdit({
-        ...lead,
-        espelhoCorrecao: "", // Usar string vazia ao invés de null
-        _skipDialog: true
-      });
+      // Antes de realizar a exclusão, guardamos os estados atuais
+      const estadoAtual = {
+        textoDOEspelho: lead.textoDOEspelho,
+        espelhoCorrecao: lead.espelhoCorrecao
+      };
       
-      toast({
-        title: "Espelho excluído",
-        description: "O espelho de correção foi removido com sucesso.",
-        variant: "default",
-      });
-      
+      // Primeiro atualizamos o estado local para feedback imediato ao usuário
       setHasEspelho(false);
+      
+      // Atualizar também o estado do objeto lead local
+      // Garantimos que o textoDOEspelho será uma string vazia independente do tipo original
+      lead.textoDOEspelho = ""; 
+      lead.espelhoCorrecao = JSON.stringify([]);
+      
+      // Forçar refresh do componente para atualizar o botão
+      setRefreshKey(prev => prev + 1);
+      
+      // Criamos um lead atualizado com campos vazios para o espelho
+      const updatedLead = {
+        ...lead,
+        textoDOEspelho: "", // String vazia para o texto
+        espelhoCorrecao: JSON.stringify([]), // Array vazio para as imagens
+      };
+      
+      // Enviamos para a API
+      try {
+        await onEdit({
+          ...updatedLead,
+          _skipDialog: true,
+          _forceUpdate: true
+        });
+        
+        // Garantir que o estado local seja atualizado
+        setTimeout(() => {
+          // Força uma segunda atualização para garantir que a UI esteja sincronizada
+          setHasEspelho(false);
+          setRefreshKey(prev => prev + 1);
+        }, 100);
+        
+        toast({
+          title: "Espelho excluído",
+          description: "O espelho de correção foi removido com sucesso.",
+          variant: "default",
+        });
+      } catch (error: any) {
+        // Em caso de erro, restauramos os estados originais
+        console.error("Erro ao excluir espelho:", error);
+        
+        // Restaurar o estado local e do objeto lead
+        lead.textoDOEspelho = estadoAtual.textoDOEspelho;
+        lead.espelhoCorrecao = estadoAtual.espelhoCorrecao;
+        
+        // Verificar novamente se há espelho
+        const temImagens = estadoAtual.espelhoCorrecao && 
+                           estadoAtual.espelhoCorrecao !== '[]' && 
+                           estadoAtual.espelhoCorrecao !== '""';
+        const temTexto = !!estadoAtual.textoDOEspelho && (
+          (typeof estadoAtual.textoDOEspelho === 'string' && estadoAtual.textoDOEspelho.trim() !== '') ||
+          (Array.isArray(estadoAtual.textoDOEspelho) && estadoAtual.textoDOEspelho.length > 0) ||
+          (typeof estadoAtual.textoDOEspelho === 'object' && estadoAtual.textoDOEspelho !== null)
+        );
+        
+        setHasEspelho(temImagens || temTexto);
+        
+        // Exibimos uma mensagem de erro
+        toast({
+          title: "Erro",
+          description: "Não foi possível excluir o espelho. Tente novamente.",
+          variant: "destructive",
+        });
+      }
+
+      // Fecha o diálogo de confirmação
+      setConfirmDeleteEspelho(false);
     } catch (error: any) {
-      console.error("Erro ao excluir espelho:", error);
+      console.error("Erro ao processar exclusão do espelho:", error);
       toast({
         title: "Erro",
-        description: error.message || "Não foi possível excluir o espelho. Tente novamente.",
+        description: error.message || "Ocorreu um erro ao processar a exclusão.",
         variant: "destructive",
       });
     }
@@ -1158,7 +1040,28 @@ export function LeadItem({
         variant: "default",
       });
       
-      setHasEspelho(imagensEspelho.length > 0 || !!textoEspelho);
+      // Determinar se há espelho com base nas mesmas regras rigorosas
+      const temImagensNovas = imagensEspelho && imagensEspelho.length > 0;
+      const temTextoNovo = !!textoEspelho && (
+        // Se for string, verifica se não está vazia
+        (typeof textoEspelho === 'string' && textoEspelho.trim() !== '') ||
+        // Se for array, verifica se tem elementos
+        (Array.isArray(textoEspelho) && textoEspelho.length > 0) ||
+        // Se for objeto, considera como tendo conteúdo
+        (typeof textoEspelho === 'object' && textoEspelho !== null)
+      );
+      
+      // Atualizar o estado local
+      setHasEspelho(temImagensNovas || temTextoNovo);
+      
+      // Atualizar também o lead local
+      lead.textoDOEspelho = textoEspelho;
+      lead.espelhoCorrecao = JSON.stringify(imagensEspelho);
+      
+      // Forçar atualização da interface
+      setRefreshKey(prev => prev + 1);
+      
+      // Fechar o dialog
       setShowEspelhoDialog(false);
     } catch (error: any) {
       console.error("Erro ao atualizar espelho de correção:", error);
@@ -1426,7 +1329,7 @@ export function LeadItem({
             onAction={handleManuscritoContextAction}
             data={{
               id: lead.id,
-              manuscritoProcessado: !!lead.manuscritoProcessado,
+              manuscritoProcessado: manuscritoProcessadoLocal,
               aguardandoManuscrito: !!lead.aguardandoManuscrito
             }}
           >
@@ -1434,18 +1337,14 @@ export function LeadItem({
               variant="outline"
               size="sm"
               onClick={handleDigitarClick}
-              disabled={lead.manuscritoProcessado ? false : (isDigitando || lead.aguardandoManuscrito)}
+              disabled={isDigitando}
               className="whitespace-nowrap w-full"
+              key={`manuscrito-btn-${refreshKey}`}
             >
-              {lead.manuscritoProcessado ? (
+              {manuscritoProcessadoLocal ? (
                 <>
                   <Edit3 className="h-4 w-4 mr-1" />
                   Editar Manuscrito
-                </>
-              ) : lead.aguardandoManuscrito ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                  Aguardando processamento...
                 </>
               ) : (
                 <>
@@ -1458,7 +1357,7 @@ export function LeadItem({
         </TableCell>
         
         <TableCell className="w-[120px] p-2">
-          {lead.manuscritoProcessado && (
+          {manuscritoProcessadoLocal && (
             <LeadContextMenu
               contextType="espelho"
               onAction={handleEspelhoContextAction}
@@ -1473,18 +1372,25 @@ export function LeadItem({
                 onClick={hasEspelho ? () => setShowEspelhoDialog(true) : handleOpenEspelhoSeletor}
                 disabled={isEnviandoEspelho}
                 className="whitespace-nowrap w-full"
+                key={`espelho-btn-${refreshKey}-${hasEspelho ? 'edit' : 'select'}`}
               >
-                {hasEspelho ? (
-                  <>
-                    <Eye className="h-4 w-4 mr-1" />
-                    Editar Espelho
-                  </>
-                ) : (
-                  <>
-                    <ImageIcon className={`h-4 w-4 mr-1 ${isEnviandoEspelho ? "animate-spin" : ""}`} />
-                    {isEnviandoEspelho ? "Enviando..." : "Selecionar Espelho"}
-                  </>
-                )}
+                {(() => {
+                  if (hasEspelho) {
+                    return (
+                      <>
+                        <Eye className="h-4 w-4 mr-1" />
+                        Editar Espelho
+                      </>
+                    );
+                  } else {
+                    return (
+                      <>
+                        <ImageIcon className={`h-4 w-4 mr-1 ${isEnviandoEspelho ? "animate-spin" : ""}`} />
+                        {isEnviandoEspelho ? "Enviando..." : "Selecionar Espelho"}
+                      </>
+                    );
+                  }
+                })()}
               </Button>
             </LeadContextMenu>
           )}
@@ -1653,6 +1559,34 @@ export function LeadItem({
         imagensEspelho={lead.espelhoCorrecao ? JSON.parse(lead.espelhoCorrecao) : []}
         onSave={handleSaveEspelho}
       />
+
+      {/* Diálogo de confirmação para excluir o espelho */}
+      <Dialog open={confirmDeleteEspelho} onOpenChange={(open) => {
+        if (!open) {
+          setConfirmDeleteEspelho(false);
+        }
+      }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirmar exclusão</DialogTitle>
+            <DialogDescription>
+              Tem certeza que deseja excluir completamente o espelho de correção do lead "{displayName}"? 
+              Esta ação irá remover tanto o texto quanto as imagens do espelho e não pode ser desfeita.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmDeleteEspelho(false)}>
+              Cancelar
+            </Button>
+            <Button variant="destructive" onClick={() => {
+              setConfirmDeleteEspelho(false);
+              handleExcluirEspelho();
+            }}>
+              Excluir Espelho
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Adicione um novo ImageGalleryDialog para seleção de imagens do manuscrito */}
       <ImageGalleryDialog

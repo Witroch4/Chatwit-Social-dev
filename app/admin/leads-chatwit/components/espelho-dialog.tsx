@@ -40,6 +40,12 @@ export function EspelhoDialog({
   // Atualiza o texto quando as props mudam
   useEffect(() => {
     if (isOpen) {
+      console.log("Espelho aberto. Formato dos dados:", {
+        tipo: typeof textoEspelho,
+        éArray: Array.isArray(textoEspelho),
+        conteúdo: textoEspelho
+      });
+      
       setTexto(textoEspelho);
       setImagens(imagensEspelho);
     }
@@ -114,21 +120,36 @@ export function EspelhoDialog({
         }
       } else if (Array.isArray(texto)) {
         // Se for um array, formata cada item
-        const formattedText = texto.map(item => {
+        const formattedText = texto.map((item, index) => {
           if (item.output) {
-            return item.output;
+            return `#### Parte ${index + 1} ####\n${item.output}`;
+          } else if (typeof item === 'string') {
+            return `#### Parte ${index + 1} ####\n${item}`;
+          } else {
+            return `#### Parte ${index + 1} ####\n${JSON.stringify(item, null, 2)}`;
           }
-          return JSON.stringify(item, null, 2);
         }).join('\n\n---------------------------------\n\n');
         
         return formattedText;
-      } else {
-        // Se for um objeto, formata como JSON
+      } else if (typeof texto === 'object' && texto !== null) {
+        // Se for um objeto, tenta detectar estruturas específicas
+        if (texto.output) {
+          return texto.output;
+        }
+        // Caso contrário, formata como JSON
         return JSON.stringify(texto, null, 2);
+      } else {
+        // Para qualquer outro tipo, converte para string
+        return String(texto);
       }
     } catch (error) {
       console.error("Erro ao formatar texto do espelho:", error);
-      return typeof texto === 'string' ? texto : JSON.stringify(texto, null, 2);
+      // Fallback seguro
+      try {
+        return typeof texto === 'string' ? texto : JSON.stringify(texto, null, 2);
+      } catch {
+        return "Erro ao exibir o conteúdo do espelho. Edite com cuidado.";
+      }
     }
   };
 
@@ -148,10 +169,15 @@ export function EspelhoDialog({
               <Textarea
                 value={formatEspelhoTexto()}
                 onChange={(e) => {
+                  const inputValue = e.target.value;
+                  // Tenta preservar o formato original dos dados
                   try {
-                    setTexto(JSON.parse(e.target.value));
+                    // Primeiro tenta considerar como JSON
+                    const parsed = JSON.parse(inputValue);
+                    setTexto(parsed);
                   } catch {
-                    setTexto(e.target.value);
+                    // Se não for JSON válido, mantém como texto simples
+                    setTexto(inputValue);
                   }
                 }}
                 className="min-h-[300px] font-mono"

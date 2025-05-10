@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 
 /**
  * Handler da rota POST para enviar manuscrito, espelho ou prova para processamento.
+ * Versão simplificada que marca o manuscrito como processado imediatamente.
  */
 export async function POST(request: Request): Promise<Response> {
   try {
@@ -32,48 +33,44 @@ export async function POST(request: Request): Promise<Response> {
     const leadId = payload.leadID;
     
     if (leadId) {
-      if (isManuscrito && !isEspelho && !isProva) { // Garantir que é apenas manuscrito
+      if (isManuscrito && !isEspelho && !isProva) {
+        // ALTERAÇÃO PRINCIPAL: Marcar o manuscrito como processado IMEDIATAMENTE
+        // Em vez de "aguardandoManuscrito", marcamos como "manuscritoProcessado"
         await prisma.leadChatwit.update({
           where: { id: leadId },
-          data: { aguardandoManuscrito: true }
+          data: { 
+            manuscritoProcessado: true,
+            provaManuscrita: "", // Inicializa vazio para edição
+            aguardandoManuscrito: false
+          }
         });
-        console.log("[Enviar Manuscrito] Lead marcado como aguardando processamento");
+        console.log("[Enviar Manuscrito] Lead marcado como processado com sucesso");
       }
-      // Não precisamos fazer nada especial para o espelho ou prova, já que o próprio cliente
-      // atualiza o estado do espelhoCorrecao no banco de dados se necessário
     }
     
-    // Enviar o payload para o sistema externo
+    // Enviar o payload para o sistema externo de forma assíncrona
+    // (Não esperamos a resposta para não bloquear o fluxo)
     console.log(`[Enviar ${docType}] Enviando payload para processamento:`, webhookUrl);
-    const response = await fetch(webhookUrl, {
+    fetch(webhookUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
       body: JSON.stringify(payload),
+    }).then(response => {
+      if (!response.ok) {
+        console.error(`[Enviar ${docType}] Erro na resposta do sistema externo:`, response.status);
+      } else {
+        console.log(`[Enviar ${docType}] Enviado com sucesso para o sistema externo`);
+      }
+    }).catch(error => {
+      console.error(`[Enviar ${docType}] Erro ao enviar para o sistema externo:`, error);
     });
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ message: "Erro ao processar resposta" }));
-      console.error(`[Enviar ${docType}] Erro na resposta do sistema externo:`, errorData);
-      
-      // Resetar aguardandoManuscrito para false em caso de erro (apenas para manuscrito)
-      if (isManuscrito && !isEspelho && !isProva && leadId) {
-        await prisma.leadChatwit.update({
-          where: { id: leadId },
-          data: { aguardandoManuscrito: false }
-        }).catch(e => {
-          console.error("[Enviar Manuscrito] Erro ao resetar estado do lead:", e);
-        });
-      }
-      
-      throw new Error(errorData.message || `Erro ao enviar ${docType.toLowerCase()} para processamento`);
-    }
-
-    console.log(`[Enviar ${docType}] Enviado com sucesso`);
+    // Responder imediatamente ao cliente, independente do resultado do webhook
     return NextResponse.json({
       success: true,
-      message: `${docType} enviado para processamento`,
+      message: `${docType} processado com sucesso`,
     });
 
   } catch (error: any) {

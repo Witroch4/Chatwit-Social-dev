@@ -29,18 +29,27 @@ export function ManuscritoDialog({
   textoManuscrito,
   onSave,
 }: ManuscritoDialogProps) {
-  const [texto, setTexto] = useState(textoManuscrito);
+  const [texto, setTexto] = useState(textoManuscrito || '');
   const [isSaving, setIsSaving] = useState(false);
   const { toast } = useToast();
 
   // Atualiza o texto quando as props mudam
   useEffect(() => {
     if (isOpen) {
-      setTexto(textoManuscrito);
+      setTexto(textoManuscrito || '');
     }
   }, [isOpen, textoManuscrito]);
 
   const handleSave = async () => {
+    if (!texto.trim()) {
+      toast({
+        title: "Aviso",
+        description: "O texto do manuscrito não pode ser vazio.",
+        variant: "default",
+      });
+      return;
+    }
+
     try {
       setIsSaving(true);
       await onSave(texto);
@@ -77,7 +86,7 @@ export function ManuscritoDialog({
       onClose();
       
       // Reseta o estado local após fechar
-      setTexto(textoManuscrito);
+      setTexto(textoManuscrito || '');
     }
   };
 

@@ -77,7 +77,7 @@ export async function GET(request: Request): Promise<Response> {
  */
 export async function POST(request: Request): Promise<Response> {
   try {
-    const { id, nomeReal, email, anotacoes, concluido, fezRecurso, datasRecurso } = await request.json();
+    const { id, nomeReal, email, anotacoes, concluido, fezRecurso, datasRecurso, textoDOEspelho, espelhoCorrecao } = await request.json();
     
     // Valide os dados recebidos
     if (!id) {
@@ -97,6 +97,8 @@ export async function POST(request: Request): Promise<Response> {
         ...(concluido !== undefined && { concluido }),
         ...(fezRecurso !== undefined && { fezRecurso }),
         ...(datasRecurso !== undefined && { datasRecurso }),
+        ...(textoDOEspelho !== undefined && { textoDOEspelho }),
+        ...(espelhoCorrecao !== undefined && { espelhoCorrecao }),
       },
     });
 

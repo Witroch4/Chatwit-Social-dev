@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sendEventToLead } from "../sse/route";
 
-// Endpoint interno para disparar eventos SSE
-// Esta API é usada pelo worker e outros processos de backend
-// para notificar o frontend sobre atualizações de manuscrito
-
+/**
+ * Endpoint interno para disparar eventos SSE
+ * Esta API foi simplificada e agora apenas registra logs.
+ * O processamento de manuscritos agora é síncrono.
+ */
 export async function POST(req: NextRequest) {
   try {
     // Verificar chave de API interna para segurança
@@ -25,18 +26,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Dados incompletos" }, { status: 400 });
     }
     
-    // Enviar o evento SSE
-    console.log(`[Trigger SSE] Enviando evento '${eventName}' para o lead ${leadId}`);
-    await sendEventToLead(leadId, eventName, data);
+    // Log apenas para controle
+    console.log(`[Trigger SSE] Recebido evento '${eventName}' para o lead ${leadId} - Ignorando (funcionalidade descontinuada)`);
+    sendEventToLead(leadId, eventName, data);
     
     return NextResponse.json({
       success: true,
-      message: "Evento SSE enviado com sucesso"
+      message: "Evento processado (funcionalidade descontinuada)"
     });
   } catch (error: any) {
-    console.error("[Trigger SSE] Erro ao disparar evento SSE:", error);
+    console.error("[Trigger SSE] Erro:", error);
     return NextResponse.json(
-      { error: error.message || "Erro ao disparar evento SSE" },
+      { error: error.message || "Erro interno" },
       { status: 500 }
     );
   }
