@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/context-menu";
 import { ReactNode } from "react";
 
-export type ContextType = 'geral' | 'pdf' | 'imagem' | 'arquivo' | 'manuscrito' | 'espelho';
+export type ContextType = 'geral' | 'pdf' | 'imagem' | 'arquivo' | 'manuscrito' | 'espelho' | 'analise';
 export type ContextAction = 
   | 'atualizarLista' 
   | 'abrirLead' 
@@ -29,7 +29,10 @@ export type ContextAction =
   | 'editarManuscrito'
   | 'selecionarEspelho'
   | 'verEspelho'
-  | 'excluirEspelho';
+  | 'excluirEspelho'
+  | 'excluirAnalise'
+  | 'verAnalise'
+  | 'verAnaliseValidada';
 
 interface LeadContextMenuProps {
   contextType: ContextType;
@@ -124,6 +127,33 @@ export function LeadContextMenu({ contextType, onAction, children, data }: LeadC
                   className="text-red-500 focus:text-red-500 focus:bg-red-50"
                 >
                   Excluir Espelho
+                </ContextMenuItem>
+              </>
+            )}
+          </>
+        )}
+
+        {/* Opções para análise de prova */}
+        {contextType === 'analise' && (
+          <>
+            {data.analiseUrl && (
+              <ContextMenuItem onClick={() => onAction('verAnalise', data)}>
+                Ver Análise
+              </ContextMenuItem>
+            )}
+            {data.analisePreliminar && data.analiseValidada && (
+              <ContextMenuItem onClick={() => onAction('verAnaliseValidada', data)}>
+                Ver Análise Validada
+              </ContextMenuItem>
+            )}
+            {(data.analiseUrl || data.aguardandoAnalise || data.analisePreliminar) && (
+              <>
+                <ContextMenuSeparator />
+                <ContextMenuItem 
+                  onClick={() => onAction('excluirAnalise', data)}
+                  className="text-red-500 focus:text-red-500 focus:bg-red-50"
+                >
+                  Excluir Análise
                 </ContextMenuItem>
               </>
             )}

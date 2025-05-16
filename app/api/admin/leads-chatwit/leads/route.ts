@@ -77,7 +77,23 @@ export async function GET(request: Request): Promise<Response> {
  */
 export async function POST(request: Request): Promise<Response> {
   try {
-    const { id, nomeReal, email, anotacoes, concluido, fezRecurso, datasRecurso, textoDOEspelho, espelhoCorrecao } = await request.json();
+    const { 
+      id, 
+      nomeReal, 
+      email, 
+      anotacoes, 
+      concluido, 
+      fezRecurso, 
+      datasRecurso, 
+      textoDOEspelho, 
+      espelhoCorrecao,
+      // Campos relacionados à análise
+      analiseUrl,
+      analiseProcessada,
+      aguardandoAnalise,
+      analisePreliminar,
+      analiseValidada 
+    } = await request.json();
     
     // Valide os dados recebidos
     if (!id) {
@@ -86,6 +102,14 @@ export async function POST(request: Request): Promise<Response> {
         { status: 400 }
       );
     }
+
+    console.log("[API Leads] Atualizando lead:", id, {
+      ...(aguardandoAnalise !== undefined && { aguardandoAnalise }),
+      ...(analiseProcessada !== undefined && { analiseProcessada }),
+      ...(analiseUrl !== undefined && { analiseUrl }),
+      ...(analisePreliminar !== undefined && { analisePreliminar: "Presente" }),
+      ...(analiseValidada !== undefined && { analiseValidada }),
+    });
 
     // Atualize o lead
     const lead = await prisma.leadChatwit.update({
@@ -99,6 +123,12 @@ export async function POST(request: Request): Promise<Response> {
         ...(datasRecurso !== undefined && { datasRecurso }),
         ...(textoDOEspelho !== undefined && { textoDOEspelho }),
         ...(espelhoCorrecao !== undefined && { espelhoCorrecao }),
+        // Campos relacionados à análise
+        ...(analiseUrl !== undefined && { analiseUrl }),
+        ...(analiseProcessada !== undefined && { analiseProcessada }),
+        ...(aguardandoAnalise !== undefined && { aguardandoAnalise }),
+        ...(analisePreliminar !== undefined && { analisePreliminar }),
+        ...(analiseValidada !== undefined && { analiseValidada }),
       },
     });
 

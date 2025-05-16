@@ -40,7 +40,8 @@ import {
   Download,
   Loader2,
   FileUp,
-  Edit3
+  Edit3,
+  FileCheck
 } from "lucide-react";
 import { toast, useToast } from "@/hooks/use-toast";
 import { ToastAction } from "@/components/ui/toast";
@@ -65,6 +66,8 @@ import { ProcessDialog, ProcessType } from "./process-dialog";
 import { LeadChatwit } from "../types";
 import { ManuscritoDialog } from "./manuscrito-dialog";
 import { EspelhoDialog } from "./espelho-dialog";
+import { AnaliseDialog } from "./analise-dialog";
+import { AnalisePreviewDrawer } from "./analise-preliminar-drawer";
 
 interface ArquivoLeadChatwit {
   id: string;
@@ -133,6 +136,21 @@ export function LeadItem({
   const [showManuscritoImageSeletor, setShowManuscritoImageSeletor] = useState(false);
   const [manuscritoProcessadoLocal, setManuscritoProcessadoLocal] = useState(!!lead.manuscritoProcessado);
   const [refreshKey, setRefreshKey] = useState(0);
+  
+  // Estados para a análise
+  const [showAnaliseDialog, setShowAnaliseDialog] = useState(false);
+  const [isEnviandoAnalise, setIsEnviandoAnalise] = useState(false);
+  const [isEnviandoPdf, setIsEnviandoPdf] = useState(false);
+  const [localAnaliseState, setLocalAnaliseState] = useState({
+    analiseUrl: lead.analiseUrl,
+    aguardandoAnalise: !!lead.aguardandoAnalise,
+    analisePreliminar: lead.analisePreliminar,
+    analiseValidada: !!lead.analiseValidada
+  });
+  
+  // Estado para controlar o Drawer de pré-análise
+  const [showAnalisePreviewDrawer, setShowAnalisePreviewDrawer] = useState(false);
+  const [isEnviandoAnaliseValidada, setIsEnviandoAnaliseValidada] = useState(false);
 
   const displayName = lead.nomeReal || lead.name || "Lead sem nome";
   const formattedDate = format(new Date(lead.createdAt ?? new Date()), "dd/MM/yyyy HH:mm", { locale: ptBR });
@@ -179,6 +197,16 @@ export function LeadItem({
     // Força re-renderização do componente quando o estado do espelho for atualizado
     setRefreshKey(prev => prev + 1);
   }, [hasEspelho]);
+
+  // Sincronizar estado local com props sempre que o lead mudar
+  useEffect(() => {
+    setLocalAnaliseState({
+      analiseUrl: lead.analiseUrl,
+      aguardandoAnalise: !!lead.aguardandoAnalise,
+      analisePreliminar: lead.analisePreliminar,
+      analiseValidada: !!lead.analiseValidada
+    });
+  }, [lead.analiseUrl, lead.aguardandoAnalise, lead.analisePreliminar, lead.analiseValidada, refreshKey]);
 
   const handleDelete = () => {
     setConfirmDelete(false);
@@ -1147,6 +1175,419 @@ export function LeadItem({
     }
   };
 
+  const handleAnaliseClick = async () => {
+    // Se já tem análise final (URL do PDF), abre o diálogo normal
+    if (lead.analiseUrl) {
+      setShowAnaliseDialog(true);
+      return;
+    }
+    
+    // Se tem análise preliminar, abre o drawer
+    if (lead.analisePreliminar) {
+      setShowAnalisePreviewDrawer(true);
+      return;
+    }
+    
+    // Se está aguardando análise, apenas mostra o diálogo de aguardando
+    if (lead.aguardandoAnalise) {
+      setShowAnaliseDialog(true);
+      return;
+    }
+    
+    // Se não tem nada, envia solicitação
+    try {
+      setIsEnviandoAnalise(true);
+      
+      const response = await fetch("/api/admin/leads-chatwit/enviar-analise", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          leadID: lead.id,
+        }),
+      });
+      
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || "Erro ao solicitar análise");
+      }
+      
+      // Atualizar o lead localmente para aguardando análise
+      onEdit({
+        ...lead,
+        aguardandoAnalise: true,
+        _skipDialog: true,
+      });
+      
+      toast({
+        title: "Análise solicitada",
+        description: "A solicitação de análise foi enviada com sucesso!",
+      });
+      
+      // Abre o diálogo após a solicitação ser enviada
+      setShowAnaliseDialog(true);
+    } catch (error: any) {
+      console.error("Erro ao solicitar análise:", error);
+      toast({
+        title: "Erro",
+        description: error.message || "Não foi possível solicitar a análise. Tente novamente.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsEnviandoAnalise(false);
+    }
+  };
+  
+  const handleSaveAnotacoes = async (anotacoes: string) => {
+    try {
+      const response = await fetch("/api/admin/leads-chatwit/leads", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          id: lead.id,
+          anotacoes,
+        }),
+      });
+      
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || "Erro ao salvar anotações");
+      }
+      
+      // Atualizar o lead localmente
+      onEdit({
+        ...lead,
+        anotacoes,
+        _skipDialog: true,
+      });
+      
+      return Promise.resolve();
+    } catch (error) {
+      return Promise.reject(error);
+    }
+  };
+  
+  const handleEnviarPdf = async (sourceId: string) => {
+    if (!sourceId) {
+      throw new Error("ID de origem não encontrado");
+    }
+    
+    try {
+      setIsEnviandoPdf(true);
+      
+      const response = await fetch(`/api/admin/leads-chatwit/enviar-pdf-analise-lead?sourceId=${sourceId}`, {
+        method: "POST",
+      });
+      
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || "Erro ao enviar PDF para o chat");
+      }
+      
+      return Promise.resolve();
+    } catch (error) {
+      return Promise.reject(error);
+    } finally {
+      setIsEnviandoPdf(false);
+    }
+  };
+
+  // Função para lidar com as ações do menu de contexto de análise
+  const handleAnaliseContextAction = async (action: ContextAction, data?: any) => {
+    // Forçamos o fechamento do menu de contexto antes de qualquer ação
+    document.body.click(); // Força o fechamento de qualquer menu aberto
+    
+    // Pequeno delay para garantir que o menu fechou antes de executar a ação
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
+    switch (action) {
+      case 'verAnalise':
+        setShowAnaliseDialog(true);
+        break;
+        
+      case 'verAnaliseValidada':
+        setShowAnalisePreviewDrawer(true);
+        break;
+        
+      case 'excluirAnalise':
+        handleExcluirAnalise();
+        break;
+        
+      default:
+        break;
+    }
+  };
+
+  // Função para excluir análise
+  const handleExcluirAnalise = async () => {
+    try {
+      // Atualizar estado local imediatamente para feedback visual instantâneo
+      setLocalAnaliseState({
+        analiseUrl: undefined,
+        aguardandoAnalise: false,
+        analisePreliminar: false,
+        analiseValidada: false
+      });
+      
+      // Forçar atualização do botão
+      setRefreshKey(prev => prev + 1);
+      
+      // Prepara o payload para envio
+      const payload = {
+        id: lead.id,
+        analiseUrl: "", // String vazia em vez de null
+        analiseProcessada: false,
+        aguardandoAnalise: false,
+        analisePreliminar: false,
+        analiseValidada: false,
+      };
+      
+      const response = await fetch("/api/admin/leads-chatwit/leads", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+      
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || "Erro ao excluir análise");
+      }
+      
+      // Atualizar o lead localmente
+      const updatedLead = {
+        ...lead,
+        analiseUrl: undefined,
+        analiseProcessada: false,
+        aguardandoAnalise: false,
+        analisePreliminar: false,
+        analiseValidada: false,
+        _skipDialog: true,
+        _forceUpdate: true, // Forçar atualização completa
+      };
+      
+      // Chamar o método de edição
+      await onEdit(updatedLead);
+      
+      toast({
+        title: "Sucesso",
+        description: "Análise excluída com sucesso!",
+      });
+      
+      // Forçar nova atualização após pequeno delay para garantir sincronização
+      setTimeout(() => {
+        setRefreshKey(prev => prev + 1);
+      }, 100);
+      
+    } catch (error: any) {
+      console.error("Erro ao excluir análise:", error);
+      toast({
+        title: "Erro",
+        description: error.message || "Não foi possível excluir a análise. Tente novamente.",
+        variant: "destructive",
+      });
+      
+      // Restaurar estado em caso de erro
+      setLocalAnaliseState({
+        analiseUrl: lead.analiseUrl,
+        aguardandoAnalise: !!lead.aguardandoAnalise,
+        analisePreliminar: lead.analisePreliminar,
+        analiseValidada: !!lead.analiseValidada
+      });
+      
+      // Forçar atualização do botão
+      setRefreshKey(prev => prev + 1);
+    }
+  };
+
+  // Função para cancelar análise
+  const handleCancelarAnalise = async () => {
+    try {
+      // Atualizar estado local imediatamente para feedback visual instantâneo
+      setLocalAnaliseState({
+        analiseUrl: undefined,
+        aguardandoAnalise: false,
+        analisePreliminar: undefined,
+        analiseValidada: false
+      });
+      
+      // Forçar atualização do botão
+      setRefreshKey(prev => prev + 1);
+      
+      // Prepara o payload para envio
+      const payload = {
+        id: lead.id,
+        analiseUrl: "", // String vazia em vez de null
+        analiseProcessada: false,
+        aguardandoAnalise: false,
+        analisePreliminar: null,
+        analiseValidada: false,
+      };
+      
+      const response = await fetch("/api/admin/leads-chatwit/leads", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+      
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || "Erro ao cancelar análise");
+      }
+      
+      // Atualizar o lead localmente
+      const updatedLead = {
+        ...lead,
+        analiseUrl: undefined,
+        analiseProcessada: false,
+        aguardandoAnalise: false,
+        analisePreliminar: undefined,
+        analiseValidada: false,
+        _skipDialog: true,
+        _forceUpdate: true, // Forçar atualização completa
+      };
+      
+      // Chamar o método de edição
+      await onEdit(updatedLead);
+      
+      // Fechar o diálogo de análise se estiver aberto
+      setShowAnaliseDialog(false);
+      setShowAnalisePreviewDrawer(false);
+      
+      // Forçar nova atualização após pequeno delay para garantir sincronização
+      setTimeout(() => {
+        setRefreshKey(prev => prev + 1);
+      }, 100);
+      
+      return Promise.resolve();
+    } catch (error: any) {
+      console.error("Erro ao cancelar análise:", error);
+      
+      // Exibir toast apenas se não for chamado do diálogo
+      // (o diálogo já exibe seu próprio toast)
+      if (!error._suppressToast) {
+        toast({
+          title: "Erro",
+          description: error.message || "Não foi possível cancelar a análise. Tente novamente.",
+          variant: "destructive",
+        });
+      }
+      
+      // Restaurar estado em caso de erro
+      setLocalAnaliseState({
+        analiseUrl: lead.analiseUrl,
+        aguardandoAnalise: !!lead.aguardandoAnalise,
+        analisePreliminar: lead.analisePreliminar,
+        analiseValidada: !!lead.analiseValidada
+      });
+      
+      // Forçar atualização do botão
+      setRefreshKey(prev => prev + 1);
+      
+      return Promise.reject(error);
+    }
+  };
+
+  // Funções para lidar com análise preliminar
+  const handleSaveAnalisePreliminar = async (analiseData: any) => {
+    try {
+      const response = await fetch("/api/admin/leads-chatwit/leads", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          id: lead.id,
+          analisePreliminar: analiseData
+        }),
+      });
+      
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || "Erro ao salvar análise preliminar");
+      }
+      
+      // Atualizar o lead localmente
+      onEdit({
+        ...lead,
+        analisePreliminar: analiseData,
+        _skipDialog: true,
+      });
+      
+      // Atualizar estado local
+      setLocalAnaliseState(prev => ({
+        ...prev,
+        analisePreliminar: analiseData
+      }));
+      
+      return Promise.resolve();
+    } catch (error) {
+      return Promise.reject(error);
+    }
+  };
+
+  const handleValidarAnalise = async (analiseData: any) => {
+    try {
+      setIsEnviandoAnaliseValidada(true);
+      
+      const response = await fetch("/api/admin/leads-chatwit/enviar-analise-validada", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          leadID: lead.id,
+          analiseData: analiseData
+        }),
+      });
+      
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || "Erro ao validar análise");
+      }
+      
+      // Atualizar o lead localmente
+      onEdit({
+        ...lead,
+        analiseValidada: true,
+        analisePreliminar: analiseData,
+        _skipDialog: true,
+      });
+      
+      // Atualizar estado local
+      setLocalAnaliseState(prev => ({
+        ...prev,
+        analiseValidada: true,
+        analisePreliminar: analiseData
+      }));
+      
+      // Fechar o drawer
+      setShowAnalisePreviewDrawer(false);
+      
+      toast({
+        title: "Análise validada",
+        description: "A análise foi validada e enviada para gerar o PDF final.",
+      });
+      
+      return Promise.resolve();
+    } catch (error) {
+      toast({
+        title: "Erro",
+        description: "Não foi possível validar a análise. Tente novamente.",
+        variant: "destructive",
+      });
+      return Promise.reject(error);
+    } finally {
+      setIsEnviandoAnaliseValidada(false);
+    }
+  };
+
   return (
     <>
       <TableRow className="group hover:bg-secondary/30">
@@ -1396,6 +1837,59 @@ export function LeadItem({
           )}
         </TableCell>
         
+        <TableCell className="w-[120px] p-2">
+          <LeadContextMenu
+            contextType="analise"
+            onAction={handleAnaliseContextAction}
+            data={{
+              id: lead.id,
+              analiseUrl: localAnaliseState.analiseUrl,
+              aguardandoAnalise: localAnaliseState.aguardandoAnalise
+            }}
+          >
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleAnaliseClick}
+              disabled={isEnviandoAnalise}
+              className="whitespace-nowrap w-full"
+              key={`analise-btn-${refreshKey}`}
+            >
+              {isEnviandoAnalise ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                  Processando...
+                </>
+              ) : localAnaliseState.analiseUrl ? (
+                <>
+                  <Eye className="h-4 w-4 mr-1" />
+                  Ver Análise
+                </>
+              ) : localAnaliseState.analiseValidada ? (
+                <>
+                  <FileCheck className="h-4 w-4 mr-1" />
+                  Análise Validada
+                </>
+              ) : localAnaliseState.analisePreliminar ? (
+                <>
+                  <FileText className="h-4 w-4 mr-1" />
+                  Pré-Análise
+                </>
+              ) : localAnaliseState.aguardandoAnalise ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-1" />
+                  Aguardando
+                </>
+              ) : (
+                <>
+                  <FileText className="h-4 w-4 mr-1" />
+                  Analisar Prova
+                </>
+              )}
+            </Button>
+          </LeadContextMenu>
+        </TableCell>
+        
         <TableCell className="w-[60px] p-2">
           <div className="flex items-center justify-end gap-2">
             <TooltipProvider>
@@ -1598,6 +2092,30 @@ export function LeadItem({
         description="Selecione as imagens que serão usadas para o processo de digitação do manuscrito."
         selectionMode={true}
         onSend={handleEnviarManuscrito}
+      />
+
+      {/* Diálogo de Análise */}
+      <AnaliseDialog
+        isOpen={showAnaliseDialog}
+        onClose={() => setShowAnaliseDialog(false)}
+        leadId={lead.id}
+        sourceId={lead.sourceId}
+        analiseUrl={localAnaliseState.analiseUrl || null}
+        anotacoes={lead.anotacoes || null}
+        aguardandoAnalise={localAnaliseState.aguardandoAnalise}
+        onSaveAnotacoes={handleSaveAnotacoes}
+        onEnviarPdf={handleEnviarPdf}
+        onCancelarAnalise={handleCancelarAnalise}
+      />
+
+      {/* Drawer de Pré-Análise */}
+      <AnalisePreviewDrawer
+        isOpen={showAnalisePreviewDrawer}
+        onClose={() => setShowAnalisePreviewDrawer(false)}
+        analisePreliminar={localAnaliseState.analisePreliminar}
+        leadId={lead.id}
+        onSave={handleSaveAnalisePreliminar}
+        onValidar={handleValidarAnalise}
       />
     </>
   );
