@@ -411,22 +411,22 @@ export function LeadsList({ searchQuery, onRefresh, initialLoading, refreshCount
           <Table className="w-full border">
             <TableHeader>
               <TableRow>
-                <TableHead className="w-[40px]">
+                <TableHead className="w-[40px] align-middle">
                   <Checkbox
                     checked={leads.length > 0 && selectedLeads.length === leads.length}
                     onCheckedChange={handleToggleAllLeads}
                     aria-label="Selecionar todos os leads"
                   />
                 </TableHead>
-                <TableHead className="w-[250px]">Lead</TableHead>
-                <TableHead className="w-[100px]">Usuário</TableHead>
-                <TableHead className="w-[150px]">Arquivos</TableHead>
-                <TableHead className="w-[80px]">PDF</TableHead>
-                <TableHead className="w-[80px]">Imagens</TableHead>
-                <TableHead className="w-[100px]">Manuscrito</TableHead>
-                <TableHead className="w-[120px]">Espelho de Correção</TableHead>
-                <TableHead className="w-[120px]">Análise</TableHead>
-                <TableHead className="w-[60px]">Ações</TableHead>
+                <TableHead className="w-[250px] align-middle">Lead</TableHead>
+                <TableHead className="w-[100px] align-middle">Usuário</TableHead>
+                <TableHead className="w-[150px] align-middle">Arquivos</TableHead>
+                <TableHead className="w-[80px] align-middle">PDF</TableHead>
+                <TableHead className="w-[80px] align-middle">Imagens</TableHead>
+                <TableHead className="w-[100px] align-middle">Manuscrito</TableHead>
+                <TableHead className="w-[120px] align-middle">Espelho de Correção</TableHead>
+                <TableHead className="w-[120px] align-middle">Análise</TableHead>
+                <TableHead className="w-[60px] align-middle">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>

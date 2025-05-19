@@ -18,6 +18,9 @@ services:
       REDIS_HOST: "redis"
       REDIS_PORT: "6379"
       
+      # Configuração do ngrok
+      NGROK_AUTHTOKEN: "2q8n28IDz0mMwNr02MlHnLGsbKE_6ohF5ifRMgFBW867Mk5Zi"
+      
     ports:
       - "3000:3000"
       - "3005:3005" # Porta para o Bull Board
@@ -58,21 +61,6 @@ services:
       - redis_data:/data
     networks:
       - minha_rede
-    restart: unless-stopped
-    
-  # Serviço ngrok
-  ngrok:
-    image: ngrok/ngrok:latest
-    container_name: chatwit_ngrok
-    env_file:
-      - .env.development
-    command: http app:3000 --domain=moving-eagle-bright.ngrok-free.app
-    environment:
-      - NGROK_AUTHTOKEN=2q8n28IDz0mMwNr02MlHnLGsbKE_6ohF5ifRMgFBW867Mk5Zi
-    networks:
-      - minha_rede
-    depends_on:
-      - app
     restart: unless-stopped
 
 volumes:

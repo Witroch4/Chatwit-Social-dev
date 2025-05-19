@@ -51,7 +51,7 @@ export const changeSettings = async (settings: z.infer<typeof UserSettingsSchema
 		settings.password = await bcryptjs.hash(newPassword, 10);
 	}
 	settings.email = undefined;
-	// settings.isTwoFactorEnabled = undefined;
+	
 	try {
 		const updatedUser = await prisma.user.update({
 			data: {
@@ -66,7 +66,6 @@ export const changeSettings = async (settings: z.infer<typeof UserSettingsSchema
 			user: {
 				...session.user,
 				name: updatedUser.name,
-				isTwoFactorEnabled: updatedUser.isTwoFactorAuthEnabled,
 				//TODO: Add fields to chande roles and or e-mail for the user????
 			},
 		});

@@ -1,43 +1,38 @@
 {
+  "extends": "./tsconfig.base.json",
   "compilerOptions": {
     "lib": [
       "dom",
       "dom.iterable",
       "esnext"
     ],
-    "allowJs": true,
-    "skipLibCheck": true,
-    "strict": true,
-    "noEmit": false,
-    "esModuleInterop": true,
-    "module": "commonjs",
-    "moduleResolution": "node",
-    "resolveJsonModule": true,
-    "isolatedModules": true,
     "jsx": "preserve",
-    "incremental": true,
+    /* preset Next 15 — ESM puro */
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "moduleDetection": "force",
+    "noEmit": true,
+    "target": "es2022",
     "plugins": [
       {
         "name": "next"
       }
     ],
-    "baseUrl": ".", // Adicionado para definir a base de resolução de módulos
-    "paths": {
-      "@/*": ["./*"] // Mapeia o alias @ para a raiz do projeto
-    },
-    "target": "ES2017",
-    "outDir": "dist"
+    "allowJs": true,
+    "esModuleInterop": true,
+    "isolatedModules": true,
+    "baseUrl": ".",
+    "paths": { "@/*": ["./*"] }
   },
   "include": [
     "next-env.d.ts",
-    "**/*.ts",
-    "**/*.tsx",
-    ".next/types/**/*.ts",
-    "pages/_meta.js",
-    "theme.config.jsx",
+    "middleware.ts",
+    "app/**/*",
+    "pages/**/*",
+    "components/**/*",
     "types/**/*.d.ts",
-    "worker/**/*"
-, "lib/scheduler.ts.old", "app/layout.tsx.old", "app/layout.tsx"  ],
+    ".next/types/**/*.ts"
+  ],
   "exclude": [
     "node_modules"
   ]

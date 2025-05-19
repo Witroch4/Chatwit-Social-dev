@@ -1,14 +1,38 @@
 {
-    "extends": "./tsconfig.json",
-    "compilerOptions": {
-      "outDir": "./dist",
-      "rootDir": ".",
-      "module": "commonjs",
-      "target": "ES2019",
-      "strict": true
-    },
-    "include": [
-      "worker/**/*.ts",
-      "lib/**/*.ts"
-    ]
-  }
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    /* transpilação para CommonJS no Node 18+ */
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "target": "es2022",
+
+    /* onde joga o .js gerado */
+    "outDir": "dist",
+
+    /* raiz lógica (apenas para cálculo de “common root”), mas 
+       o rootDirs é quem de fato decide como achatar as pastas */
+    "rootDir": ".",
+
+    /* ordem importa: 
+       1) arquivos em “worker/…” → saída em dist/worker/<resto do caminho após “worker/”>  
+       2) qualquer outro (por ex. “lib/...”) → saída em dist/worker/lib/... */
+    "rootDirs": [
+      "worker",
+      "."
+    ],
+
+    /* desativa as regras rígidas herdadas do tsconfig.base */
+    "moduleDetection": "legacy",
+    "verbatimModuleSyntax": false,
+
+    /* conforto */
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true
+  },
+
+  "include": [
+    "worker/**/*.ts",    /* seu código de workers */
+    "lib/**/*.ts",       /* utilitários compartilhados */
+    "types/**/*.d.ts"    /* definições de tipo extras */
+  ]
+}

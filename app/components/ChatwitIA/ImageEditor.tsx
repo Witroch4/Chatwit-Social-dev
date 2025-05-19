@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { X, Save, Download, Image, Eraser, Undo, Redo, Trash2 } from 'lucide-react';
+import { X, Save, Download, Image as ImageIcon, Eraser, Undo, Redo, Trash2 } from 'lucide-react';
 
 interface ImageEditorProps {
   imageUrl: string;
@@ -19,7 +19,7 @@ export default function ImageEditor({ imageUrl, fileName, onClose, onSave }: Ima
   
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const maskCanvasRef = useRef<HTMLCanvasElement>(null);
-  const imageRef = useRef<HTMLImageElement>(new Image());
+  const imageInstance = useRef<HTMLImageElement | null>(null);
   
   // State for undo/redo
   const [undoStack, setUndoStack] = useState<ImageData[]>([]);
@@ -27,25 +27,27 @@ export default function ImageEditor({ imageUrl, fileName, onClose, onSave }: Ima
   
   // Initialize canvas when component mounts
   useEffect(() => {
-    const image = imageRef.current;
-    image.crossOrigin = 'anonymous';
-    image.src = imageUrl;
+    // Criar uma nova instância de Image do DOM, não o componente React
+    const img = document.createElement('img');
+    img.crossOrigin = 'anonymous';
+    img.src = imageUrl;
+    imageInstance.current = img;
     
-    image.onload = () => {
+    img.onload = () => {
       const canvas = canvasRef.current;
       const maskCanvas = maskCanvasRef.current;
       
       if (canvas && maskCanvas) {
         // Set canvas dimensions to match image
-        canvas.width = image.width;
-        canvas.height = image.height;
-        maskCanvas.width = image.width;
-        maskCanvas.height = image.height;
+        canvas.width = img.width;
+        canvas.height = img.height;
+        maskCanvas.width = img.width;
+        maskCanvas.height = img.height;
         
         // Draw image on main canvas
         const ctx = canvas.getContext('2d');
         if (ctx) {
-          ctx.drawImage(image, 0, 0);
+          ctx.drawImage(img, 0, 0);
           
           // Save initial state for undo
           const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
@@ -63,7 +65,7 @@ export default function ImageEditor({ imageUrl, fileName, onClose, onSave }: Ima
     
     return () => {
       // Clean up
-      image.onload = null;
+      img.onload = null;
     };
   }, [imageUrl]);
   
@@ -309,7 +311,7 @@ export default function ImageEditor({ imageUrl, fileName, onClose, onSave }: Ima
                 }`}
                 title="Pincel (máscara)"
               >
-                <Image size={20} />
+                <ImageIcon size={20} />
               </button>
               <button
                 onClick={() => setTool('eraser')}

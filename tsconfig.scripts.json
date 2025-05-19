@@ -1,0 +1,12 @@
+{
+    "extends": "./tsconfig.base.json",   /* ou "./tsconfig.json" se preferir */
+    "compilerOptions": {
+      "module": "commonjs",
+      "moduleResolution": "node",
+      "target": "es2022",
+      "outDir": "dist/scripts",
+      "esModuleInterop": true
+    },
+    "include": ["bull-board-server.ts"]
+  }
+  

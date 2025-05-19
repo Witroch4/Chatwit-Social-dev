@@ -1,84 +1,82 @@
 // app/api/chatwitia/files/[id]/content/route.ts
-import { NextResponse } from 'next/server';
-import { openaiService } from '@/services/openai';
-import { auth } from '@/auth';
+import { NextRequest, NextResponse } from 'next/server'
+import { openaiService } from '@/services/openai'
+import { auth } from '@/auth'
 
-// Aumentar o tamanho máximo de resposta para 30MB
+/** ⬇︎ Route-segment config (substitui api.responseLimit) */
 export const config = {
-  api: {
-    responseLimit: '30mb',
-  },
-};
+  /** avisa o linter para não disparar o warning de 4 MB */
+  responseLimit: '30mb',
+}
 
-// GET /api/chatwitia/files/[id]/content - Get file content
+// GET /api/chatwitia/files/[id]/content – recupera o conteúdo do arquivo
 export async function GET(
-  req: Request,
-  { params }: { params: { id: string } }
+  request: NextRequest,
+  // params agora é **Promise**
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    // Autenticação opcional com Auth.js v5
-    const session = await auth();
-    
-    const fileId = params.id;
+    // ↓ precisamos aguardar a promise para obter o valor
+    const { id: fileId } = await params
+
+    /** Autenticação opcional (Auth.js v5) */
+    await auth()
+
     if (!fileId) {
-      return NextResponse.json({ error: 'No file ID provided' }, { status: 400 });
+      return NextResponse.json({ error: 'No file ID provided' }, { status: 400 })
     }
 
-    console.log(`API: Recuperando conteúdo do arquivo ID: ${fileId}`);
-    const response = await openaiService.retrieveFileContent(fileId);
-    
-    console.log(`API: Conteúdo do arquivo recuperado com sucesso`);
-    
-    // Se for um blob, retornamos como stream para lidar com arquivos grandes
+    console.log(`API: Recuperando conteúdo do arquivo ID: ${fileId}`)
+    const response = await openaiService.retrieveFileContent(fileId)
+    console.log('API: Conteúdo do arquivo recuperado com sucesso')
+
+    // ─────────────────────────────────────────────────────────
+    // Caso a OpenAI retorne um Blob (imagens, PDF etc.)
     if (response instanceof Blob) {
-      const contentType = response.type || 'application/octet-stream';
-      
-      // Para imagens, PDFs e outros arquivos binários
-      const arrayBuffer = await response.arrayBuffer();
-      const headers = {
-        'Content-Type': contentType,
-        'Content-Disposition': `inline; filename="file-${fileId}${getExtensionByMime(contentType)}"`,
-      };
-      
-      return new NextResponse(arrayBuffer, { headers });
+      const contentType = response.type || 'application/octet-stream'
+      const arrayBuffer = await response.arrayBuffer()
+
+      return new NextResponse(arrayBuffer, {
+        headers: {
+          'Content-Type': contentType,
+          'Content-Disposition': `inline; filename="file-${fileId}${getExtensionByMime(
+            contentType,
+          )}"`,
+        },
+      })
     }
-    
-    // Para conteúdo JSON ou outro formato de texto
-    return NextResponse.json(response);
+
+    // Caso seja JSON ou texto simples
+    return NextResponse.json(response)
   } catch (error) {
-    console.error('API: Erro ao recuperar conteúdo do arquivo:', error);
-    
-    // Extrair mensagem detalhada
-    let errorMessage = 'Erro ao recuperar conteúdo do arquivo';
-    let details = '';
-    
+    console.error('API: Erro ao recuperar conteúdo do arquivo:', error)
+
+    let message = 'Erro ao recuperar conteúdo do arquivo'
+    let details = ''
+
     if (error instanceof Error) {
-      errorMessage = error.message;
-      details = error.stack || '';
-      
-      // Verificar se é erro de arquivo não encontrado
-      if (errorMessage.includes('No such file') || errorMessage.includes('404')) {
+      message = error.message
+      details = error.stack ?? ''
+      // 404 – arquivo não encontrado
+      if (message.includes('No such file') || message.includes('404')) {
         return NextResponse.json(
           { error: 'Arquivo não encontrado', details },
-          { status: 404 }
-        );
+          { status: 404 },
+        )
       }
     } else if (typeof error === 'string') {
-      errorMessage = error;
+      message = error
     } else {
-      details = JSON.stringify(error);
+      details = JSON.stringify(error)
     }
-    
-    return NextResponse.json(
-      { error: errorMessage, details },
-      { status: 500 }
-    );
+
+    return NextResponse.json({ error: message, details }, { status: 500 })
   }
 }
 
-// Função auxiliar para obter extensão de arquivo com base no MIME type
+/** Mapeia MIME types → extensões de arquivo */
 function getExtensionByMime(mimeType: string): string {
-  const mimeMap: Record<string, string> = {
+  const map: Record<string, string> = {
     'application/pdf': '.pdf',
     'image/jpeg': '.jpg',
     'image/png': '.png',
@@ -86,7 +84,6 @@ function getExtensionByMime(mimeType: string): string {
     'text/csv': '.csv',
     'text/plain': '.txt',
     'application/json': '.json',
-  };
-  
-  return mimeMap[mimeType] || '';
-} 
+  }
+  return map[mimeType] ?? ''
+}

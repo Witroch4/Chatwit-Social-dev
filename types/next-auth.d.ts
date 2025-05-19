@@ -12,7 +12,7 @@ declare module "next-auth" {
     user: {
       id: string; // Assegure-se de que o ID do usuário está disponível na sessão
       role: UserRole;
-      isTwoFactorEnabled: boolean;
+      isTwoFactorAuthEnabled: boolean;
       instagramAccessToken?: string;
       providerAccountId?: string; // Adicionado
       isNewUser?: boolean; // Indica se o usuário acabou de se registrar
@@ -30,7 +30,7 @@ declare module "next-auth" {
    */
   interface User extends DefaultUser {
     role: UserRole;
-    isTwoFactorEnabled: boolean;
+    isTwoFactorAuthEnabled: boolean;
     instagramAccessToken?: string;
     // instagramExpiresAt?: number; // Removido
     providerAccountId?: string; // Adicionado
@@ -43,7 +43,7 @@ declare module "next-auth/jwt" {
    * Interface estendida para o JWT
    */
   interface JWT {
-    isTwoFactorEnabled?: boolean;
+    isTwoFactorAuthEnabled: boolean;
     instagramAccessToken?: string;
     // instagramExpiresAt?: number; // Removido
     providerAccountId?: string; // Adicionado

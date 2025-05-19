@@ -11,9 +11,20 @@ RUN apt-get update && apt-get install -y \
     build-essential \
     g++ \
     libvips-dev \
+    curl \
+    wget \
+    unzip \
     && rm -rf /var/lib/apt/lists/*
 
-# 2. Permite a conversão de PDFs pelo ImageMagick modificando a política de segurança.
+# 2. Instala o ngrok
+RUN curl -s https://ngrok-agent.s3.amazonaws.com/ngrok.asc | \
+    tee /etc/apt/trusted.gpg.d/ngrok.asc >/dev/null && \
+    echo "deb https://ngrok-agent.s3.amazonaws.com buster main" | \
+    tee /etc/apt/sources.list.d/ngrok.list && \
+    apt-get update && apt-get install -y ngrok && \
+    rm -rf /var/lib/apt/lists/*
+
+# 3. Permite a conversão de PDFs pelo ImageMagick modificando a política de segurança.
 #    Se o arquivo de política estiver em /etc/ImageMagick-6/policy.xml, substitui a linha para "read|write".
 #    Caso contrário, tenta /etc/ImageMagick-7/policy.xml.
 RUN if [ -f /etc/ImageMagick-6/policy.xml ]; then \
@@ -35,17 +46,20 @@ RUN if [ -f /etc/ImageMagick-6/policy.xml ]; then \
     fi
 
 
-# 3. Copia os arquivos de dependências e instala as dependências do Node.
+# 4. Copia os arquivos de dependências e instala as dependências do Node.
 #    É fundamental copiar também o package-lock.json para o npm ci funcionar.
 COPY package.json package-lock.json ./
 COPY prisma ./prisma/
 RUN npm ci
 
-# 4. Copia o restante do código-fonte para o container.
+# 5. Instala globalmente as dependências de desenvolvimento necessárias
+RUN npm install -g ts-node typescript tsconfig-paths
+
+# 6. Copia o restante do código-fonte para o container.
 COPY . .
 
-# 5. Expõe as portas necessárias.
+# 7. Expõe as portas necessárias.
 EXPOSE 3000 4000 5555
 
-# 6. Comando para iniciar a aplicação em modo de desenvolvimento.
+# 8. Comando para iniciar a aplicação em modo de desenvolvimento.
 CMD ["npm", "run", "dev"]

@@ -4,9 +4,9 @@ import { prisma } from '@/lib/prisma';
 import FormData from 'form-data';
 import axios from 'axios';
 
-const CHATWOOT_ACCESS_TOKEN = process.env.CHATWOOTACCESSTOKEN; // => UXDyxpWNGhTJCGXydACZPaCZ
-const CHATWOOT_BASE_URL    = process.env.CHATWOOT_BASE_URL ?? 'https://chatwit.witdev.com.br';
-
+const CHATWOOT_ACCESS_TOKEN = process.env.CHATWITACESSTOKEN; // => UXDyxpWNGhTJCGXydACZPaCZ
+const CHATWOOT_BASE_URL = process.env.CHATWIT_BASE_URL ?? 'https://chatwit.witdev.com.br';
+console.log('CHATWOOT_ACCESS_TOKEN', CHATWOOT_ACCESS_TOKEN);
 // ---- Utilidades -------------------------------------------------------------
 
 /**
@@ -40,6 +40,8 @@ export async function POST(request: Request): Promise<Response> {
     const url = new URL(request.url);
     const sourceId = url.searchParams.get('sourceId');
     const message = url.searchParams.get('message') || 'Segue o documento em anexo.';
+    // Extrair accessToken personalizado se fornecido via URL
+    let accessToken = url.searchParams.get('accessToken') || null;
 
     if (!sourceId) {
       return NextResponse.json({ error: 'sourceId obrigatório' }, { status: 400 });
@@ -53,6 +55,25 @@ export async function POST(request: Request): Promise<Response> {
     
     if (!lead || !lead.leadUrl) {
       throw new Error('Lead não encontrado ou sem leadUrl');
+    }
+    
+    // Se não tiver accessToken na URL, verifica se existe no banco de dados
+    // Usamos any para contornar o erro de tipagem, já que estamos adicionando o campo customAccessToken
+    const leadAny = lead as any;
+    if (!accessToken && leadAny.customAccessToken) {
+      accessToken = leadAny.customAccessToken;
+      console.log('Usando token de acesso personalizado do banco de dados');
+    }
+    
+    // Se ainda não tiver, usa o token padrão do ambiente
+    if (!accessToken) {
+      accessToken = CHATWOOT_ACCESS_TOKEN || null;
+      console.log('Usando token de acesso padrão do ambiente');
+    }
+
+    // Verificar se tem token de acesso
+    if (!accessToken) {
+      return NextResponse.json({ error: 'Token de acesso não configurado' }, { status: 500 });
     }
 
     // 2) Seleciona a URL do PDF (prioriza analiseUrl → pdfUnificado → primeiro arquivo pdf)
@@ -83,9 +104,26 @@ export async function POST(request: Request): Promise<Response> {
     const cwRes = await axios.post(chatwootUrl, form, {
       headers: {
         ...form.getHeaders(),
-        api_access_token: CHATWOOT_ACCESS_TOKEN!
+        api_access_token: accessToken
       },
       maxBodyLength: Infinity // garante upload de PDFs grandes
+    });
+
+    // 7) Atualizar o campo anotacoes do lead com a mensagem enviada
+    // e salvar o accessToken se foi fornecido via URL e não é o mesmo do ambiente
+    const updateData: any = { 
+      anotacoes: message
+    };
+    
+    // Se tiver um accessToken personalizado na URL que não é o do ambiente, salva no banco
+    const urlAccessToken = url.searchParams.get('accessToken');
+    if (urlAccessToken && urlAccessToken !== CHATWOOT_ACCESS_TOKEN) {
+      updateData.customAccessToken = urlAccessToken;
+    }
+    
+    await prisma.leadChatwit.update({
+      where: { sourceId },
+      data: updateData
     });
 
     return NextResponse.json({ ok: true, chatwoot: cwRes.data });

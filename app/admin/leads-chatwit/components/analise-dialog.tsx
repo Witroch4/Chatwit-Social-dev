@@ -10,8 +10,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, FileText, ExternalLink, Send, AlertOctagon } from "lucide-react";
+import { Loader2, FileText, ExternalLink, Send, AlertOctagon, Key } from "lucide-react";
 import { ToastAction } from "@/components/ui/toast";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 interface AnaliseDialogProps {
   isOpen: boolean;
@@ -24,6 +26,7 @@ interface AnaliseDialogProps {
   onSaveAnotacoes: (anotacoes: string) => Promise<void>;
   onEnviarPdf: (sourceId: string) => Promise<void>;
   onCancelarAnalise?: () => Promise<void>;
+  isAnaliseValidada?: boolean;
 }
 
 export function AnaliseDialog({
@@ -37,19 +40,46 @@ export function AnaliseDialog({
   onSaveAnotacoes,
   onEnviarPdf,
   onCancelarAnalise,
+  isAnaliseValidada = false,
 }: AnaliseDialogProps) {
   const [textoAnotacoes, setTextoAnotacoes] = useState(anotacoes || '');
+  const [accessToken, setAccessToken] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [isEnviando, setIsEnviando] = useState(false);
   const [isCancelando, setIsCancelando] = useState(false);
+  const [isSavingToken, setIsSavingToken] = useState(false);
   const { toast } = useToast();
+
+  // Mensagem padrão para enviar com o PDF
+  const MENSAGEM_PADRAO = "Segue a nossa Análise, qualquer dúvidas estamos a disposição";
 
   // Atualiza as anotações quando o diálogo for aberto ou as props mudarem
   useEffect(() => {
     if (isOpen) {
-      setTextoAnotacoes(anotacoes || '');
+      // Se não tiver anotações, usar a mensagem padrão
+      setTextoAnotacoes(anotacoes || MENSAGEM_PADRAO);
+      
+      // Buscar token personalizado do banco de dados
+      fetchAccessToken();
     }
-  }, [isOpen, anotacoes]);
+  }, [isOpen, anotacoes, leadId]);
+
+  // Função para buscar o token personalizado do banco de dados
+  const fetchAccessToken = async () => {
+    try {
+      const response = await fetch(`/api/admin/leads-chatwit/custom-token?leadId=${leadId}`, {
+        method: "GET",
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setAccessToken(data.customAccessToken || '');
+      }
+    } catch (error) {
+      console.error("Erro ao buscar token personalizado:", error);
+      setAccessToken('');
+    }
+  };
 
   const handleSaveAnotacoes = async () => {
     try {
@@ -57,12 +87,12 @@ export function AnaliseDialog({
       await onSaveAnotacoes(textoAnotacoes);
       toast({
         title: "Sucesso",
-        description: "Anotações atualizadas com sucesso!",
+        description: "Mensagem salva com sucesso!",
       });
     } catch (error: any) {
       toast({
         title: "Erro",
-        description: error.message || "Não foi possível salvar as anotações.",
+        description: error.message || "Não foi possível salvar a mensagem.",
         variant: "destructive",
         action: (
           <ToastAction altText="Tentar novamente" onClick={handleSaveAnotacoes}>
@@ -72,6 +102,42 @@ export function AnaliseDialog({
       });
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleSaveAccessToken = async () => {
+    try {
+      setIsSavingToken(true);
+      
+      // Salvar o token no banco de dados
+      const response = await fetch("/api/admin/leads-chatwit/custom-token", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          leadId,
+          customAccessToken: accessToken
+        }),
+      });
+      
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || "Erro ao salvar token");
+      }
+      
+      toast({
+        title: "Sucesso",
+        description: "Token de acesso salvo com sucesso!",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Erro",
+        description: error.message || "Não foi possível salvar o token de acesso.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSavingToken(false);
     }
   };
 
@@ -87,7 +153,29 @@ export function AnaliseDialog({
 
     try {
       setIsEnviando(true);
-      await onEnviarPdf(sourceId);
+      
+      // Construir a URL com query parameters
+      let url = `/api/admin/leads-chatwit/enviar-pdf-analise-lead?sourceId=${sourceId}`;
+      
+      // Adicionar a mensagem das anotações como parâmetro
+      if (textoAnotacoes) {
+        url += `&message=${encodeURIComponent(textoAnotacoes)}`;
+      }
+      
+      // Adicionar token personalizado se fornecido
+      if (accessToken) {
+        url += `&accessToken=${encodeURIComponent(accessToken)}`;
+      }
+      
+      const response = await fetch(url, {
+        method: "POST",
+      });
+      
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || "Não foi possível enviar o PDF");
+      }
+      
       toast({
         title: "Sucesso",
         description: "PDF de análise enviado com sucesso!",
@@ -146,12 +234,16 @@ export function AnaliseDialog({
     <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
       <DialogContent className="max-w-3xl">
         <DialogHeader>
-          <DialogTitle>Análise da Prova</DialogTitle>
+          <DialogTitle>
+            {isAnaliseValidada ? "Análise Validada da Prova" : "Análise da Prova"}
+          </DialogTitle>
           <DialogDescription>
             {aguardandoAnalise
               ? "A análise está sendo processada. Aguarde..."
               : analiseUrl
-                ? "Visualize o PDF de análise e adicione anotações."
+                ? isAnaliseValidada 
+                  ? "Visualize o PDF de análise validada e envie para o chat do lead."
+                  : "Visualize o PDF de análise e adicione anotações."
                 : "Ainda não recebemos a análise da prova."}
           </DialogDescription>
         </DialogHeader>
@@ -166,7 +258,7 @@ export function AnaliseDialog({
                   Estamos processando sua solicitação. Isso pode levar alguns minutos.
                 </p>
                 
-                {onCancelarAnalise && (
+                {onCancelarAnalise && !isAnaliseValidada && (
                   <Button 
                     variant="destructive" 
                     onClick={handleCancelarAnalise}
@@ -189,7 +281,9 @@ export function AnaliseDialog({
             ) : analiseUrl ? (
               <div className="flex flex-col items-center justify-center p-6 border-2 border-dashed rounded-lg cursor-pointer hover:bg-accent/30 transition-colors" onClick={abrirPdfAnalise}>
                 <FileText className="h-16 w-16 text-red-500 mb-4" />
-                <p className="text-lg font-medium">Análise Disponível</p>
+                <p className="text-lg font-medium">
+                  {isAnaliseValidada ? "Análise Validada Disponível" : "Análise Disponível"}
+                </p>
                 <p className="text-sm text-primary mt-2 flex items-center">
                   Clique para abrir o PDF
                   <ExternalLink className="ml-1 h-3 w-3" />
@@ -206,16 +300,69 @@ export function AnaliseDialog({
             )}
           </div>
 
-          {/* Anotações */}
-          <div className="space-y-2">
-            <h3 className="text-lg font-medium">Anotações</h3>
-            <Textarea
-              value={textoAnotacoes}
-              onChange={(e) => setTextoAnotacoes(e.target.value)}
-              className="min-h-[150px] font-mono"
-              placeholder="Adicione suas anotações sobre a análise..."
-            />
-          </div>
+          {/* Mensagem para envio - mostrar sempre que tiver analiseUrl */}
+          {analiseUrl && (
+            <div className="space-y-2">
+              <h3 className="text-lg font-medium">Escreva uma Mensagem</h3>
+              <Textarea
+                value={textoAnotacoes}
+                onChange={(e) => setTextoAnotacoes(e.target.value)}
+                className="min-h-[100px] font-mono"
+                placeholder="Escreva uma mensagem para enviar junto com o PDF da análise..."
+              />
+              <p className="text-sm text-muted-foreground">
+                Esta mensagem será enviada junto com o PDF para o chat.
+              </p>
+            </div>
+          )}
+          
+          {/* Token de acesso personalizado */}
+          {analiseUrl && (
+            <div className="space-y-2 border p-4 rounded-md">
+              <h3 className="text-md font-medium flex items-center">
+                <Key className="h-4 w-4 mr-2" />
+                Token de Acesso Personalizado (Opcional)
+              </h3>
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <Input
+                    value={accessToken}
+                    onChange={(e) => setAccessToken(e.target.value)}
+                    placeholder="Token de acesso personalizado para o Chatwoot"
+                  />
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleSaveAccessToken}
+                  disabled={isSavingToken}
+                  className="whitespace-nowrap"
+                >
+                  {isSavingToken ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    "Salvar Token"
+                  )}
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Se não for especificado, será usado o token padrão do sistema.
+              </p>
+            </div>
+          )}
+
+          {/* Anotações - só mostrar se não for análise validada e não tiver analiseUrl */}
+          {!isAnaliseValidada && !analiseUrl && (
+            <div className="space-y-2">
+              <h3 className="text-lg font-medium">Anotações</h3>
+              <Textarea
+                value={textoAnotacoes}
+                onChange={(e) => setTextoAnotacoes(e.target.value)}
+                className="min-h-[150px] font-mono"
+                placeholder="Adicione suas anotações sobre a análise..."
+              />
+            </div>
+          )}
         </div>
         
         <DialogFooter className="flex flex-wrap gap-2 justify-between sm:justify-end">
@@ -227,14 +374,18 @@ export function AnaliseDialog({
             >
               Fechar
             </Button>
-            <Button
-              variant="default"
-              onClick={handleSaveAnotacoes}
-              disabled={isSaving}
-            >
-              {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Salvar Anotações
-            </Button>
+            
+            {/* Botão de salvar anotações - só mostrar se não for análise validada e não tiver analiseUrl*/}
+            {!isAnaliseValidada && !analiseUrl && (
+              <Button
+                variant="default"
+                onClick={handleSaveAnotacoes}
+                disabled={isSaving}
+              >
+                {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Salvar Anotações
+              </Button>
+            )}
           </div>
           
           {analiseUrl && (

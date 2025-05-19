@@ -20,8 +20,10 @@ import { ToastAction } from "@/components/ui/toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Area, AreaChart, BarChart, CartesianGrid, XAxis, Bar, Pie, PieChart, Label, Tooltip } from "recharts";
 
-interface DashboardProps {
+export interface DashboardProps {
   isOpen: boolean;
+  refreshCounter: number;
+  period: string;
 }
 
 interface ChartData {
@@ -47,7 +49,7 @@ const areaChartConfig = {
   },
 } satisfies ChartConfig;
 
-export function LeadsDashboard({ isOpen }: DashboardProps) {
+export function LeadsDashboard({ isOpen, refreshCounter, period }: DashboardProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [stats, setStats] = useState({
     totalLeads: 0,
@@ -66,7 +68,7 @@ export function LeadsDashboard({ isOpen }: DashboardProps) {
     if (isOpen) {
       fetchDashboardData();
     }
-  }, [isOpen]);
+  }, [isOpen, refreshCounter, period]);
   
   const fetchDashboardData = async () => {
     try {

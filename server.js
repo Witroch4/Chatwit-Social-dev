@@ -3,6 +3,7 @@ const { createServer } = require("http");
 const { parse } = require("url");
 const next = require("next");
 const { spawn } = require("child_process");
+const path = require("path");
 
 // Verifica se está em ambiente de desenvolvimento
 const dev = process.env.NODE_ENV !== "production";
@@ -40,11 +41,14 @@ app.prepare().then(() => {
     // SPAWN DOS WORKERS (apenas em desenvolvimento)
     // ---------------------------------------------------------------
 
+    // Caminho para executável do npx para garantir acesso ao ts-node
+    const npxPath = path.join(process.cwd(), 'node_modules', '.bin', 'npx');
+
     // Inicializa o Bull Board para monitoramento das filas
     // O Bull Board agora será responsável por inicializar todos os workers
     const bullBoardServer = spawn(
-      "ts-node",
-      ["-r", "tsconfig-paths/register", "bull-board-server.ts"],
+      npxPath,
+      ["ts-node", "-r", "tsconfig-paths/register", "bull-board-server.ts"],
       {
         shell: true,
         stdio: "inherit",
@@ -54,8 +58,8 @@ app.prepare().then(() => {
     // Inicializa apenas o worker do Instagram Webhook separadamente
     // pois ele não é inicializado pelo Bull Board
     const workerInstagram = spawn(
-      "ts-node",
-      ["-r", "tsconfig-paths/register", "worker/automacao.worker.ts"],
+      npxPath,
+      ["ts-node", "-r", "tsconfig-paths/register", "worker/automacao.worker.ts"],
       {
         shell: true,
         stdio: "inherit",
@@ -65,26 +69,30 @@ app.prepare().then(() => {
     // ---------------------------------------------------------------
     // SPAWN DO NGROK (apenas em desenvolvimento)
     // ---------------------------------------------------------------
-    const ngrokProcess = spawn(
-      "ngrok",
-      [
-        "http",
-        "--region=sa",
-        "--hostname=wondrous-climbing-mallard.ngrok-free.app",
-        "3000",
-      ],
-      {
-        shell: true,
-        stdio: "pipe",
-      }
-    );
+    try {
+      const ngrokProcess = spawn(
+        "ngrok",
+        [
+          "http",
+          "--region=sa",
+          "--hostname=moving-eagle-bright.ngrok-free.app",
+          "3000",
+        ],
+        {
+          shell: true,
+          stdio: "pipe",
+        }
+      );
 
-    ngrokProcess.stdout.on("data", (data) => {
-      console.log(`[ngrok] ${data}`);
-    });
-    ngrokProcess.stderr.on("data", (data) => {
-      console.error(`[ngrok-err] ${data}`);
-    });
+      ngrokProcess.stdout.on("data", (data) => {
+        console.log(`[ngrok] ${data}`);
+      });
+      ngrokProcess.stderr.on("data", (data) => {
+        console.error(`[ngrok-err] ${data}`);
+      });
+    } catch (error) {
+      console.error(`[ngrok-err] Falha ao iniciar ngrok: ${error.message}`);
+    }
 
     // Função de encerramento que finaliza servidor e workers
     function shutdown() {
@@ -99,10 +107,9 @@ app.prepare().then(() => {
         console.log("> [server] Servidor encerrado.");
 
         // Mata os workers e o processo do ngrok
-        bullBoardServer.kill();
-        workerInstagram.kill();
-        ngrokProcess.kill();
-
+        if (bullBoardServer && bullBoardServer.kill) bullBoardServer.kill();
+        if (workerInstagram && workerInstagram.kill) workerInstagram.kill();
+        
         process.exit(0);
       });
     }

@@ -1,35 +1,35 @@
-import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/db";
-import { getCurrentUser } from "@/lib/session";
+// app/api/admin/leads-chatwit/lead-status/route.ts
+import { NextRequest, NextResponse } from 'next/server';
+import { db } from '@/lib/db';
+import { auth } from '@/auth';
 
-// API endpoint para verificar o status de um lead específico
-// Isso é utilizado para verificar se o manuscrito foi processado
 export async function GET(req: NextRequest) {
   try {
-    // Verifica autenticação do usuário
-    const user = await getCurrentUser();
-    if (!user || !user.id) {
-      return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+    /* 1 ─ Sessão */
+    const session = await auth();
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
     }
 
-    // Verifica se usuário é admin
-    if (!user.roles || !user.roles.includes("admin")) {
-      return NextResponse.json({ error: "Acesso negado" }, { status: 403 });
+    /* 2 ─ Verifica role no banco */
+    const user = await db.user.findUnique({
+      where: { id: session.user.id },
+      select: { role: true },
+    });
+    if (user?.role !== 'ADMIN') {
+      return NextResponse.json({ error: 'Permissão negada' }, { status: 403 });
     }
 
-    // Obtém o ID do lead da query string
-    const url = new URL(req.url);
-    const leadId = url.searchParams.get("id");
-
+    /* 3 ─ Param id */
+    const url    = new URL(req.url);
+    const leadId = url.searchParams.get('id');
     if (!leadId) {
-      return NextResponse.json({ error: "ID do lead não fornecido" }, { status: 400 });
+      return NextResponse.json({ error: 'ID do lead não fornecido' }, { status: 400 });
     }
 
-    // Busca o lead no banco de dados
+    /* 4 ─ Busca lead */
     const lead = await db.leadChatwit.findUnique({
-      where: {
-        id: leadId,
-      },
+      where:  { id: leadId },
       select: {
         id: true,
         aguardandoManuscrito: true,
@@ -37,18 +37,17 @@ export async function GET(req: NextRequest) {
         provaManuscrita: true,
       },
     });
-
     if (!lead) {
-      return NextResponse.json({ error: "Lead não encontrado" }, { status: 404 });
+      return NextResponse.json({ error: 'Lead não encontrado' }, { status: 404 });
     }
 
-    // Retorna os dados do lead
+    /* 5 ─ Sucesso */
     return NextResponse.json(lead);
-  } catch (error) {
-    console.error("Erro ao verificar status do lead:", error);
+  } catch (error: any) {
+    console.error('[Lead-Status]', error);
     return NextResponse.json(
-      { error: "Erro ao verificar status do lead" },
-      { status: 500 }
+      { error: 'Erro interno', details: error.message },
+      { status: 500 },
     );
   }
-} 
+}

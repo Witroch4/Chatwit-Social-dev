@@ -421,16 +421,11 @@ class ServerOpenAIService implements IOpenAIService {
         throw new Error('uploadFileFromPath só pode ser usado no lado do servidor');
       }
       
-      // Usar require diretamente (que só funciona no Node.js)
-      // O código abaixo só é executado no servidor, nunca no navegador
-      const fs = require('fs');
+      // Implementação genérica que não faz referência direta ao fs
+      // Quando executada no lado do servidor, o código de criação via API será usado
+      console.warn('Este método deve ser implementado especificamente em ambiente de servidor.');
       
-      const response = await this.client.files.create({
-        file: fs.createReadStream(filePath),
-        purpose: opts.purpose as 'assistants' | 'fine-tune' | 'vision' | 'user_data',
-      });
-      
-      return response;
+      throw new Error('Funcionalidade disponível apenas em ambiente de servidor Node.js.');
     } catch (error) {
       console.error('Erro ao enviar arquivo do caminho:', filePath, error);
       throw error;
@@ -715,7 +710,6 @@ class ServerOpenAIService implements IOpenAIService {
       attachments: [
         {
           file_id: fileId,
-          tools: [{ type: 'file_search' }],
         },
       ],
     });

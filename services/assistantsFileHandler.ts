@@ -118,20 +118,24 @@ export async function processFileWithAssistant(
     onProgress?.("Adding file to thread", 30);
     
     // Add message with file attachment
-    await client.beta.threads.messages.create({
-      thread_id: thread.id,
-      role: "user",
-      content: prompt,
-      file_ids: [fileId],
-    });
+    await client.beta.threads.messages.create(
+      thread.id,
+      {
+        role: "user",
+        content: prompt,
+        attachments: [{ file_id: fileId }]
+      }
+    );
     
     onProgress?.("Processing file", 40);
     
     // Run the thread
-    const run = await client.beta.threads.runs.create({
-      thread_id: thread.id,
-      assistant_id: assistant.id,
-    });
+    const run = await client.beta.threads.runs.create(
+      thread.id,
+      {
+        assistant_id: assistant.id,
+      }
+    );
     
     // Poll for completion
     let completedRun;
@@ -139,10 +143,10 @@ export async function processFileWithAssistant(
     const maxPolls = 30; // Prevent infinite polling
     
     while (pollCount < maxPolls) {
-      const runStatus = await client.beta.threads.runs.retrieve({
-        thread_id: thread.id,
-        run_id: run.id
-      });
+      const runStatus = await client.beta.threads.runs.retrieve(
+        thread.id,
+        run.id
+      );
       
       // Calculate progress between 40-90% based on status
       const statusProgress = 40 + Math.min(pollCount * 2, 50);
@@ -167,9 +171,9 @@ export async function processFileWithAssistant(
     onProgress?.("Getting results", 95);
     
     // Get the messages
-    const messages = await client.beta.threads.messages.list({
-      thread_id: thread.id,
-    });
+    const messages = await client.beta.threads.messages.list(
+      thread.id
+    );
     
     // Get the last assistant message
     const assistantMessages = Array.from(messages.data)

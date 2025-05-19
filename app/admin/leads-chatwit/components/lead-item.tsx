@@ -122,6 +122,7 @@ export function LeadItem({
   const [showEspelhoSeletor, setShowEspelhoSeletor] = useState(false);
   const [selectedEspelhoImages, setSelectedEspelhoImages] = useState<string[]>([]);
   const [isEnviandoEspelho, setIsEnviandoEspelho] = useState(false);
+  const [confirmDeleteAllFiles, setConfirmDeleteAllFiles] = useState(false);
   const temImagensEspelho = lead.espelhoCorrecao && 
                             lead.espelhoCorrecao !== '[]' && 
                             lead.espelhoCorrecao !== '""';
@@ -151,6 +152,8 @@ export function LeadItem({
   // Estado para controlar o Drawer de pré-análise
   const [showAnalisePreviewDrawer, setShowAnalisePreviewDrawer] = useState(false);
   const [isEnviandoAnaliseValidada, setIsEnviandoAnaliseValidada] = useState(false);
+  // Remover estado para o diálogo de análise validada
+  const [showAnaliseValidadaDialog, setShowAnaliseValidadaDialog] = useState(false);
 
   const displayName = lead.nomeReal || lead.name || "Lead sem nome";
   const formattedDate = format(new Date(lead.createdAt ?? new Date()), "dd/MM/yyyy HH:mm", { locale: ptBR });
@@ -368,6 +371,9 @@ export function LeadItem({
         if (data) {
           handleDeleteFile(data.id, data.type);
         }
+        break;
+      case 'excluirTodosArquivos':
+        handleDeleteAllFiles();
         break;
       // Adicionar os casos para o manuscrito
       case 'editarManuscrito':
@@ -1239,7 +1245,7 @@ export function LeadItem({
     }
   };
   
-  const handleSaveAnotacoes = async (anotacoes: string) => {
+  const handleSaveAnotacoes = async (anotacoes: string): Promise<void> => {
     try {
       const response = await fetch("/api/admin/leads-chatwit/leads", {
         method: "POST",
@@ -1270,7 +1276,7 @@ export function LeadItem({
     }
   };
   
-  const handleEnviarPdf = async (sourceId: string) => {
+  const handleEnviarPdf = async (sourceId: string): Promise<void> => {
     if (!sourceId) {
       throw new Error("ID de origem não encontrado");
     }
@@ -1407,6 +1413,14 @@ export function LeadItem({
   // Função para cancelar análise
   const handleCancelarAnalise = async () => {
     try {
+      console.log("[Cancelar Análise] Iniciando cancelamento para o lead:", lead.id);
+      console.log("[Cancelar Análise] Estado anterior:", {
+        analiseUrl: lead.analiseUrl,
+        aguardandoAnalise: lead.aguardandoAnalise,
+        analisePreliminar: lead.analisePreliminar ? "Presente" : "Ausente",
+        analiseValidada: lead.analiseValidada
+      });
+      
       // Atualizar estado local imediatamente para feedback visual instantâneo
       setLocalAnaliseState({
         analiseUrl: undefined,
@@ -1418,15 +1432,17 @@ export function LeadItem({
       // Forçar atualização do botão
       setRefreshKey(prev => prev + 1);
       
-      // Prepara o payload para envio
+      // Prepara o payload para envio - garantir que todos os campos sejam definidos explicitamente
       const payload = {
         id: lead.id,
         analiseUrl: "", // String vazia em vez de null
         analiseProcessada: false,
-        aguardandoAnalise: false,
+        aguardandoAnalise: false, // Esta é a chave principal que precisamos atualizar
         analisePreliminar: null,
         analiseValidada: false,
       };
+      
+      console.log("[Cancelar Análise] Enviando payload para API:", payload);
       
       const response = await fetch("/api/admin/leads-chatwit/leads", {
         method: "POST",
@@ -1438,20 +1454,29 @@ export function LeadItem({
       
       if (!response.ok) {
         const data = await response.json();
+        console.error("[Cancelar Análise] Erro da API:", data);
         throw new Error(data.error || "Erro ao cancelar análise");
       }
       
-      // Atualizar o lead localmente
+      const responseData = await response.json();
+      console.log("[Cancelar Análise] Resposta da API:", responseData);
+      
+      // Atualizar o lead localmente com exatamente os mesmos dados enviados para a API
       const updatedLead = {
         ...lead,
-        analiseUrl: undefined,
-        analiseProcessada: false,
-        aguardandoAnalise: false,
-        analisePreliminar: undefined,
-        analiseValidada: false,
+        ...payload, // Usar o mesmo payload que foi enviado para a API
         _skipDialog: true,
         _forceUpdate: true, // Forçar atualização completa
       };
+      
+      // Atualizamos também o objeto lead original para garantir consistência
+      lead.aguardandoAnalise = false;
+      lead.analiseProcessada = false;
+      lead.analiseUrl = "";
+      lead.analisePreliminar = null;
+      lead.analiseValidada = false;
+      
+      console.log("[Cancelar Análise] Atualizando o lead com:", updatedLead);
       
       // Chamar o método de edição
       await onEdit(updatedLead);
@@ -1460,14 +1485,27 @@ export function LeadItem({
       setShowAnaliseDialog(false);
       setShowAnalisePreviewDrawer(false);
       
-      // Forçar nova atualização após pequeno delay para garantir sincronização
+      // Fazer uma pausa para garantir que todas as atualizações foram processadas
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // Forçar uma nova atualização do estado local após pequeno delay
       setTimeout(() => {
+        setLocalAnaliseState({
+          analiseUrl: undefined,
+          aguardandoAnalise: false,
+          analisePreliminar: undefined,
+          analiseValidada: false
+        });
+        
+        // Forçar atualização do componente
         setRefreshKey(prev => prev + 1);
-      }, 100);
+        
+        console.log("[Cancelar Análise] Estado final atualizado");
+      }, 200);
       
       return Promise.resolve();
     } catch (error: any) {
-      console.error("Erro ao cancelar análise:", error);
+      console.error("[Cancelar Análise] Erro ao cancelar análise:", error);
       
       // Exibir toast apenas se não for chamado do diálogo
       // (o diálogo já exibe seu próprio toast)
@@ -1527,7 +1565,7 @@ export function LeadItem({
       }));
       
       return Promise.resolve();
-    } catch (error) {
+    } catch (error: any) {
       return Promise.reject(error);
     }
   };
@@ -1588,10 +1626,58 @@ export function LeadItem({
     }
   };
 
+  // Modificar a função handleDeleteAllFiles para usar o diálogo personalizado
+  const handleDeleteAllFiles = async () => {
+    // Abrir o diálogo de confirmação em vez de usar window.confirm
+    setConfirmDeleteAllFiles(true);
+  };
+  
+  // Função para executar a exclusão após a confirmação
+  const executeDeleteAllFiles = async () => {
+    try {
+      // Mostrar toast de carregamento
+      toast({
+        title: "Excluindo arquivos",
+        description: "Aguarde enquanto excluímos todos os arquivos...",
+      });
+      
+      // Criar um array com as promessas de exclusão para cada arquivo
+      const deletePromises = lead.arquivos.map(arquivo => 
+        handleDeleteFile(arquivo.id, "arquivo")
+      );
+      
+      // Executar todas as promessas em paralelo
+      await Promise.all(deletePromises);
+      
+      // Atualizar o lead após todas as exclusões
+      onEdit({
+        ...lead,
+        arquivos: [],
+        _skipDialog: true,
+        _forceUpdate: true
+      });
+      
+      toast({
+        title: "Sucesso",
+        description: "Todos os arquivos foram excluídos com sucesso!",
+      });
+    } catch (error: any) {
+      console.error("Erro ao excluir todos os arquivos:", error);
+      toast({
+        title: "Erro",
+        description: error.message || "Não foi possível excluir todos os arquivos. Tente novamente.",
+        variant: "destructive",
+      });
+    } finally {
+      // Fechar o diálogo de confirmação
+      setConfirmDeleteAllFiles(false);
+    }
+  };
+
   return (
     <>
       <TableRow className="group hover:bg-secondary/30">
-        <TableCell className="w-[40px] p-2">
+        <TableCell className="w-[40px] p-2 align-middle">
           <Checkbox 
             checked={isSelected} 
             onCheckedChange={(checked) => onSelect(lead.id, checked as boolean)}
@@ -1599,9 +1685,9 @@ export function LeadItem({
           />
         </TableCell>
         
-        <TableCell className="w-[250px] p-2 align-top">
-          <div className="flex items-start gap-2">
-            <Avatar className="h-9 w-9 mt-1 cursor-pointer" onClick={() => setShowFullImage(true)}>
+        <TableCell className="w-[250px] p-2 align-middle">
+          <div className="flex items-center gap-2">
+            <Avatar className="h-9 w-9 cursor-pointer" onClick={() => setShowFullImage(true)}>
               {lead.thumbnail ? (
                 <AvatarImage src={lead.thumbnail} alt={displayName} />
               ) : null}
@@ -1632,7 +1718,7 @@ export function LeadItem({
           </div>
         </TableCell>
         
-        <TableCell className="w-[100px] p-2">
+        <TableCell className="w-[100px] p-2 align-middle">
           <div className="flex flex-col">
             <div className="font-medium">{lead.usuario.name}</div>
             <Badge variant="outline" className="w-fit">
@@ -1641,8 +1727,8 @@ export function LeadItem({
           </div>
         </TableCell>
         
-        <TableCell className="w-[150px] p-2">
-          <div className="flex flex-wrap gap-2">
+        <TableCell className="w-[150px] p-2 align-middle">
+          <div className="grid grid-cols-3 gap-2">
             {lead.arquivos.length > 0 ? (
               lead.arquivos.map((arquivo) => (
                 <LeadContextMenu
@@ -1652,7 +1738,7 @@ export function LeadItem({
                   data={{ id: arquivo.id, type: "arquivo" }}
                 >
                   <div 
-                    className="relative rounded-md border p-1 hover:bg-accent hover:text-accent-foreground min-w-[40px] min-h-[40px] flex items-center justify-center group cursor-pointer"
+                    className="relative rounded-md border p-1 hover:bg-accent hover:text-accent-foreground min-w-[36px] min-h-[36px] flex items-center justify-center group cursor-pointer"
                     onClick={() => openFile(arquivo.dataUrl)}
                   >
                     {getFileTypeIcon(arquivo.fileType)}
@@ -1667,12 +1753,12 @@ export function LeadItem({
                 </LeadContextMenu>
               ))
             ) : (
-              <span className="text-sm text-muted-foreground">Sem arquivos</span>
+              <span className="text-sm text-muted-foreground col-span-3">Sem arquivos</span>
             )}
           </div>
         </TableCell>
         
-        <TableCell className="w-[80px] p-2">
+        <TableCell className="w-[80px] p-2 align-middle">
           {lead.pdfUnificado ? (
             <LeadContextMenu
               contextType="pdf"
@@ -1717,7 +1803,7 @@ export function LeadItem({
           )}
         </TableCell>
 
-        <TableCell className="w-[80px] p-2">
+        <TableCell className="w-[80px] p-2 align-middle">
           {lead.pdfUnificado && (
             lead.arquivos.some(a => a.pdfConvertido) ? (
               <LeadContextMenu
@@ -1764,7 +1850,7 @@ export function LeadItem({
           )}
         </TableCell>
 
-        <TableCell className="w-[100px] p-2">
+        <TableCell className="w-[100px] p-2 align-middle">
           <LeadContextMenu
             contextType="manuscrito"
             onAction={handleManuscritoContextAction}
@@ -1797,7 +1883,7 @@ export function LeadItem({
           </LeadContextMenu>
         </TableCell>
         
-        <TableCell className="w-[120px] p-2">
+        <TableCell className="w-[120px] p-2 align-middle">
           {manuscritoProcessadoLocal && (
             <LeadContextMenu
               contextType="espelho"
@@ -1837,7 +1923,7 @@ export function LeadItem({
           )}
         </TableCell>
         
-        <TableCell className="w-[120px] p-2">
+        <TableCell className="w-[120px] p-2 align-middle">
           <LeadContextMenu
             contextType="analise"
             onAction={handleAnaliseContextAction}
@@ -1868,7 +1954,7 @@ export function LeadItem({
               ) : localAnaliseState.analiseValidada ? (
                 <>
                   <FileCheck className="h-4 w-4 mr-1" />
-                  Análise Validada
+                  Análise Validada Espere
                 </>
               ) : localAnaliseState.analisePreliminar ? (
                 <>
@@ -1890,7 +1976,7 @@ export function LeadItem({
           </LeadContextMenu>
         </TableCell>
         
-        <TableCell className="w-[60px] p-2">
+        <TableCell className="w-[60px] p-2 align-middle">
           <div className="flex items-center justify-end gap-2">
             <TooltipProvider>
               <Tooltip>
@@ -2117,6 +2203,42 @@ export function LeadItem({
         onSave={handleSaveAnalisePreliminar}
         onValidar={handleValidarAnalise}
       />
+
+      {/* Diálogo de Análise Validada */}
+      <AnaliseDialog
+        isOpen={showAnaliseValidadaDialog}
+        onClose={() => setShowAnaliseValidadaDialog(false)}
+        leadId={lead.id}
+        sourceId={lead.sourceId}
+        analiseUrl={lead.analiseUrl || null}
+        anotacoes={lead.anotacoes || null}
+        aguardandoAnalise={false}
+        onSaveAnotacoes={handleSaveAnotacoes}
+        onEnviarPdf={handleEnviarPdf}
+        onCancelarAnalise={handleCancelarAnalise}
+        isAnaliseValidada={true}
+      />
+
+      {/* Adicionar o diálogo de confirmação para excluir todos os arquivos */}
+      <Dialog open={confirmDeleteAllFiles} onOpenChange={setConfirmDeleteAllFiles}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirmar exclusão em massa</DialogTitle>
+            <DialogDescription>
+              Tem certeza que deseja excluir TODOS os arquivos do lead "{displayName}"? 
+              Esta ação não pode ser desfeita e irá remover {lead.arquivos.length} arquivo(s).
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmDeleteAllFiles(false)}>
+              Cancelar
+            </Button>
+            <Button variant="destructive" onClick={executeDeleteAllFiles}>
+              Excluir Todos
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

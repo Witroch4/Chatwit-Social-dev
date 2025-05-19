@@ -50,13 +50,42 @@ export async function POST(request: Request): Promise<Response> {
     
     console.log("[Enviar Análise Validada] Lead marcado como análise validada");
     
-    // Preparar o payload para envio com as flags requeridas
+    // Extrair os dados da análise preliminar
+    const analiseData = payload.analiseData || {};
+    
+    // Preparar o payload para envio com as flags requeridas e garantir que todos os campos do cabeçalho estejam presentes
     const requestPayload = {
-      ...payload.analiseData,
+      // Flags necessárias para o sistema externo
       leadID: leadId,
-      analisevalidada: true, // Flag específica que o serviço externo espera
-      telefone: lead.phoneNumber
+      analisevalidada: true,
+      telefone: lead.phoneNumber,
+      
+      // Garantir que os campos do cabeçalho estejam explicitamente presentes
+      exameDescricao: analiseData.exameDescricao || "",
+      inscricao: analiseData.inscricao || "",
+      nomeExaminando: analiseData.nomeExaminando || lead.nomeReal || lead.name || "",
+      seccional: analiseData.seccional || "",
+      areaJuridica: analiseData.areaJuridica || "",
+      notaFinal: analiseData.notaFinal || "",
+      situacao: analiseData.situacao || "",
+      
+      // Garantir que os outros dados da análise também estejam presentes
+      pontosPeca: analiseData.pontosPeca || [],
+      subtotalPeca: analiseData.subtotalPeca || "",
+      pontosQuestoes: analiseData.pontosQuestoes || [],
+      subtotalQuestoes: analiseData.subtotalQuestoes || "",
+      conclusao: analiseData.conclusao || "",
+      argumentacao: analiseData.argumentacao || [],
+      
+      // Incluir o restante dos dados da análise preliminar
+      ...analiseData,
+      
+      // Adicionar flag de análise preliminar
+      analisepreliminar: true
     };
+    
+    // Logar o payload final que será enviado
+    console.log("[Enviar Análise Validada] Payload final para envio:", JSON.stringify(requestPayload, null, 2));
     
     // Enviar para o sistema externo
     console.log("[Enviar Análise Validada] Enviando payload para processamento:", webhookUrl);

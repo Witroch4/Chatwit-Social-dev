@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import { addManuscritoJob } from '@/lib/queue/manuscrito.queue';
-import { sendEventToLead } from '../sse/route'; // Importar a função de envio de eventos SSE
+// Função SSE desabilitada
 
 // Criando uma instância do Prisma fora do escopo da rota
 const prisma = new PrismaClient();
@@ -100,17 +100,8 @@ export async function POST(request: Request): Promise<Response> {
         
         console.log("[Webhook] Pré-análise de prova armazenada para o lead:", leadID);
         
-        // Enviar evento SSE para notificar o frontend
-        try {
-          await sendEventToLead(leadID, 'analise_preliminar', {
-            leadId: leadID,
-            analisePreliminar: webhookData
-          });
-          console.log("[Webhook] Evento SSE enviado com sucesso para o lead:", leadID);
-        } catch (error) {
-          console.error("[Webhook] Erro ao enviar evento SSE:", error);
-          // Continuar mesmo se o evento não puder ser enviado
-        }
+        // SSE desabilitado
+        console.log("[Webhook] Notificação SSE desabilitada");
         
         return NextResponse.json({
           success: true,
@@ -121,6 +112,88 @@ export async function POST(request: Request): Promise<Response> {
         return NextResponse.json({
           success: false,
           message: `Erro ao processar pré-análise: ${error.message || 'Erro desconhecido'}`,
+        }, { status: 500 });
+      }
+    }
+
+    // Processar webhook de análise validada (nova implementação)
+    if (webhookData.analiseValidada === true) {
+      console.log("[Webhook] Identificado payload de análise validada com URL");
+      
+      // Verificar se temos o leadID
+      let leadID = webhookData.leadID;
+      
+      // Buscar pelo telefone se não tiver o leadID
+      if (!leadID && webhookData.telefone) {
+        console.log("[Webhook] Buscando lead por telefone");
+        const lead = await prisma.leadChatwit.findFirst({
+          where: {
+            phoneNumber: webhookData.telefone
+          }
+        });
+        
+        if (lead) {
+          leadID = lead.id;
+          console.log("[Webhook] Lead encontrado pelo telefone:", leadID);
+        } else {
+          console.error("[Webhook] Lead não encontrado com o telefone fornecido");
+          return NextResponse.json({
+            success: false,
+            message: "Lead não encontrado com o telefone fornecido",
+          });
+        }
+      }
+      
+      if (!leadID) {
+        console.error("[Webhook] Não foi possível identificar o lead");
+        return NextResponse.json({
+          success: false,
+          message: "Não foi possível identificar o lead",
+        });
+      }
+      
+      // Verificar se a URL foi fornecida
+      const analiseUrl = webhookData.analiseUrl;
+      
+      if (!analiseUrl) {
+        console.error("[Webhook] URL da análise validada não fornecida");
+        return NextResponse.json({
+          success: false,
+          message: "URL da análise validada não fornecida (campo 'analiseUrl')",
+        });
+      }
+      
+      console.log("[Webhook] URL da análise validada:", analiseUrl);
+      
+      try {
+        // Atualizar o lead com a URL da análise validada
+        const leadUpdate = await prisma.leadChatwit.update({
+          where: {
+            id: leadID
+          },
+          data: {
+            analiseUrl: analiseUrl,
+            analiseProcessada: true,
+            analiseValidada: true,
+            aguardandoAnalise: false,
+            updatedAt: new Date()
+          }
+        });
+        
+        console.log("[Webhook] Análise validada processada para o lead:", leadID);
+        
+        // SSE desabilitado
+        console.log("[Webhook] Notificação SSE desabilitada");
+        
+        return NextResponse.json({
+          success: true,
+          message: "Análise validada processada com sucesso",
+        });
+      } catch (error: any) {
+        console.error("[Webhook] Erro ao atualizar lead com análise validada:", error);
+        return NextResponse.json({
+          success: false,
+          message: `Erro ao processar análise validada: ${error.message || 'Erro desconhecido'}`,
         }, { status: 500 });
       }
     }
@@ -190,18 +263,8 @@ export async function POST(request: Request): Promise<Response> {
         
         console.log("[Webhook] Análise de prova processada para o lead:", leadID);
         
-        // Enviar evento SSE para notificar o frontend
-        try {
-          await sendEventToLead(leadID, 'analise_processada', {
-            leadId: leadID,
-            analiseUrl: analiseUrl,
-            analiseProcessada: true
-          });
-          console.log("[Webhook] Evento SSE enviado com sucesso para o lead:", leadID);
-        } catch (error) {
-          console.error("[Webhook] Erro ao enviar evento SSE:", error);
-          // Continuar mesmo se o evento não puder ser enviado
-        }
+        // SSE desabilitado
+        console.log("[Webhook] Notificação SSE desabilitada");
         
         return NextResponse.json({
           success: true,
@@ -303,18 +366,8 @@ export async function POST(request: Request): Promise<Response> {
         
         console.log("[Webhook] Espelho de correção processado para o lead:", leadID);
         
-        // Enviar evento SSE para notificar o frontend
-        try {
-          await sendEventToLead(leadID, 'espelho_processado', {
-            leadId: leadID,
-            espelhoCorrecao: urlsEspelho,
-            textoDOEspelho: textoDOEspelho
-          });
-          console.log("[Webhook] Evento SSE enviado com sucesso para o lead:", leadID);
-        } catch (error) {
-          console.error("[Webhook] Erro ao enviar evento SSE:", error);
-          // Continuar mesmo se o evento não puder ser enviado
-        }
+        // SSE desabilitado
+        console.log("[Webhook] Notificação SSE desabilitada");
         
         return NextResponse.json({
           success: true,
@@ -391,18 +444,8 @@ export async function POST(request: Request): Promise<Response> {
       
       console.log("[Webhook] Manuscrito adicionado à fila de processamento");
       
-      // Enviar evento SSE para notificar o frontend
-      try {
-        await sendEventToLead(leadID, 'manuscrito_processado', {
-          leadId: leadID,
-          manuscritoProcessado: true,
-          provaManuscrita: conteudoUnificado
-        });
-        console.log("[Webhook] Evento SSE enviado com sucesso para o lead:", leadID);
-      } catch (error) {
-        console.error("[Webhook] Erro ao enviar evento SSE:", error);
-        // Continuar mesmo se o evento não puder ser enviado
-      }
+      // SSE desabilitado
+      console.log("[Webhook] Notificação SSE desabilitada");
       
       return NextResponse.json({
         success: true,

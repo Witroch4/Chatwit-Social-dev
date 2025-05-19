@@ -5,7 +5,7 @@ import NextAuth from "next-auth";
 import authConfig from "./auth.config";
 import { prisma } from "./lib/prisma";
 import { findUserbyEmail } from "./services";
-import { isTwoFactorAutenticationEnabled } from "./services/auth";
+import { isTwoFactorAuthenticationEnabled } from "./services/auth";
 
 export const {
   handlers: { GET, POST },
@@ -63,14 +63,14 @@ export const {
           select: { password: true }
         });
         token.isOAuth = !dbUser?.password;
-        token.isTwoFactorEnabled = user.isTwoFactorEnabled || false;
+        token.isTwoFactorAuthEnabled = user.isTwoFactorAuthEnabled || false;
 
         console.log("Requisição Prisma: Buscando status de autenticação de dois fatores");
         if (!user.id) {
           throw new Error("User id não definido");
         }
-        const isTwoFactorEnabled = await isTwoFactorAutenticationEnabled(user.id);
-        token.isTwoFactorEnabled = isTwoFactorEnabled;
+        const isTwoFactorAuthEnabled = await isTwoFactorAuthenticationEnabled(user.id);
+        token.isTwoFactorAuthEnabled = isTwoFactorAuthEnabled ?? false;
 
         console.log("Requisição Prisma: Buscando conta do Instagram");
         const instagramAccount = await prisma.account.findFirst({
@@ -112,7 +112,7 @@ export const {
     async session({ session, token }) {
       if (session.user) {
         session.user.id = token.sub as string;
-        session.user.isTwoFactorEnabled = token.isTwoFactorEnabled as boolean;
+        session.user.isTwoFactorAuthEnabled = token.isTwoFactorAuthEnabled as boolean;
         session.user.role = token.role as UserRole;
         session.user.instagramAccessToken = token.instagramAccessToken as string | undefined;
         session.user.providerAccountId = token.providerAccountId as string | undefined;

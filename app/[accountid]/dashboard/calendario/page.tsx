@@ -38,9 +38,11 @@ export default function CalendarioPage() {
   const { toast } = useToast();
   const params = useParams() as CalendarParams;
 
-  // Pega userID e igUserId da sessão
+  // Pega userID da sessão
   const userID = session?.user?.id;
-  const igUserId = session?.user?.providerAccountId;
+  
+  // Use o accountid do parâmetro da URL como providerAccountId
+  const igUserId = params.accountid;
 
   // Carrega agendamentos usando o hook
   const { agendamentos, loading, error, refetch } = useAgendamentos(userID);

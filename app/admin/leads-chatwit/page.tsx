@@ -293,6 +293,7 @@ export default function LeadsChatwitPage() {
           <LeadsDashboard 
             period={filterPeriod} 
             refreshCounter={refreshCounter}
+            isOpen={showDashboard}
           />
         </div>
       )}
@@ -322,6 +323,9 @@ export default function LeadsChatwitPage() {
             searchQuery={searchQuery}
             onRefresh={handleRefresh}
             initialLoading={isLoading}
+            onViewLeads={(usuarioId: string) => {
+              setActiveTab("leads");
+            }}
           />
         </div>
       )}

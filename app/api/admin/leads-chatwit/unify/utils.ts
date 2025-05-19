@@ -244,7 +244,11 @@ export async function downloadUrlAsBuffer(url: string): Promise<Buffer> {
  */
 export function isImage(url: string): boolean {
   try {
-    const ext = url.split('.').pop()?.toLowerCase() || "";
+    const urlPath = url.split('?')[0].split('#')[0]; // Remove query params e hash
+    const filename = urlPath.split('/').pop() || "";
+    // Extrai a extensão até o primeiro caractere especial após ela
+    const extensionMatch = filename.match(/\.([^.-]+)(?:[-*]|$)/);
+    const ext = extensionMatch ? extensionMatch[1].toLowerCase() : "";
     return ["jpg", "jpeg", "png", "gif", "webp", "bmp", "svg", "tiff", "tif"].includes(ext);
   } catch (error) {
     return false;
@@ -256,7 +260,11 @@ export function isImage(url: string): boolean {
  */
 export function isOfficeFile(url: string): boolean {
   try {
-    const ext = url.split('.').pop()?.toLowerCase() || "";
+    const urlPath = url.split('?')[0].split('#')[0]; // Remove query params e hash
+    const filename = urlPath.split('/').pop() || "";
+    // Extrai a extensão até o primeiro caractere especial após ela
+    const extensionMatch = filename.match(/\.([^.-]+)(?:[-*]|$)/);
+    const ext = extensionMatch ? extensionMatch[1].toLowerCase() : "";
     return ["doc", "docx", "ppt", "pptx", "xls", "xlsx", "odt", "odp", "ods"].includes(ext);
   } catch (error) {
     return false;
@@ -268,7 +276,11 @@ export function isOfficeFile(url: string): boolean {
  */
 export function isPdf(url: string): boolean {
   try {
-    const ext = url.split('.').pop()?.toLowerCase() || "";
+    const urlPath = url.split('?')[0].split('#')[0]; // Remove query params e hash
+    const filename = urlPath.split('/').pop() || "";
+    // Extrai a extensão até o primeiro caractere especial após ela
+    const extensionMatch = filename.match(/\.([^.-]+)(?:[-*]|$)/);
+    const ext = extensionMatch ? extensionMatch[1].toLowerCase() : "";
     return ext === "pdf";
   } catch (error) {
     return false;

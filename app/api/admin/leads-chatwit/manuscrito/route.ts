@@ -50,7 +50,7 @@ export async function DELETE(request: Request) {
     const lead = await prisma.leadChatwit.update({
       where: { id: leadId },
       data: {
-        provaManuscrita: null,
+        provaManuscrita: undefined,
         manuscritoProcessado: false
       },
     });

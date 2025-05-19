@@ -7,7 +7,8 @@
 	},
 	"scripts": {
 		"build:workers": "tsc --project tsconfig.worker.json && tsc-alias --project tsconfig.worker.json",
-		"build": "next build && npm run build:workers",
+		"build:bullboard": "tsc --project tsconfig.scripts.json",
+		"build": "next build && npm run build:workers && npm run build:bullboard",
 		"start:worker": "ts-node -r tsconfig-paths/register worker/automacao.worker.ts",
 		"worker": "ts-node -r tsconfig-paths/register worker/webhook.worker.ts",
 		"server": "node server.js",
@@ -15,8 +16,8 @@
 		"devv": "next dev",
 		"start": "next start",
 		"db:clear": "prisma migrate reset -f",
-		"db:push": "prisma db push --force-reset --accept-data-loss && ts-node -r tsconfig-paths/register prisma/seed.ts",
-		"db:seed": "ts-node -r tsconfig-paths/register prisma/seed.ts",
+		"db:push": "prisma db push --force-reset --accept-data-loss && npm run db:seed",
+		"db:seed": "prisma db seed",
 		"db:studio": "prisma studio",
 		"wit": "node ./clonedb.js",
 		"postinstall": "prisma generate",
@@ -32,9 +33,9 @@
 		"@auth/prisma-adapter": "^2.0.0",
 		"@aws-sdk/client-s3": "^3.758.0",
 		"@aws-sdk/s3-request-presigner": "^3.758.0",
-		"@bull-board/api": "^6.5.4",
-		"@bull-board/express": "^6.5.4",
-		"@bull-board/ui": "^6.5.4",
+		"@bull-board/api": "6.9.6",
+		"@bull-board/express": "6.9.6",
+		"@bull-board/ui": "6.9.6",
 		"@emotion/react": "^11.14.0",
 		"@emotion/styled": "^11.14.0",
 		"@hookform/resolvers": "^3.3.4",
@@ -71,13 +72,13 @@
 		"@types/react-syntax-highlighter": "^15.5.13",
 		"axios": "^1.7.9",
 		"bcryptjs": "^2.4.3",
-		"bull-board": "^2.1.3",
 		"bullmq": "^5.51.1",
 		"class-variance-authority": "^0.7.1",
 		"clsx": "^2.1.1",
 		"cmdk": "^1.0.0",
 		"date-fns": "^3.6.0",
 		"dotenv": "^16.4.7",
+		"express": "^5.1.0",
 		"file-saver": "^2.0.5",
 		"form-data": "^4.0.1",
 		"formidable": "^3.5.2",
@@ -140,6 +141,7 @@
 		"@biomejs/biome": "^1.7.3",
 		"@tailwindcss/typography": "^0.5.16",
 		"@types/bcryptjs": "^2.4.6",
+		"@types/express": "^5.0.2",
 		"@types/file-saver": "^2.0.7",
 		"@types/formidable": "^3.4.5",
 		"@types/node": "^22.10.2",
@@ -157,9 +159,10 @@
 		"ts-node": "^10.9.2",
 		"tsc-alias": "^1.8.10",
 		"tsconfig-paths": "^4.2.0",
+		"tsx": "^4.19.4",
 		"typescript": "^5"
 	},
 	"prisma": {
-		"seed": "ts-node -r tsconfig-paths/register prisma/seed.ts"
+		"seed": "tsx prisma/seed.ts"
 	}
 }

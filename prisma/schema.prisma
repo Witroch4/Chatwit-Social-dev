@@ -373,6 +373,7 @@ model LeadChatwit {
   aguardandoAnalise Boolean       @default(false) // Indica se está aguardando análise
   analisePreliminar Json?         // Dados da pré-análise
   analiseValidada   Boolean       @default(false) // Indica se a análise foi validada pelo usuário
+  customAccessToken String?       // Token de acesso personalizado para o Chatwoot
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
 

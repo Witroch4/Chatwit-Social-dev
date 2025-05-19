@@ -24,6 +24,7 @@ export type ContextAction =
   | 'reunificarArquivos' 
   | 'reconverterImagem' 
   | 'excluirArquivo'
+  | 'excluirTodosArquivos'
   | 'reenviarManuscrito'
   | 'excluirManuscrito'
   | 'editarManuscrito'
@@ -58,7 +59,17 @@ export function LeadContextMenu({ contextType, onAction, children, data }: LeadC
             <ContextMenuItem onClick={() => onAction('abrirLead', data)}>
               Abrir Lead
             </ContextMenuItem>
-            {contextType === 'arquivo' && <ContextMenuSeparator />}
+            {contextType === 'arquivo' && (
+              <>
+                <ContextMenuSeparator />
+                <ContextMenuItem
+                  onClick={() => onAction('excluirTodosArquivos', data)}
+                  className="text-red-500 focus:text-red-500 focus:bg-red-50"
+                >
+                  Excluir Todos Arquivos
+                </ContextMenuItem>
+              </>
+            )}
           </>
         )}
 
