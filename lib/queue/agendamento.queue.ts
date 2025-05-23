@@ -9,11 +9,11 @@ const AGENDAMENTO_QUEUE_NAME = 'agendamento';
  * Interface dos dados que serão passados ao job.
  */
 export interface IAgendamentoJobData {
-  baserowId: string; // Ex: "ag-job-<id>"
-  Data: string;      // Data/hora em formato ISO
-  userID: string;    // ID do usuário responsável pelo agendamento
-  accountId: string; // ID da conta associada ao agendamento
-  Diario?: boolean;  // Indica se é um agendamento diário
+  agendamentoId: string;  // ID direto do Prisma
+  Data: string;           // data em ISO string
+  userId: string;         // padronize: userId (minúsculo “u”)
+  accountId: string;
+  Diario?: boolean;
 }
 
 /**
@@ -48,12 +48,13 @@ export async function scheduleAgendamentoJob(agendamento: {
   const delayMs = Math.max(delay, 0); // Garante que o delay não seja negativo
 
   const jobData: IAgendamentoJobData = {
-    baserowId: `ag-job-${agendamento.id}`,
+    agendamentoId: agendamento.id,
     Data: agendamento.Data.toISOString(),
-    userID: agendamento.userId,
+    userId: agendamento.userId,
     accountId: agendamento.accountId,
     Diario: agendamento.Diario,
   };
+  
 
   console.log(`[AgendamentoQueue] Agendando job para ${agendamento.Data.toISOString()} (delay: ${delayMs}ms)`);
 
@@ -67,16 +68,17 @@ export async function scheduleAgendamentoJob(agendamento: {
  * Cancela um job de agendamento na fila
  * @param agendamentoId ID do agendamento a ser cancelado
  */
+// DEPOIS: filtre direto pelo agendamentoId que tá no payload
 export async function cancelAgendamentoJob(agendamentoId: string) {
-  const jobs = await agendamentoQueue.getJobs();
+  // pode buscar apenas os jobs delayed ou waiting:
+  const jobs = await agendamentoQueue.getJobs(['delayed', 'waiting']);
 
-  // Filtra jobs pelo ID do agendamento no baserowId
   const jobsToRemove = jobs.filter(job =>
-    job.data.baserowId === `ag-job-${agendamentoId}`
+    job.data.agendamentoId === agendamentoId
   );
 
   console.log(`[AgendamentoQueue] Cancelando ${jobsToRemove.length} jobs para o agendamento ${agendamentoId}`);
 
-  // Remove todos os jobs encontrados
   await Promise.all(jobsToRemove.map(job => job.remove()));
 }
+

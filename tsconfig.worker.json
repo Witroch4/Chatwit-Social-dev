@@ -1,3 +1,4 @@
+/* tsconfig.worker.json */
 {
   "extends": "./tsconfig.base.json",
   "compilerOptions": {

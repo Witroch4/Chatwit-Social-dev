@@ -7,51 +7,85 @@ services:
     env_file:
       - .env.development
     environment:
-      # Configurações para detecção de alterações em tempo real
+      # Informa ao server.js que estamos dentro do Docker
+      RUN_IN_DOCKER: "true"
+
+      # Dev watch
       WATCHPACK_POLLING: "true"
       CHOKIDAR_USEPOLLING: "true"
       FAST_REFRESH: "true"
       NEXT_WEBPACK_USEPOLLING: "true"
       NEXT_SCRIPT: dev:polling
-      
-      # Redis (ajuste para apontar para o container redis)
+
+      # Redis
       REDIS_HOST: "redis"
       REDIS_PORT: "6379"
-      
-      # Configuração do ngrok
+
+      # Ngrok (se ainda quiser no app)
       NGROK_AUTHTOKEN: "2q8n28IDz0mMwNr02MlHnLGsbKE_6ohF5ifRMgFBW867Mk5Zi"
-      
     ports:
       - "3000:3000"
-      - "3005:3005" # Porta para o Bull Board
+      - "3005:3005" # Bull Board
     volumes:
-      # Mapeia o repositório local para /src no container
       - .:/src
-      # Volume para node_modules
       - node_modules:/src/node_modules
-
-      # Pasta temporária
       - ./temp:/src/temp
     command: sh -c "npm run ${NEXT_SCRIPT:-dev}"
     networks:
       - minha_rede
-    develop:
-      watch:
-        - action: sync
-          path: .
-          target: /src
-          ignore:
-            - node_modules/
-            - ".git/"
-            - "Dockerfile*"
-            - "docker-compose*.yml"
-        - action: rebuild
-          path: package.json
     restart: unless-stopped
     depends_on:
       - redis
-  
-  # Serviço Redis usando imagem redis:7-alpine
+
+  # ───────────────────────────────────────────────────────
+  # Worker 1: automacao (worker/automacao.worker.ts)
+  # ───────────────────────────────────────────────────────
+  automacao_worker:
+    container_name: chatwit_worker_automacao
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    env_file:
+      - .env.development
+    environment:
+      REDIS_HOST: "redis"
+      REDIS_PORT: "6379"
+    command: npm run start:worker        # roda worker/automacao.worker.ts
+    volumes:
+      - .:/src
+      - node_modules:/src/node_modules
+    networks:
+      - minha_rede
+    restart: unless-stopped
+    depends_on:
+      - redis
+
+  # ───────────────────────────────────────────────────────
+  # Worker 2: webhook (worker/webhook.worker.ts)
+  # ───────────────────────────────────────────────────────
+  webhook_worker:
+    container_name: chatwit_worker_webhook
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    env_file:
+      - .env.development
+    environment:
+      REDIS_HOST: "redis"
+      REDIS_PORT: "6379"
+    command: npm run worker             # roda worker/webhook.worker.ts
+    volumes:
+      - .:/src
+      - node_modules:/src/node_modules
+    networks:
+      - minha_rede
+    restart: unless-stopped
+    depends_on:
+      - redis
+
+  # ───────────────────────────────────────────────────────
+  # Redis
+  # ───────────────────────────────────────────────────────
   redis:
     image: redis:7-alpine
     container_name: chatwit_redis

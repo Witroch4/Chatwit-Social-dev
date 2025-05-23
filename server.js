@@ -36,84 +36,51 @@ app.prepare().then(() => {
     );
   });
 
-  if (dev) {
+  if (dev && !process.env.RUN_IN_DOCKER) {
     // ---------------------------------------------------------------
-    // SPAWN DOS WORKERS (apenas em desenvolvimento)
+    // SPAWN DOS WORKERS (apenas em desenvolvimento local)
     // ---------------------------------------------------------------
 
-    // Caminho para executável do npx para garantir acesso ao ts-node
     const npxPath = path.join(process.cwd(), 'node_modules', '.bin', 'npx');
 
-    // Inicializa o Bull Board para monitoramento das filas
-    // O Bull Board agora será responsável por inicializar todos os workers
+    // Bull Board (que por sua vez inicializa seus próprios workers)
     const bullBoardServer = spawn(
       npxPath,
       ["ts-node", "-r", "tsconfig-paths/register", "bull-board-server.ts"],
-      {
-        shell: true,
-        stdio: "inherit",
-      }
+      { shell: true, stdio: "inherit" }
     );
 
-    // Inicializa apenas o worker do Instagram Webhook separadamente
-    // pois ele não é inicializado pelo Bull Board
+    // Worker de automação (caso queira rodar separado)
     const workerInstagram = spawn(
       npxPath,
       ["ts-node", "-r", "tsconfig-paths/register", "worker/automacao.worker.ts"],
-      {
-        shell: true,
-        stdio: "inherit",
-      }
+      { shell: true, stdio: "inherit" }
     );
 
-    // ---------------------------------------------------------------
-    // SPAWN DO NGROK (apenas em desenvolvimento)
-    // ---------------------------------------------------------------
+    // ngrok (apenas em dev local)
     try {
       const ngrokProcess = spawn(
         "ngrok",
-        [
-          "http",
-          "--region=sa",
-          "--hostname=moving-eagle-bright.ngrok-free.app",
-          "3000",
-        ],
-        {
-          shell: true,
-          stdio: "pipe",
-        }
+        ["http", "--region=sa", "--hostname=moving-eagle-bright.ngrok-free.app", "3000"],
+        { shell: true, stdio: "pipe" }
       );
-
-      ngrokProcess.stdout.on("data", (data) => {
-        console.log(`[ngrok] ${data}`);
-      });
-      ngrokProcess.stderr.on("data", (data) => {
-        console.error(`[ngrok-err] ${data}`);
-      });
+      ngrokProcess.stdout.on("data", data => console.log(`[ngrok] ${data}`));
+      ngrokProcess.stderr.on("data", data => console.error(`[ngrok-err] ${data}`));
     } catch (error) {
       console.error(`[ngrok-err] Falha ao iniciar ngrok: ${error.message}`);
     }
 
-    // Função de encerramento que finaliza servidor e workers
+    // função de shutdown encerra também esses spawns
     function shutdown() {
       console.log("> [server] Encerrando servidor e workers...");
-
-      // Fecha conexões ativas
-      for (const conn of connections) {
-        conn.destroy();
-      }
-
+      for (const conn of connections) conn.destroy();
       server.close(() => {
         console.log("> [server] Servidor encerrado.");
-
-        // Mata os workers e o processo do ngrok
-        if (bullBoardServer && bullBoardServer.kill) bullBoardServer.kill();
-        if (workerInstagram && workerInstagram.kill) workerInstagram.kill();
-        
+        bullBoardServer.kill();
+        workerInstagram.kill();
         process.exit(0);
       });
     }
-
     process.on("SIGINT", shutdown);
     process.on("SIGTERM", shutdown);
   } else {

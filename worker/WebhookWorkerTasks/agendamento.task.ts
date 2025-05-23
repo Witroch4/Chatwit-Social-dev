@@ -11,7 +11,7 @@ export async function processAgendamentoTask(job: Job<IAgendamentoJobData>) {
   console.log(`[BullMQ] Processando job de agendamento: ${job.id}`);
   console.log(`[BullMQ] Dados do job:`, job.data);
 
-  const agendamentoId = job.data.baserowId.split('-').pop() || '';
+  const agendamentoId = job.data.agendamentoId;
 
   try {
     const agendamento = await prisma.agendamento.findUnique({
@@ -41,7 +41,7 @@ export async function processAgendamentoTask(job: Job<IAgendamentoJobData>) {
       await scheduleAgendamentoJob({
         id: agendamentoId,
         Data: nextDay,
-        userId: job.data.userID,
+        userId: job.data.userId,
         accountId: job.data.accountId,
         Diario: true,
       });

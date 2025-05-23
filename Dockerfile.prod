@@ -135,7 +135,7 @@ ENV ILOVEPDF_SECRET_KEY=${ILOVEPDF_SECRET_KEY}
 COPY package*.json ./
 COPY prisma ./prisma/
 
-RUN npm ci
+RUN npm ci --omit=dev
 
 # Copia o restante dos arquivos
 COPY . .
@@ -145,6 +145,8 @@ RUN npx prisma generate
 
 # Compila o Next.js e os workers
 RUN npm run build
+
+
 
 # Etapa 2: Imagem de produção otimizada
 FROM node:22-slim
@@ -167,6 +169,8 @@ RUN if [ -f /etc/ImageMagick-6/policy.xml ]; then \
     else \
       echo "Nenhum arquivo de política do ImageMagick encontrado"; \
     fi
+
+
 
 # Copia apenas os arquivos necessários da imagem de build
 COPY --from=builder /app/package*.json ./

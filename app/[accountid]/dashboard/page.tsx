@@ -234,10 +234,21 @@ export default function DashboardHome() {
         <pre className="text-sm bg-gray-100 p-4 rounded">
           {JSON.stringify(subscriptionData, null, 2)}
         </pre>
+        </section>
+              {/* =========================
+          DEBUG: Dados da Sessão do Usuário
+          ========================= */}
+      <section className="border-t border-gray-300 pt-4 mt-4">
+        <h2 className="text-xl font-bold mb-2">DEBUG: Dados da Sessão</h2>
+        <pre className="text-sm bg-gray-100 p-4 rounded">
+          {JSON.stringify(session, null, 2)}
+        </pre>
+      </section>
+
         {/* =========================
              Fim da seção DEBUG
              ========================= */}
-      </section>
+      
     </div>
   );
 }

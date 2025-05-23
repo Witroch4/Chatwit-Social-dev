@@ -20,6 +20,7 @@ export async function POST(request: Request) {
     const file = formData.get('file') as File | null;
     const purpose = (formData.get('purpose') as UploadPurpose) || 'user_data';
     const sessionId = formData.get('sessionId') as string || null;
+    console.log(`#########ERA PRA SER SESSAO ID: ${sessionId}`);
 
     if (!file) {
       console.error('Nenhum arquivo enviado');

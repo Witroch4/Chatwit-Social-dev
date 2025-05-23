@@ -1,4 +1,4 @@
-
+#docker-compose.yml (usado pra fazer o comando docker compose build - p/ produção)
 services:
   redis:
     container_name: redis

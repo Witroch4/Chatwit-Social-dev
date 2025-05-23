@@ -1,3 +1,4 @@
+#docker-compose-produção.yaml (vou rodar ele no portainer)
 services:
   chatwit_social_app:
     image: witrocha/chatwit-social:latest
@@ -94,9 +95,10 @@ services:
         max-size: 10m
         max-file: "3"
 
-  worker_agendamento:
+  worker_automacao:
     image: witrocha/chatwit-social:latest
-    command: node dist/worker/automacao.worker.js
+    #command: node dist/worker/automacao.worker.js
+    command: npm run start:automacao:prod
     networks:
       - minha_rede
     environment:
@@ -173,9 +175,10 @@ services:
         max-size: 10m
         max-file: "3"
 
-  worker_instagram:
+  worker_webhook:
     image: witrocha/chatwit-social:latest
-    command: node dist/worker/webhook.worker.js
+    #command: node dist/worker/webhook.worker.js
+    command: npm run start:webhook:prod
     networks:
       - minha_rede
     environment:
