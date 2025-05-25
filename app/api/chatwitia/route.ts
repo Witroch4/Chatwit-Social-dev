@@ -344,6 +344,32 @@ export async function GET() {
   }
 }
 
+// Função para testar se uma URL de imagem é acessível
+async function testImageUrl(url: string): Promise<boolean> {
+  try {
+    const response = await fetch(url, { 
+      method: 'HEAD'
+    });
+    
+    if (!response.ok) {
+      console.error(`❌ URL não acessível: ${url} (status: ${response.status})`);
+      return false;
+    }
+    
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.startsWith('image/')) {
+      console.error(`❌ URL não é uma imagem: ${url} (content-type: ${contentType})`);
+      return false;
+    }
+    
+    console.log(`✅ URL de imagem acessível: ${url} (${contentType})`);
+    return true;
+  } catch (error) {
+    console.error(`❌ Erro ao testar URL: ${url}`, error);
+    return false;
+  }
+}
+
 // Função para processar requisições para a API do OpenAI, agora suportando streaming
 async function handleOpenAIRequest(messages: Message[], model: string, sessionId?: string, fileIds: string[] = [], previousResponseId?: string) {
   try {
@@ -556,346 +582,26 @@ async function handleOpenAIRequest(messages: Message[], model: string, sessionId
       };
     }) as OpenAI.Chat.ChatCompletionMessageParam[];
     
-    // Verificar se temos arquivos anexados ou se devemos usar Responses API
+    // Sempre usar Responses API para modelos compatíveis (mais moderna e robusta)
+    // Apenas ajustar as ferramentas conforme necessário
+    const hasImageUrls = messages.some(msg => 
+      typeof msg.content === 'string' && msg.content.includes('<!-- IMAGES_JSON')
+    );
+    
     const shouldUseResponsesApi = 
-      supportsImageGeneration || 
-      (fileIds.length > 0 && (openaiModel === 'gpt-4o' || 
-       openaiModel.includes('gpt-4o') || 
-       openaiModel.includes('-o') ||
-       openaiModel.startsWith('o')));
+      openaiModel === 'gpt-4o' || 
+      openaiModel.includes('gpt-4o') || 
+      openaiModel.includes('-o') ||
+      openaiModel.startsWith('o') ||
+      supportsImageGeneration;
        
-    // Define a custom transformer class for Responses API events
-    class ChunkTransformer implements Transformer<Uint8Array, Uint8Array> {
-      private buffer: string = '';
-      private encoder = new TextEncoder();
-      private decoder = new TextDecoder();
-      private completeContent: string = '';
-      private responseId: string = '';
-      private imageResults: any[] = [];
-      
-      constructor(
-        private sessionIdForDB?: string,
-        private userPrompt?: string,
-        private modelName?: string
-      ) {}
-      
-      async transform(chunk: Uint8Array, controller: TransformStreamDefaultController<Uint8Array>) {
-        // Decode the received chunk
-        const text = this.decoder.decode(chunk);
-        
-        try {
-          // Add to buffer first before processing
-          this.buffer += text;
-          
-          // Split by lines and process each SSE event
-          const lines = this.buffer.split('\n');
-          // Keep the last line in the buffer if it's not complete
-          this.buffer = lines.pop() || '';
-                
-          const validLines = lines.filter(line => line.trim() !== '');
-          
-          for (const line of validLines) {
-            // Check if it's SSE event
-            if (line.startsWith('event: ')) {
-              // Skip event type lines, we'll handle them with data
-              continue;
-            }
-            
-            if (line.startsWith('data: ')) {
-              const data = line.slice(5).trim();
-              
-              // Check if it's the [DONE] marker
-              if (data === '[DONE]') {
-                console.log('✅ Responses API stream complete');
-                console.log(`📊 Final content length: ${this.completeContent.length}`);
-                console.log(`🖼️ Images generated: ${this.imageResults.length}`);
-                console.log(`🆔 Response ID: ${this.responseId}`);
-                
-                // Send final done message with response ID for multi-turn
-                controller.enqueue(this.encoder.encode(JSON.stringify({
-                type: 'done',
-                response: {
-                    role: "assistant",
-                    content: this.completeContent,
-                    images: this.imageResults
-                  },
-                  response_id: this.responseId, // Important for multi-turn
-                  done: true
-                }) + '\n'));
-                continue;
-              }
-              
-              try {
-                // Parse the JSON event from Responses API
-                const eventData = JSON.parse(data);
-                
-                // Handle different event types from Responses API
-                switch (eventData.type) {
-                  case 'response.created':
-                    console.log('🚀 Response started, ID:', eventData.response?.id);
-                    this.responseId = eventData.response?.id || '';
-                    break;
-                    
-                  case 'response.output_text.delta':
-                    // Text incremental
-                    const textDelta = eventData.delta || '';
-                    this.completeContent += textDelta;
-                    
-                    // Send the chunk to the client
-                    controller.enqueue(this.encoder.encode(JSON.stringify({
-                      type: 'chunk',
-                      content: textDelta,
-                      done: false
-                    }) + '\n'));
-                    break;
-                    
-                  case 'response.image_generation_call.started':
-                    console.log('🎨 Image generation started');
-                    
-                    // Send status to client
-                    controller.enqueue(this.encoder.encode(JSON.stringify({
-                      type: 'image_generation_started',
-                      message: 'Gerando imagem...'
-                    }) + '\n'));
-                    break;
-                    
-                  case 'response.image_generation_call.partial_image':
-                    console.log(`🖼️ Partial image received, index: ${eventData.partial_image_index}`);
-                    
-                    // Send partial image to client
-                    controller.enqueue(this.encoder.encode(JSON.stringify({
-                      type: 'partial_image',
-                      image_data: eventData.partial_image_b64 || '',
-                      index: eventData.partial_image_index || 0
-                    }) + '\n'));
-                    break;
-                    
-                  case 'response.image_generation_call.completed':
-                    console.log('✅ Image generation completed');
-                    // Image will be processed in response.completed
-                    break;
-                    
-                  case 'response.completed':
-                    console.log('🏁 Response completed, processing final output');
-              
-                    // Process final output for images
-                    if (eventData.response?.output && Array.isArray(eventData.response.output)) {
-                      for (const output of eventData.response.output) {
-                        if (output.type === 'image_generation_call') {
-                          console.log('🖼️ Processing generated image');
-                          
-                          // Save image to MinIO and database
-                          try {
-                            const session = await auth();
-                            
-                            if (session?.user?.id && output.result) {
-                              // Convert base64 to buffer
-                              const base64Data = output.result.replace(/^data:image\/\w+;base64,/, '');
-                              const imageBuffer = Buffer.from(base64Data, 'base64');
-                              
-                              // Upload to MinIO
-                              const uploadResult = await uploadToMinIO(
-                                imageBuffer,
-                                `generated-image-${Date.now()}.png`,
-                                'image/png',
-                                true // Generate thumbnail
-                              );
-                              
-                              const imageUrl = uploadResult.url;
-                              const thumbnailUrl = uploadResult.thumbnail_url || '';
-                              
-                              console.log(`💾 Image saved to MinIO: ${imageUrl}`);
-                              
-                              // Save to database
-                              const savedImage = await db.generatedImage.create({
-                                data: {
-                                  userId: session.user.id,
-                                  sessionId: this.sessionIdForDB || null,
-                                  prompt: this.userPrompt || 'Imagem gerada',
-                                  revisedPrompt: output.revised_prompt || null,
-                                  model: this.modelName || '',
-                                  imageUrl: imageUrl,
-                                  thumbnailUrl: thumbnailUrl,
-                                  mimeType: uploadResult.mime_type,
-                                  createdAt: new Date()
-                                }
-                              });
-                              
-                              console.log(`💾 Image saved to database: ${savedImage.id}`);
-                              
-                              // Store image result for final response
-                              const imageResult = {
-                                id: output.id,
-                                result: output.result,
-                                revised_prompt: output.revised_prompt,
-                                url: imageUrl,
-                                image_url: imageUrl,
-                                thumbnail_url: thumbnailUrl
-                              };
-                              
-                              this.imageResults.push(imageResult);
-                      
-                              // Send image generated event immediately
-                              controller.enqueue(this.encoder.encode(JSON.stringify({
-                                type: 'image_generated',
-                                image_data: output.result,
-                                image_url: imageUrl,
-                                thumbnail_url: thumbnailUrl,
-                                revised_prompt: output.revised_prompt,
-                                image_id: output.id
-                              }) + '\n'));
-                              
-              } else {
-                              console.log('⚠️ Could not save image: user not authenticated or empty result');
-                              
-                              // Still send the event with available data
-                              const imageResult = {
-                                id: output.id,
-                                result: output.result,
-                                revised_prompt: output.revised_prompt,
-                                url: '',
-                                image_url: '',
-                                thumbnail_url: ''
-                              };
-                              
-                              this.imageResults.push(imageResult);
-                              
-                              controller.enqueue(this.encoder.encode(JSON.stringify({
-                                type: 'image_generated',
-                                image_data: output.result || '',
-                                image_url: '',
-                                thumbnail_url: '',
-                                revised_prompt: output.revised_prompt,
-                                image_id: output.id
-                              }) + '\n'));
-                            }
-                          } catch (saveError) {
-                            console.error('❌ Error saving image to MinIO:', saveError);
-                            
-                            // Still send the event with available data
-                            const imageResult = {
-                              id: output.id,
-                              result: output.result,
-                              revised_prompt: output.revised_prompt,
-                              url: '',
-                              image_url: '',
-                              thumbnail_url: ''
-                            };
-                            
-                            this.imageResults.push(imageResult);
-                            
-                            controller.enqueue(this.encoder.encode(JSON.stringify({
-                              type: 'image_generated',
-                              image_data: output.result || '',
-                              image_url: '',
-                              thumbnail_url: '',
-                              revised_prompt: output.revised_prompt,
-                              image_id: output.id
-                            }) + '\n'));
-                          }
-                        }
-                      }
-                    }
-                    
-                    // IMPORTANTE: Salvar mensagem do assistente no banco também aqui (Responses API)
-                    if (this.sessionIdForDB) {
-                      try {
-                        let contentToSave = this.completeContent;
-                        
-                        // Se temos imagens, adicionar elas como markdown ao conteúdo
-                        if (this.imageResults.length > 0) {
-                          // Buscar as imagens salvas no banco para obter as URLs corretas
-                          const session = await auth();
-                          
-                          if (session?.user?.id) {
-                            const savedImages = await db.generatedImage.findMany({
-                              where: {
-                                userId: session.user.id,
-                                sessionId: this.sessionIdForDB
-                              },
-                              orderBy: {
-                                createdAt: 'desc'
-                              },
-                              take: this.imageResults.length
-                            });
-                            
-                            // Usar as URLs das imagens salvas
-                            savedImages.forEach((img, index) => {
-                              const imageMarkdown = `![Imagem gerada](${img.imageUrl})`;
-                          
-                              if (contentToSave) {
-                                contentToSave += `\n\n${imageMarkdown}`;
-                              } else {
-                                contentToSave = imageMarkdown;
-                              }
-                            });
-                          } else {
-                            // Fallback: usar as URLs dos resultados (se disponíveis)
-                            this.imageResults.forEach((img, index) => {
-                              const imageUrl = img.url || img.image_url || '';
-                              if (imageUrl) {
-                                const imageMarkdown = `![Imagem gerada](${imageUrl})`;
-                        
-                                if (contentToSave) {
-                                  contentToSave += `\n\n${imageMarkdown}`;
-                                } else {
-                                  contentToSave = imageMarkdown;
-                                }
-                              }
-                            });
-                          }
-                        }
-                        
-                        await saveMessageToDatabase(this.sessionIdForDB, {
-                          role: 'assistant',
-                          content: contentToSave,
-                          contentType: 'text'
-                        });
-                        
-                        console.log('✅ Assistant message saved to database [COMPLETED]');
-                      } catch (dbError) {
-                        console.error('❌ Error saving message to database [COMPLETED]:', dbError);
-                      }
-                    }
-                    
-                    break;
-                    
-                  case 'response.failed':
-                    console.error('❌ Response failed:', eventData.response?.error);
-                    controller.enqueue(this.encoder.encode(JSON.stringify({
-                      type: 'error',
-                      error: eventData.response?.error?.message || 'Response failed'
-                    }) + '\n'));
-                    break;
-                    
-                  default:
-                    console.log(`ℹ️ Unhandled event type: ${eventData.type}`);
-                }
-                  
-              } catch (parseErr: any) {
-                // Log the error but don't crash the stream
-                console.error('❌ Error parsing Responses API event:', parseErr.message);
-                console.log('🔍 Problematic data:', data.substring(0, 100) + (data.length > 100 ? '...' : ''));
-                
-                // If the error is about unterminated JSON, keep in buffer for next chunk
-                if (parseErr.message.includes('Unterminated string') || 
-                    parseErr.message.includes('Unexpected end of JSON')) {
-                  // Put the data back in the buffer to combine with the next chunk
-                  this.buffer = 'data: ' + data + '\n' + this.buffer;
-                  console.log('📝 Added incomplete JSON back to buffer for next chunk');
-                  continue;
-                }
-              }
-            }
-          }
-        } catch (outerError) {
-          // Catch any errors in the outer processing to prevent the stream from breaking
-          console.error('❌ Error processing chunk:', outerError);
-          // Continue processing - don't break the stream
-        }
-      }
-    }
-       
+    console.log(`🔍 Análise de uso da API:`);
+    console.log(`   - Modelo: ${openaiModel}`);
+    console.log(`   - Suporta geração de imagem: ${supportsImageGeneration}`);
+    console.log(`   - Tem URLs de imagem: ${hasImageUrls}`);
+    console.log(`   - Tem arquivos: ${fileIds.length > 0}`);
+    console.log(`   - Usar Responses API: ${shouldUseResponsesApi}`);
+    
     if (shouldUseResponsesApi) {
       console.log(`Usando Responses API para modelo ${openaiModel} com suporte a geração de imagem`);
       
@@ -948,17 +654,49 @@ async function handleOpenAIRequest(messages: Message[], model: string, sessionId
       });
       
       // Adicionar URLs de imagem diretamente, se presentes
-      imageUrls.forEach(imageUrl => {
-        inputContent.push({ 
-          type: "input_image", 
-          image_url: { url: imageUrl },
-          detail: "high"
-        });
-      });
+      for (const imageUrl of imageUrls) {
+        console.log(`🖼️ Processando imagem URL: ${imageUrl.substring(0, 100)}...`);
+        
+        // Validar se a URL é válida
+        try {
+          const url = new URL(imageUrl);
+          if (!url.protocol.startsWith('http')) {
+            console.error(`❌ URL inválida (protocolo): ${imageUrl}`);
+            continue;
+          }
+          
+          // Verificar se é uma URL de imagem válida
+          const isValidImageUrl = imageUrl.match(/\.(jpg|jpeg|png|gif|webp)$/i) || 
+                                 imageUrl.includes('objstoreapi.witdev.com.br') ||
+                                 imageUrl.includes('objstore.witdev.com.br');
+          
+          if (!isValidImageUrl) {
+            console.warn(`⚠️ URL pode não ser uma imagem válida: ${imageUrl}`);
+          }
+          
+          // Testar se a URL é acessível
+          const isAccessible = await testImageUrl(imageUrl);
+          if (!isAccessible) {
+            console.error(`❌ Pulando URL inacessível: ${imageUrl}`);
+            continue;
+          }
+          
+          inputContent.push({ 
+            type: "input_image", 
+            image_url: imageUrl,
+            detail: "high"
+          });
+          
+          console.log(`✅ URL de imagem adicionada com sucesso: ${imageUrl.substring(0, 50)}...`);
+        } catch (urlError) {
+          console.error(`❌ Erro ao processar URL da imagem: ${imageUrl}`, urlError);
+        }
+      }
       
-      // Preparar ferramentas - sempre incluir image_generation para modelos compatíveis
+      // Preparar ferramentas - só incluir image_generation se NÃO houver imagens no input
       const tools: any[] = [];
-      if (supportsImageGeneration) {
+      if (supportsImageGeneration && imageUrls.length === 0) {
+        // Só adicionar ferramenta de geração de imagem se não há imagens no input
         tools.push({ 
           type: "image_generation",
           quality: "high",
@@ -966,6 +704,9 @@ async function handleOpenAIRequest(messages: Message[], model: string, sessionId
           background: "auto",
           partial_images: 2  // Receber 2 imagens parciais durante o streaming
         });
+        console.log('🎨 Ferramenta de geração de imagem adicionada (sem imagens no input)');
+      } else if (imageUrls.length > 0) {
+        console.log('🖼️ Ferramenta de geração de imagem removida (há imagens no input)');
       }
           
           // Configurar opções para a requisição
@@ -1006,6 +747,48 @@ async function handleOpenAIRequest(messages: Message[], model: string, sessionId
       // Store the sessionId for database operations
       console.log('Using session ID for database:', sessionId);
 
+      // Log do payload para debug
+      console.log('📤 Payload sendo enviado para OpenAI Responses API:');
+      console.log('🔧 Model:', apiModel);
+      console.log('📝 Input content items:', inputContent.length);
+      console.log('🛠️ Tools:', tools.length > 0 ? tools.map(t => t.type) : 'none');
+      
+      // Log detalhado de cada item do inputContent
+      inputContent.forEach((item, index) => {
+        console.log(`📋 Input item ${index}:`, {
+          type: item.type,
+          hasText: item.text ? `yes (${item.text.length} chars)` : 'no',
+          hasFileId: item.file_id ? `yes (${item.file_id})` : 'no',
+          hasImageUrl: item.image_url ? 'yes' : 'no',
+          imageUrl: item.image_url ? `${item.image_url.substring(0, 100)}...` : 'none',
+          detail: item.detail || 'none'
+        });
+      });
+      
+      console.log('📊 Request options:', JSON.stringify(requestOptions, null, 2));
+
+      // Validação final do payload
+      if (!requestOptions.model) {
+        throw new Error('Modelo não especificado no payload');
+      }
+      
+      if (!requestOptions.input || !Array.isArray(requestOptions.input)) {
+        throw new Error('Input inválido no payload');
+      }
+      
+      if (requestOptions.input.length === 0) {
+        throw new Error('Input vazio no payload');
+      }
+      
+      // Verificar se há pelo menos um item de texto no input
+      const hasTextInput = inputContent.some(item => item.type === 'input_text' && item.text);
+      if (!hasTextInput) {
+        console.warn('⚠️ Nenhum input de texto encontrado, adicionando texto padrão');
+        inputContent.unshift({ type: "input_text", text: "Analise o conteúdo fornecido." });
+      }
+      
+      console.log('✅ Payload validado com sucesso');
+
       const response = await fetch(API_URL, {
         method: "POST",
         headers: {
@@ -1017,7 +800,382 @@ async function handleOpenAIRequest(messages: Message[], model: string, sessionId
 
       // Check if the fetch was successful
       if (!response.ok) {
-        throw new Error(`OpenAI API responded with status ${response.status}`);
+        // Capturar detalhes do erro da OpenAI
+        let errorDetails = '';
+        let errorObject = null;
+        
+        try {
+          const errorBody = await response.text();
+          errorDetails = errorBody;
+          
+          // Tentar fazer parse do JSON do erro
+          try {
+            errorObject = JSON.parse(errorBody);
+            console.error(`❌ OpenAI API Error ${response.status} - Parsed:`, errorObject);
+            
+            // Log específico para erro 400
+            if (response.status === 400) {
+              console.error('🔍 Detalhes do erro 400:');
+              console.error('📋 Error type:', errorObject?.error?.type);
+              console.error('📝 Error message:', errorObject?.error?.message);
+              console.error('🎯 Error code:', errorObject?.error?.code);
+              console.error('📊 Error param:', errorObject?.error?.param);
+              
+              // Log do payload que causou o erro
+              console.error('📤 Payload que causou o erro:');
+              console.error('🔧 Model:', apiModel);
+              console.error('📝 Input content items:', inputContent.length);
+              inputContent.forEach((item, index) => {
+                console.error(`📋 Item ${index}:`, {
+                  type: item.type,
+                  hasText: item.text ? 'yes' : 'no',
+                  hasFileId: item.file_id ? 'yes' : 'no',
+                  hasImageUrl: item.image_url ? 'yes' : 'no',
+                  imageUrlLength: item.image_url?.url?.length || 0
+                });
+              });
+              console.error('🛠️ Tools:', tools.length > 0 ? tools.map(t => t.type) : 'none');
+            }
+          } catch (parseError) {
+            console.error(`❌ OpenAI API Error ${response.status} - Raw:`, errorDetails);
+          }
+        } catch (e) {
+          console.error(`❌ OpenAI API Error ${response.status}: Não foi possível ler o corpo da resposta`);
+        }
+        
+        throw new Error(`OpenAI API responded with status ${response.status}: ${errorDetails}`);
+      }
+
+      // Define a custom transformer class for Responses API events
+      class ChunkTransformer implements Transformer<Uint8Array, Uint8Array> {
+        private buffer: string = '';
+        private encoder = new TextEncoder();
+        private decoder = new TextDecoder();
+        private completeContent: string = '';
+        private responseId: string = '';
+        private imageResults: any[] = [];
+        
+        constructor(
+          private sessionIdForDB?: string,
+          private userPrompt?: string,
+          private modelName?: string
+        ) {}
+        
+        async transform(chunk: Uint8Array, controller: TransformStreamDefaultController<Uint8Array>) {
+          // Decode the received chunk
+          const text = this.decoder.decode(chunk);
+          
+          try {
+            // Add to buffer first before processing
+            this.buffer += text;
+            
+            // Split by lines and process each SSE event
+            const lines = this.buffer.split('\n');
+            // Keep the last line in the buffer if it's not complete
+            this.buffer = lines.pop() || '';
+                  
+            const validLines = lines.filter(line => line.trim() !== '');
+            
+            for (const line of validLines) {
+              // Check if it's SSE event
+              if (line.startsWith('event: ')) {
+                // Skip event type lines, we'll handle them with data
+                continue;
+              }
+              
+              if (line.startsWith('data: ')) {
+                const data = line.slice(5).trim();
+                
+                // Check if it's the [DONE] marker
+                if (data === '[DONE]') {
+                  console.log('✅ Responses API stream complete');
+                  console.log(`📊 Final content length: ${this.completeContent.length}`);
+                  console.log(`🖼️ Images generated: ${this.imageResults.length}`);
+                  console.log(`🆔 Response ID: ${this.responseId}`);
+                  
+                  // Send final done message with response ID for multi-turn
+                  controller.enqueue(this.encoder.encode(JSON.stringify({
+                  type: 'done',
+                  response: {
+                      role: "assistant",
+                      content: this.completeContent,
+                      images: this.imageResults
+                    },
+                    response_id: this.responseId, // Important for multi-turn
+                    done: true
+                  }) + '\n'));
+                  continue;
+                }
+                
+                try {
+                  // Parse the JSON event from Responses API
+                  const eventData = JSON.parse(data);
+                  
+                  // Handle different event types from Responses API
+                  switch (eventData.type) {
+                    case 'response.created':
+                      console.log('🚀 Response started, ID:', eventData.response?.id);
+                      this.responseId = eventData.response?.id || '';
+                      break;
+                      
+                    case 'response.output_text.delta':
+                      // Text incremental
+                      const textDelta = eventData.delta || '';
+                      this.completeContent += textDelta;
+                      
+                      // Send the chunk to the client
+                      controller.enqueue(this.encoder.encode(JSON.stringify({
+                        type: 'chunk',
+                        content: textDelta,
+                        done: false
+                      }) + '\n'));
+                      break;
+                      
+                    case 'response.image_generation_call.started':
+                      console.log('🎨 Image generation started');
+                      
+                      // Send status to client
+                      controller.enqueue(this.encoder.encode(JSON.stringify({
+                        type: 'image_generation_started',
+                        message: 'Gerando imagem...'
+                      }) + '\n'));
+                      break;
+                      
+                    case 'response.image_generation_call.partial_image':
+                      console.log(`🖼️ Partial image received, index: ${eventData.partial_image_index}`);
+                      
+                      // Send partial image to client
+                      controller.enqueue(this.encoder.encode(JSON.stringify({
+                        type: 'partial_image',
+                        image_data: eventData.partial_image_b64 || '',
+                        index: eventData.partial_image_index || 0
+                      }) + '\n'));
+                      break;
+                      
+                    case 'response.image_generation_call.completed':
+                      console.log('✅ Image generation completed');
+                      // Image will be processed in response.completed
+                      break;
+                      
+                    case 'response.completed':
+                      console.log('🏁 Response completed, processing final output');
+                
+                      // Process final output for images
+                      if (eventData.response?.output && Array.isArray(eventData.response.output)) {
+                        for (const output of eventData.response.output) {
+                          if (output.type === 'image_generation_call') {
+                            console.log('🖼️ Processing generated image');
+                            
+                            // Save image to MinIO and database
+                            try {
+                              const session = await auth();
+                              
+                              if (session?.user?.id && output.result) {
+                                // Convert base64 to buffer
+                                const base64Data = output.result.replace(/^data:image\/\w+;base64,/, '');
+                                const imageBuffer = Buffer.from(base64Data, 'base64');
+                                
+                                // Upload to MinIO
+                                const uploadResult = await uploadToMinIO(
+                                  imageBuffer,
+                                  `generated-image-${Date.now()}.png`,
+                                  'image/png',
+                                  true // Generate thumbnail
+                                );
+                                
+                                const imageUrl = uploadResult.url;
+                                const thumbnailUrl = uploadResult.thumbnail_url || '';
+                                
+                                console.log(`💾 Image saved to MinIO: ${imageUrl}`);
+                                
+                                // Save to database
+                                const savedImage = await db.generatedImage.create({
+                                  data: {
+                                    userId: session.user.id,
+                                    sessionId: this.sessionIdForDB || null,
+                                    prompt: this.userPrompt || 'Imagem gerada',
+                                    revisedPrompt: output.revised_prompt || null,
+                                    model: this.modelName || '',
+                                    imageUrl: imageUrl,
+                                    thumbnailUrl: thumbnailUrl,
+                                    mimeType: uploadResult.mime_type,
+                                    createdAt: new Date()
+                                  }
+                                });
+                                
+                                console.log(`💾 Image saved to database: ${savedImage.id}`);
+                                
+                                // Store image result for final response
+                                const imageResult = {
+                                  id: output.id,
+                                  result: output.result,
+                                  revised_prompt: output.revised_prompt,
+                                  url: imageUrl,
+                                  image_url: imageUrl,
+                                  thumbnail_url: thumbnailUrl
+                                };
+                                
+                                this.imageResults.push(imageResult);
+                        
+                                // Send image generated event immediately
+                                controller.enqueue(this.encoder.encode(JSON.stringify({
+                                  type: 'image_generated',
+                                  image_data: output.result,
+                                  image_url: imageUrl,
+                                  thumbnail_url: thumbnailUrl,
+                                  revised_prompt: output.revised_prompt,
+                                  image_id: output.id
+                                }) + '\n'));
+                                
+              } else {
+                                console.log('⚠️ Could not save image: user not authenticated or empty result');
+                                
+                                // Still send the event with available data
+                                const imageResult = {
+                                  id: output.id,
+                                  result: output.result,
+                                  revised_prompt: output.revised_prompt,
+                                  url: '',
+                                  image_url: '',
+                                  thumbnail_url: ''
+                                };
+                                
+                                this.imageResults.push(imageResult);
+                                
+                                controller.enqueue(this.encoder.encode(JSON.stringify({
+                                  type: 'image_generated',
+                                  image_data: output.result || '',
+                                  image_url: '',
+                                  thumbnail_url: '',
+                                  revised_prompt: output.revised_prompt,
+                                  image_id: output.id
+                                }) + '\n'));
+                              }
+                            } catch (saveError) {
+                              console.error('❌ Error saving image to MinIO:', saveError);
+                              
+                              // Still send the event with available data
+                              const imageResult = {
+                                id: output.id,
+                                result: output.result,
+                                revised_prompt: output.revised_prompt,
+                                url: '',
+                                image_url: '',
+                                thumbnail_url: ''
+                              };
+                              
+                              this.imageResults.push(imageResult);
+                              
+                              controller.enqueue(this.encoder.encode(JSON.stringify({
+                                type: 'image_generated',
+                                image_data: output.result || '',
+                                image_url: '',
+                                thumbnail_url: '',
+                                revised_prompt: output.revised_prompt,
+                                image_id: output.id
+                              }) + '\n'));
+                            }
+                          }
+                        }
+                      }
+                      
+                      // IMPORTANTE: Salvar mensagem do assistente no banco também aqui (Responses API)
+                      if (this.sessionIdForDB) {
+                        try {
+                          let contentToSave = this.completeContent;
+                          
+                          // Se temos imagens, adicionar elas como markdown ao conteúdo
+                          if (this.imageResults.length > 0) {
+                            // Buscar as imagens salvas no banco para obter as URLs corretas
+                            const session = await auth();
+                            
+                            if (session?.user?.id) {
+                              const savedImages = await db.generatedImage.findMany({
+                                where: {
+                                  userId: session.user.id,
+                                  sessionId: this.sessionIdForDB
+                                },
+                                orderBy: {
+                                  createdAt: 'desc'
+                                },
+                                take: this.imageResults.length
+                              });
+                              
+                              // Usar as URLs das imagens salvas
+                              savedImages.forEach((img, index) => {
+                                const imageMarkdown = `![Imagem gerada](${img.imageUrl})`;
+                              
+                                if (contentToSave) {
+                                  contentToSave += `\n\n${imageMarkdown}`;
+                                } else {
+                                  contentToSave = imageMarkdown;
+                                }
+                              });
+                            } else {
+                              // Fallback: usar as URLs dos resultados (se disponíveis)
+                              this.imageResults.forEach((img, index) => {
+                                const imageUrl = img.url || img.image_url || '';
+                                if (imageUrl) {
+                                  const imageMarkdown = `![Imagem gerada](${imageUrl})`;
+                        
+                                  if (contentToSave) {
+                                    contentToSave += `\n\n${imageMarkdown}`;
+                                  } else {
+                                    contentToSave = imageMarkdown;
+                                  }
+                                }
+                              });
+                            }
+                          }
+                          
+                          await saveMessageToDatabase(this.sessionIdForDB, {
+                            role: 'assistant',
+                            content: contentToSave,
+                            contentType: 'text'
+                          });
+                          
+                          console.log('✅ Assistant message saved to database [COMPLETED]');
+                        } catch (dbError) {
+                          console.error('❌ Error saving message to database [COMPLETED]:', dbError);
+                        }
+                      }
+                      
+                      break;
+                      
+                    case 'response.failed':
+                      console.error('❌ Response failed:', eventData.response?.error);
+                      controller.enqueue(this.encoder.encode(JSON.stringify({
+                        type: 'error',
+                        error: eventData.response?.error?.message || 'Response failed'
+                      }) + '\n'));
+                      break;
+                      
+                    default:
+                      console.log(`ℹ️ Unhandled event type: ${eventData.type}`);
+                  }
+                    
+                } catch (parseErr: any) {
+                  // Log the error but don't crash the stream
+                  console.error('❌ Error parsing Responses API event:', parseErr.message);
+                  console.log('🔍 Problematic data:', data.substring(0, 100) + (data.length > 100 ? '...' : ''));
+                  
+                  // If the error is about unterminated JSON, keep in buffer for next chunk
+                  if (parseErr.message.includes('Unterminated string') || 
+                      parseErr.message.includes('Unexpected end of JSON')) {
+                    // Put the data back in the buffer to combine with the next chunk
+                    this.buffer = 'data: ' + data + '\n' + this.buffer;
+                    console.log('📝 Added incomplete JSON back to buffer for next chunk');
+                    continue;
+                  }
+                }
+              }
+            }
+          } catch (outerError) {
+            // Catch any errors in the outer processing to prevent the stream from breaking
+            console.error('❌ Error processing chunk:', outerError);
+            // Continue processing - don't break the stream
+          }
+        }
       }
 
       // Create our transformer instance
@@ -1288,5 +1446,38 @@ async function saveMessageToDatabase(sessionId: string, message: { role: string,
     console.log(`Message saved to database for session ${sessionId}`);
   } catch (error) {
     console.error('Error saving message to database:', error);
+  }
+}
+
+// Helper function to save uploaded images to the database for future reference
+async function saveUploadedImageToDatabase(sessionId: string, imageUrl: string, prompt: string = 'Imagem enviada pelo usuário') {
+  try {
+    const session = await auth();
+    
+    if (!session?.user?.id) {
+      console.error('Cannot save uploaded image: No authenticated user');
+      return null;
+    }
+    
+    // Save the uploaded image to the generatedImage table for consistency
+    const savedImage = await db.generatedImage.create({
+      data: {
+        userId: session.user.id,
+        sessionId: sessionId,
+        prompt: prompt,
+        revisedPrompt: null,
+        model: 'user-upload', // Identificar como upload do usuário
+        imageUrl: imageUrl,
+        thumbnailUrl: imageUrl.replace('.jpg', '_thumb.jpg').replace('.png', '_thumb.png'), // Assumir que há thumbnail
+        mimeType: imageUrl.includes('.jpg') ? 'image/jpeg' : 'image/png',
+        createdAt: new Date()
+      }
+    });
+    
+    console.log(`📸 Uploaded image saved to database: ${savedImage.id}`);
+    return savedImage;
+  } catch (error) {
+    console.error('Error saving uploaded image to database:', error);
+    return null;
   }
 } 

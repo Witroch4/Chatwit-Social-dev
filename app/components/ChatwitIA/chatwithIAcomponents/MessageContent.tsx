@@ -21,7 +21,7 @@ import rehypeRaw from "rehype-raw";
 import rehypeSanitize from "rehype-sanitize";
 import rehypeKatex from "rehype-katex";
 import CodeBlock from "./CodeBlock";
-import { FileIcon, Download, Eye, Copy } from "lucide-react";
+import { FileIcon, Download, Eye, Copy, MessageSquare } from "lucide-react";
 import {
   Tooltip,
   TooltipTrigger,
@@ -33,6 +33,7 @@ import { toast } from "sonner";
 interface Props {
   content: string;
   isStreaming?: boolean;
+  onImageReference?: (imageUrl: string, prompt?: string) => void;
 }
 
 // Componente para exibir imagens geradas
@@ -43,13 +44,15 @@ const GeneratedImage: React.FC<{
   onAspectRatioDetected?: (aspectRatio: string) => void;
   sharedAspectRatio?: string;
   isProgress?: boolean;
+  onReference?: (imageUrl: string, prompt?: string) => void;
 }> = React.memo(({ 
   src, 
   alt, 
   prompt,
   onAspectRatioDetected,
   sharedAspectRatio = '1 / 1',
-  isProgress = false
+  isProgress = false,
+  onReference
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -99,7 +102,20 @@ const GeneratedImage: React.FC<{
       onAspectRatioDetected(aspectRatioString);
     }
     
-    console.log(`🖼️ Imagem carregada - Dimensões: ${img.naturalWidth}x${img.naturalHeight}, Aspect Ratio: ${aspectRatio.toFixed(3)}`);
+    console.log(`🖼️ Imagem carregada com sucesso - Dimensões: ${img.naturalWidth}x${img.naturalHeight}, Aspect Ratio: ${aspectRatio.toFixed(3)}`);
+  };
+
+  const handleImageError = (e: React.SyntheticEvent<HTMLImageElement>) => {
+    console.error(`❌ Erro ao carregar imagem: ${src}`);
+    setIsLoading(false);
+    
+    // Se for uma thumbnail que falhou, tentar a URL original
+    const img = e.currentTarget;
+    if (src.includes('_thumb.') && src !== displaySrc) {
+      console.log(`🔄 Tentando URL original após falha da thumbnail`);
+      const originalUrl = src.replace(/_thumb\.(jpg|jpeg|png|webp)/, '.$1');
+      setDisplaySrc(originalUrl);
+    }
   };
 
   const handleDownload = async () => {
@@ -131,11 +147,18 @@ const GeneratedImage: React.FC<{
     }
   };
 
+  const handleReference = () => {
+    if (onReference) {
+      onReference(displaySrc, prompt || alt);
+      toast.success('Imagem referenciada! Você pode fazer uma nova pergunta sobre ela.');
+    }
+  };
+
   return (
     <div className="my-4">
       {/* Imagem */}
       <div 
-        className="relative w-full transition-all duration-300 ease-in-out" 
+        className="relative w-full transition-all duration-300 ease-in-out group" 
         style={{ 
           aspectRatio: isExpanded ? 'auto' : naturalAspectRatio,
           maxWidth: '100%'
@@ -156,7 +179,7 @@ const GeneratedImage: React.FC<{
           }}
           onClick={() => !isProgress && !isPreloading && setIsExpanded(!isExpanded)}
           onLoad={handleImageLoad}
-          onError={() => setIsLoading(false)}
+          onError={handleImageError}
         />
         
         {isLoading && (
@@ -192,63 +215,85 @@ const GeneratedImage: React.FC<{
         
         {/* Overlay com botões - apenas para imagens finais */}
         {!isProgress && !isPreloading && (
-          <div className="absolute top-2 right-2 flex gap-1 opacity-0 hover:opacity-100 transition-opacity">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  className="h-8 w-8 p-0 bg-white/80 hover:bg-white"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setIsExpanded(!isExpanded);
-                  }}
-                >
-                  <Eye className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>{isExpanded ? 'Reduzir' : 'Expandir'}</p>
-              </TooltipContent>
-            </Tooltip>
-            
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  className="h-8 w-8 p-0 bg-white/80 hover:bg-white"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleCopyUrl();
-                  }}
-                >
-                  <Copy className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Copiar URL</p>
-              </TooltipContent>
-            </Tooltip>
-            
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  className="h-8 w-8 p-0 bg-white/80 hover:bg-white"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleDownload();
-                  }}
-                >
-                  <Download className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Baixar imagem</p>
-              </TooltipContent>
-            </Tooltip>
+          <div className="absolute inset-0 bg-black/0 hover:bg-black/10 transition-all duration-200 rounded-lg opacity-0 hover:opacity-100 flex items-center justify-center">
+            {/* Botões centralizados */}
+            <div className="flex gap-2 bg-white/90 backdrop-blur-sm rounded-lg p-2 shadow-lg transform scale-90 hover:scale-100 transition-transform duration-200">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    className="h-10 w-10 p-0 bg-white/80 hover:bg-white border border-gray-200 hover:border-blue-300 hover:shadow-md transition-all duration-200"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setIsExpanded(!isExpanded);
+                    }}
+                  >
+                    <Eye className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>{isExpanded ? 'Reduzir' : 'Expandir'}</p>
+                </TooltipContent>
+              </Tooltip>
+              
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    className="h-10 w-10 p-0 bg-white/80 hover:bg-blue-50 border border-gray-200 hover:border-blue-300 hover:shadow-md transition-all duration-200"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleReference();
+                    }}
+                  >
+                    <MessageSquare className="h-4 w-4 hover:text-blue-600" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Referenciar imagem</p>
+                </TooltipContent>
+              </Tooltip>
+              
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    className="h-10 w-10 p-0 bg-white/80 hover:bg-green-50 border border-gray-200 hover:border-green-300 hover:shadow-md transition-all duration-200"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleCopyUrl();
+                    }}
+                  >
+                    <Copy className="h-4 w-4 hover:text-green-600" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Copiar URL</p>
+                </TooltipContent>
+              </Tooltip>
+              
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    className="h-10 w-10 p-0 bg-white/80 hover:bg-purple-50 border border-gray-200 hover:border-purple-300 hover:shadow-md transition-all duration-200"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDownload();
+                    }}
+                  >
+                    <Download className="h-4 w-4 hover:text-purple-600" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Baixar imagem</p>
+                </TooltipContent>
+              </Tooltip>
+            </div>
           </div>
         )}
       </div>
@@ -268,18 +313,11 @@ interface ContentPart {
   isProgress?: boolean;
 }
 
-export default React.memo(function MessageContent({ content, isStreaming = false }: Props) {
+export default React.memo(function MessageContent({ content, isStreaming = false, onImageReference }: Props) {
   if (!content) return null;
 
   // Estado para armazenar aspect-ratios detectados
   const [detectedAspectRatio, setDetectedAspectRatio] = useState<string>('1 / 1');
-
-  // Debug: log do conteúdo recebido (apenas uma vez por render, não repetidamente)
-  const debugInfo = useMemo(() => {
-    const shortContent = content.substring(0, 200) + (content.length > 200 ? '...' : '');
-    console.log('MessageContent - content received:', shortContent);
-    return shortContent;
-  }, [content]);
 
   // Detecta referências a arquivos para exibir aviso
   const hasFileReference = useMemo(() => {
@@ -298,27 +336,85 @@ export default React.memo(function MessageContent({ content, isStreaming = false
   const contentParts = useMemo((): ContentPart[] => {
     // Regex para detectar imagens markdown ![alt](url)
     const imageRegex = /!\[([^\]]*)\]\((https?:\/\/[^\s)]+|data:image\/[^;]+;base64,[A-Za-z0-9+/=]+)\)/g;
+    
+    // Regex para detectar formato <!-- IMAGES_JSON [{"url":"..."}] -->
+    const imagesJsonRegex = /<!-- IMAGES_JSON (\[.*?\]) -->/g;
+    
     const parts: ContentPart[] = [];
+    let processedContent = content;
     let lastIndex = 0;
-    let match;
 
     // Log apenas se houver mudança no conteúdo
-    const hasImages = content.includes('![');
-    if (hasImages) {
-      console.log('MessageContent - processing content for images...');
+    const hasImages = content.includes('![') || content.includes('<!-- IMAGES_JSON');
+    
+    // Primeiro, processar formato <!-- IMAGES_JSON -->
+    let jsonMatch;
+    let jsonMatchCount = 0;
+    while ((jsonMatch = imagesJsonRegex.exec(content)) !== null) {
+      jsonMatchCount++;
+      console.log(`🎯 MessageContent - found IMAGES_JSON match ${jsonMatchCount}:`, jsonMatch[1]);
+      
+      try {
+        const imageData = JSON.parse(jsonMatch[1]);
+        console.log('📊 MessageContent - Parsed image data:', imageData);
+        
+        // Adicionar texto antes das imagens
+        if (jsonMatch.index > lastIndex) {
+          const textBefore = content.slice(lastIndex, jsonMatch.index).trim();
+          if (textBefore) {
+            parts.push({
+              type: 'text',
+              content: textBefore
+            });
+          }
+        }
+        
+        // Adicionar cada imagem do JSON
+        imageData.forEach((img: any, imgIndex: number) => {
+          if (img.url) {
+            console.log(`🖼️ MessageContent - Adding image ${imgIndex}:`, img.url);
+            
+            // CORREÇÃO: Sempre usar URL original para garantir que a imagem carregue
+            // A thumbnail será usada apenas no ChatInputForm para preview
+            const displayUrl = img.url; // Sempre usar URL original
+            
+            console.log(`🔍 MessageContent - Using URL: ${displayUrl} (thumbnail: ${img.thumbnailUrl || 'none'})`);
+            
+            parts.push({
+              type: 'image',
+              alt: img.name || 'Imagem enviada',
+              src: displayUrl,
+              prompt: img.name || 'Imagem enviada pelo usuário',
+              isProgress: false
+            });
+          }
+        });
+        
+        lastIndex = jsonMatch.index + jsonMatch[0].length;
+        
+        // Remover o bloco JSON do conteúdo processado
+        processedContent = processedContent.replace(jsonMatch[0], '');
+      } catch (e) {
+        console.error('❌ Erro ao processar IMAGES_JSON:', e);
+      }
     }
     
-    while ((match = imageRegex.exec(content)) !== null) {
-      if (hasImages) {
-        console.log('MessageContent - found image match:', match[1], match[2].substring(0, 50) + '...');
-      }
-      
+    // Resetar regex para processar markdown normal no conteúdo restante
+    imageRegex.lastIndex = 0;
+    lastIndex = 0;
+    
+    // Processar imagens markdown no conteúdo restante
+    let match;
+    while ((match = imageRegex.exec(processedContent)) !== null) {
       // Adicionar texto antes da imagem
       if (match.index > lastIndex) {
-        parts.push({
-          type: 'text',
-          content: content.slice(lastIndex, match.index)
-        });
+        const textBefore = processedContent.slice(lastIndex, match.index).trim();
+        if (textBefore) {
+          parts.push({
+            type: 'text',
+            content: textBefore
+          });
+        }
       }
 
       // Determinar se é uma imagem parcial/progresso
@@ -339,19 +435,22 @@ export default React.memo(function MessageContent({ content, isStreaming = false
     }
 
     // Adicionar texto restante
-    if (lastIndex < content.length) {
-      parts.push({
-        type: 'text',
-        content: content.slice(lastIndex)
-      });
+    if (lastIndex < processedContent.length) {
+      const remainingText = processedContent.slice(lastIndex).trim();
+      if (remainingText) {
+        parts.push({
+          type: 'text',
+          content: remainingText
+        });
+      }
     }
 
     const result = parts.length > 0 ? parts : [{ type: 'text' as const, content: content }];
     
-    // Log apenas se houver imagens para reduzir spam
-    if (hasImages) {
-      console.log('MessageContent - processed parts:', result.length, 'parts');
-      console.log('MessageContent - image parts:', result.filter(p => p.type === 'image').length);
+    // Log apenas se houver imagens processadas
+    if (hasImages || result.filter(p => p.type === 'image').length > 0) {
+      console.log('📊 MessageContent - Final processed parts:', result.length, 'parts');
+      console.log('🖼️ MessageContent - Image parts:', result.filter(p => p.type === 'image').length);
     }
     
     return result;
@@ -362,9 +461,7 @@ export default React.memo(function MessageContent({ content, isStreaming = false
     (isStreaming ? "stream-content" : "stream-complete")
   , [isStreaming]);
 
-  const processed = hasFileReference
-    ? content.replace(/\[(.+?)\]\(file_id:(.+?)\)/g, "**[ARQUIVO: $1]**")
-    : content;
+  const processed = content.replace(/\[(.+?)\]\(file_id:(.+?)\)/g, "**[ARQUIVO: $1]**");
 
   return (
     <div className={proseClass}>
@@ -397,6 +494,7 @@ export default React.memo(function MessageContent({ content, isStreaming = false
               onAspectRatioDetected={handleAspectRatioDetection}
               sharedAspectRatio={detectedAspectRatio}
               isProgress={part.isProgress}
+              onReference={onImageReference}
             />
           );
         } else if (part.type === 'text' && part.content) {
@@ -405,9 +503,7 @@ export default React.memo(function MessageContent({ content, isStreaming = false
           
           if (!textContent.trim()) return null;
 
-          const processedText = hasFileReference
-            ? textContent.replace(/\[(.+?)\]\(file_id:(.+?)\)/g, "**[ARQUIVO: $1]**")
-            : textContent;
+          const processedText = textContent.replace(/\[(.+?)\]\(file_id:(.+?)\)/g, "**[ARQUIVO: $1]**");
 
           return (
       <ReactMarkdown

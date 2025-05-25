@@ -9,6 +9,7 @@ interface MessagesListProps {
   error: string | null;
   containerRef: React.RefObject<HTMLDivElement>;
   endRef: React.RefObject<HTMLDivElement>;
+  onImageReference?: (imageUrl: string, prompt?: string) => void;
 }
 
 const MessagesList = React.memo(function MessagesList({
@@ -17,6 +18,7 @@ const MessagesList = React.memo(function MessagesList({
   error,
   containerRef,
   endRef,
+  onImageReference,
 }: MessagesListProps) {
   // Verificar se já temos uma resposta em progresso (stream começou) - memoizado
   const hasResponseInProgress = useMemo(() => {
@@ -78,14 +80,17 @@ const MessagesList = React.memo(function MessagesList({
                             <span className="text-xs text-blue-700">Arquivo PDF anexado</span>
                           </div>
                         )}
-                        <p className="whitespace-pre-wrap">
-                          {pdf ? m.content.replace(/\[(.+?)\]\(file_id:.*?\)/g, "$1") : m.content}
-                        </p>
+                        <MessageContent 
+                          content={pdf ? m.content.replace(/\[(.+?)\]\(file_id:.*?\)/g, "**[ARQUIVO: $1]**") : m.content}
+                          isStreaming={false}
+                          onImageReference={onImageReference}
+                        />
                       </div>
                     ) : (
                       <MessageContent 
                         content={m.content} 
                         isStreaming={isLoading && i === messages.length - 1 && m.role === 'assistant'} 
+                        onImageReference={onImageReference}
                       />
                     )
                   ) : (

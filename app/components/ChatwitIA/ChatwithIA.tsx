@@ -252,6 +252,51 @@ export default function ChatwitIA({
     }
   }, [messages, chatId, onTitleChange]);
 
+  // Função para lidar com referência de imagem
+  const handleImageReference = useCallback(async (imageUrl: string, prompt?: string) => {
+    console.log(`🖼️ Referenciando imagem: ${imageUrl.substring(0, 50)}... com prompt: "${prompt}"`);
+    
+    try {
+      // Salvar a imagem no banco de dados para referência futura
+      const response = await fetch('/api/chatwitia/images/save', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          imageData: imageUrl, // Para URLs, enviar a URL diretamente
+          prompt: prompt || 'Imagem referenciada pelo usuário',
+          sessionId: chatId,
+          model: 'user-reference'
+        }),
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        console.log(`✅ Imagem referenciada salva no banco: ${result.image?.id}`);
+        
+        // Usar thumbnailUrl se disponível, senão usar a URL original
+        const displayUrl = result.image?.thumbnailUrl || imageUrl;
+        const originalUrl = imageUrl;
+        
+        // Adicionar a imagem ao input usando um formato que renderize a thumbnail
+        const imageMarkdown = `<!-- IMAGES_JSON [{"url": "${originalUrl}", "thumbnailUrl": "${displayUrl}", "name": "${prompt || 'Imagem referenciada'}", "isReference": true}] -->`;
+        setInput(prev => prev ? `${prev}\n\n${imageMarkdown}` : imageMarkdown);
+        
+        // Focar no input para o usuário digitar a pergunta
+        inputRef.current?.focus();
+        
+        toast.success('Imagem referenciada! Digite sua pergunta sobre ela.');
+      } else {
+        console.error('Erro ao salvar imagem referenciada:', response.status);
+        toast.error('Erro ao referenciar imagem');
+      }
+    } catch (error: any) {
+      console.error('Erro ao referenciar imagem:', error);
+      toast.error(`Erro ao referenciar imagem: ${error.message || 'Erro desconhecido'}`);
+    }
+  }, [chatId, setInput]);
+
   // Função para lidar com geração de imagem
   const handleGenerateImage = useCallback(async (prompt: string) => {
     console.log(`🎨 ChatwitIA.handleGenerateImage chamado com prompt: "${prompt}"`);
@@ -356,6 +401,7 @@ export default function ChatwitIA({
         error={error}
         containerRef={messagesContainerRef}
         endRef={messagesEndRef}
+        onImageReference={handleImageReference}
       />
 
       {showScrollButton && (

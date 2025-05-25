@@ -15,7 +15,7 @@ export async function POST(req: Request) {
     }
 
     const { 
-      imageData, // Base64 string
+      imageData, // Base64 string ou URL
       prompt,
       revisedPrompt,
       sessionId,
@@ -29,21 +29,51 @@ export async function POST(req: Request) {
       );
     }
 
-    console.log(`Salvando imagem gerada: "${prompt.substring(0, 50)}..."`);
+    console.log(`Salvando imagem: "${prompt.substring(0, 50)}..."`);
 
-    // Converter base64 para buffer
-    const base64Data = imageData.replace(/^data:image\/\w+;base64,/, '');
-    const imageBuffer = Buffer.from(base64Data, 'base64');
+    let imageUrl: string;
+    let thumbnailUrl: string | null = null;
+    let mimeType: string = 'image/png';
 
-    // Upload para MinIO
-    const uploadResult = await uploadToMinIO(
-      imageBuffer,
-      `generated-image-${Date.now()}.png`,
-      'image/png',
-      true // Gerar thumbnail
-    );
+    // Verificar se é uma URL ou dados base64
+    if (imageData.startsWith('http://') || imageData.startsWith('https://')) {
+      // É uma URL - usar diretamente
+      imageUrl = imageData;
+      
+      // Tentar gerar thumbnail URL (assumir que existe)
+      if (imageUrl.includes('objstoreapi.witdev.com.br') || imageUrl.includes('objstore.witdev.com.br')) {
+        thumbnailUrl = imageUrl.replace('.jpg', '_thumb.jpg').replace('.png', '_thumb.png');
+      }
+      
+      // Detectar tipo MIME pela extensão
+      if (imageUrl.includes('.jpg') || imageUrl.includes('.jpeg')) {
+        mimeType = 'image/jpeg';
+      } else if (imageUrl.includes('.png')) {
+        mimeType = 'image/png';
+      } else if (imageUrl.includes('.webp')) {
+        mimeType = 'image/webp';
+      }
+      
+      console.log(`Usando URL existente: ${imageUrl}`);
+    } else {
+      // É dados base64 - fazer upload para MinIO
+      const base64Data = imageData.replace(/^data:image\/\w+;base64,/, '');
+      const imageBuffer = Buffer.from(base64Data, 'base64');
 
-    console.log(`Imagem enviada para MinIO: ${uploadResult.url}`);
+      // Upload para MinIO
+      const uploadResult = await uploadToMinIO(
+        imageBuffer,
+        `generated-image-${Date.now()}.png`,
+        'image/png',
+        true // Gerar thumbnail
+      );
+
+      imageUrl = uploadResult.url;
+      thumbnailUrl = uploadResult.thumbnail_url || null;
+      mimeType = uploadResult.mime_type;
+      
+      console.log(`Imagem enviada para MinIO: ${imageUrl}`);
+    }
 
     // Salvar no banco de dados
     const savedImage = await db.generatedImage.create({
@@ -53,9 +83,9 @@ export async function POST(req: Request) {
         prompt: prompt,
         revisedPrompt: revisedPrompt || null,
         model: model,
-        imageUrl: uploadResult.url,
-        thumbnailUrl: uploadResult.thumbnail_url || null,
-        mimeType: uploadResult.mime_type,
+        imageUrl: imageUrl,
+        thumbnailUrl: thumbnailUrl,
+        mimeType: mimeType,
         createdAt: new Date()
       }
     });
@@ -66,8 +96,8 @@ export async function POST(req: Request) {
       success: true,
       image: {
         id: savedImage.id,
-        imageUrl: uploadResult.url,
-        thumbnailUrl: uploadResult.thumbnail_url,
+        imageUrl: imageUrl,
+        thumbnailUrl: thumbnailUrl,
         prompt: savedImage.prompt,
         revisedPrompt: savedImage.revisedPrompt,
         createdAt: savedImage.createdAt

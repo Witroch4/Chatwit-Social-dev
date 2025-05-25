@@ -102,6 +102,18 @@ const ChatInputForm: React.FC<ChatInputFormProps> = ({
   const [showAskPdf, setShowAskPdf] = useState(false);
   const [pdfQuestion, setPdfQuestion] = useState("");
   const sendingRef = useRef(false);
+  
+  // Estado para imagens extraídas do input
+  const [inputImages, setInputImages] = useState<{
+    url: string;
+    thumbnailUrl?: string;
+    name: string;
+    isReference?: boolean;
+  }[]>([]);
+  
+  // Estado para o texto visível (sem blocos IMAGES_JSON)
+  const [visibleText, setVisibleText] = useState('');
+  
   // toggle states for overlay buttons
   const [buscarActive, setBuscarActive] = useState(false);
   const [investigarActive, setInvestigarActive] = useState(false);
@@ -111,6 +123,46 @@ const ChatInputForm: React.FC<ChatInputFormProps> = ({
   const formatMenuRef = useRef<HTMLDivElement>(null);
   const uploadMenuRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Extrair imagens do input
+  useEffect(() => {
+    const extractImagesFromInput = () => {
+      const imagesJsonRegex = /<!-- IMAGES_JSON (\[.*?\]) -->/g;
+      const matches = [...input.matchAll(imagesJsonRegex)];
+      
+      const extractedImages: typeof inputImages = [];
+      
+      matches.forEach(match => {
+        try {
+          const imageData = JSON.parse(match[1]);
+          imageData.forEach((img: any) => {
+            if (img.url) {
+              extractedImages.push({
+                url: img.url,
+                thumbnailUrl: img.thumbnailUrl,
+                name: img.name || 'Imagem',
+                isReference: img.isReference
+              });
+            }
+          });
+        } catch (e) {
+          console.error('Erro ao processar IMAGES_JSON:', e);
+        }
+      });
+      
+      setInputImages(extractedImages);
+      
+      // Calcular texto visível removendo blocos IMAGES_JSON
+      let cleanText = input.replace(/<!-- IMAGES_JSON \[.*?\] -->/g, '');
+      
+      // Limpar quebras de linha excessivas mas preservar espaços
+      cleanText = cleanText.replace(/^\s*\n+/, '').replace(/\n+\s*$/, '');
+      
+      setVisibleText(cleanText);
+    };
+    
+    extractImagesFromInput();
+  }, [input]);
 
   // Close menus on outside click
   useEffect(() => {
@@ -469,18 +521,96 @@ const ChatInputForm: React.FC<ChatInputFormProps> = ({
 
   // Menu items memoizado para evitar re-renders
   const uploadMenuItems = useMemo(() => [
-    { purpose: "user_data" as UploadPurpose, label: "Carregar arquivo", icon: Upload },
-    { purpose: "vision" as UploadPurpose, label: "PDF – análise pontual", icon: PdfIcon },
-    { purpose: "assistants" as UploadPurpose, label: "PDF → banco vetorial", icon: BookOpen },
+    { purpose: "vision" as UploadPurpose, label: "Imagem para análise", icon: ImageIcon, key: "vision-image" },
+    { purpose: "user_data" as UploadPurpose, label: "Carregar arquivo", icon: Upload, key: "user-data" },
+    { purpose: "vision" as UploadPurpose, label: "PDF – análise pontual", icon: PdfIcon, key: "vision-pdf" },
+    { purpose: "assistants" as UploadPurpose, label: "PDF → banco vetorial", icon: BookOpen, key: "assistants" },
   ], []);
 
   // Verificar se deve exibir envio - memoizado
   const canSend = useMemo(() => {
-    return !isLoading && (input.trim() || pendingPdfRefs.length > 0);
-  }, [isLoading, input, pendingPdfRefs.length]);
+    return !isLoading && (visibleText.trim() || pendingPdfRefs.length > 0 || inputImages.length > 0);
+  }, [isLoading, visibleText, pendingPdfRefs.length, inputImages.length]);
+
+  // Função para remover imagem do input
+  const removeImageFromInput = useCallback((imageUrl: string) => {
+    setInput(prev => {
+      // Remover o bloco IMAGES_JSON específico que contém esta imagem
+      const imagesJsonRegex = /<!-- IMAGES_JSON (\[.*?\]) -->/g;
+      let newInput = prev;
+      
+      const matches = [...prev.matchAll(imagesJsonRegex)];
+      matches.forEach(match => {
+        try {
+          const imageData = JSON.parse(match[1]);
+          const filteredImages = imageData.filter((img: any) => img.url !== imageUrl);
+          
+          if (filteredImages.length === 0) {
+            // Se não há mais imagens, remover o bloco inteiro
+            newInput = newInput.replace(match[0], '').trim();
+          } else {
+            // Se ainda há imagens, atualizar o bloco
+            const newBlock = `<!-- IMAGES_JSON ${JSON.stringify(filteredImages)} -->`;
+            newInput = newInput.replace(match[0], newBlock);
+          }
+        } catch (e) {
+          console.error('Erro ao processar remoção de imagem:', e);
+        }
+      });
+      
+      return newInput;
+    });
+  }, [setInput]);
 
   return (
     <>
+      {/* Mostrar as imagens extraídas do input */}
+      {inputImages.length > 0 && (
+        <div className="flex flex-wrap gap-2 mb-2 px-4">
+          {inputImages.map((img, index) => (
+            <div key={`${img.url}-${index}`} className="relative group">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="relative">
+                    <img
+                      src={img.thumbnailUrl || img.url}
+                      alt={img.name}
+                      className="w-16 h-16 object-cover rounded-lg border-2 border-blue-200 shadow-sm"
+                      onError={(e) => {
+                        // Fallback para URL original se thumbnail falhar
+                        const target = e.target as HTMLImageElement;
+                        console.warn(`⚠️ Thumbnail falhou: ${target.src}, usando URL original: ${img.url}`);
+                        if (target.src !== img.url) {
+                          target.src = img.url;
+                        }
+                      }}
+                      onLoad={() => {
+                        console.log(`✅ Thumbnail carregada: ${img.thumbnailUrl || img.url}`);
+                      }}
+                    />
+                    {img.isReference && (
+                      <div className="absolute -top-1 -right-1 bg-blue-500 text-white text-xs px-1 rounded-full">
+                        Ref
+                      </div>
+                    )}
+                    <button
+                      onClick={() => removeImageFromInput(img.url)}
+                      className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs hover:bg-red-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      ×
+                    </button>
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent side="top">
+                  <p className="text-xs">{img.name}</p>
+                  {img.isReference && <p className="text-xs text-blue-300">Imagem referenciada</p>}
+                </TooltipContent>
+              </Tooltip>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Mostrar os arquivos pendentes como badges */}
       {pendingPdfRefs.length > 0 && (
         <div className="flex flex-wrap gap-2 mb-2 px-4">
@@ -558,16 +688,32 @@ const ChatInputForm: React.FC<ChatInputFormProps> = ({
                     const el = inputRef.current;
                     if (!el) return;
                     const newValue = el.value;
+                    
+                    // Preservar blocos IMAGES_JSON existentes e adicionar o novo texto
+                    const imagesJsonRegex = /<!-- IMAGES_JSON \[.*?\] -->/g;
+                    const existingImages = [...input.matchAll(imagesJsonRegex)];
+                    const imageBlocks = existingImages.map(match => match[0]).join('\n\n');
+                    
+                    // Melhor lógica de concatenação para paste
+                    let finalValue;
+                    if (imageBlocks && newValue.trim()) {
+                      finalValue = `${imageBlocks}\n\n${newValue}`;
+                    } else if (imageBlocks) {
+                      finalValue = imageBlocks;
+                    } else {
+                      finalValue = newValue;
+                    }
+                    
                     // Só atualiza se estiver dentro do limite
-                    if (newValue.length <= MAX_CHAR_LIMIT) {
-                      setInput(newValue);
+                    if (finalValue.length <= MAX_CHAR_LIMIT) {
+                      setInput(finalValue);
                     }
                     // Reajusta a altura para acomodar o conteúdo
                     el.style.height = "auto";
                     el.style.height = `${Math.min(Math.max(el.scrollHeight, 100), 280)}px`;
                   }, 0);
                 }}
-                value={input}
+                value={visibleText}
                 style={{ 
                   boxSizing: 'border-box',
                   textOverflow: 'ellipsis',
@@ -575,8 +721,25 @@ const ChatInputForm: React.FC<ChatInputFormProps> = ({
                   wordWrap: 'break-word'
                 }}
                 onChange={e => {
-                  if (e.target.value.length <= MAX_CHAR_LIMIT) {
-                    setInput(e.target.value);
+                  const newText = e.target.value;
+                  
+                  // Preservar blocos IMAGES_JSON existentes
+                  const imagesJsonRegex = /<!-- IMAGES_JSON \[.*?\] -->/g;
+                  const existingImages = [...input.matchAll(imagesJsonRegex)];
+                  const imageBlocks = existingImages.map(match => match[0]).join('\n\n');
+                  
+                  // Melhor lógica de concatenação
+                  let finalValue;
+                  if (imageBlocks && newText.trim()) {
+                    finalValue = `${imageBlocks}\n\n${newText}`;
+                  } else if (imageBlocks) {
+                    finalValue = imageBlocks;
+                  } else {
+                    finalValue = newText;
+                  }
+                  
+                  if (finalValue.length <= MAX_CHAR_LIMIT) {
+                    setInput(finalValue);
                     e.target.style.height = "auto";
                     e.target.style.height = `${Math.min(Math.max(e.target.scrollHeight, 100), 280)}px`;
                   }
@@ -668,7 +831,7 @@ const ChatInputForm: React.FC<ChatInputFormProps> = ({
               <div ref={uploadMenuRef} className="absolute bottom-20 left-4 bg-white border rounded-lg shadow-lg py-1 min-w-[220px] z-50">
                 {uploadMenuItems.map(item => (
                   <button
-                    key={item.purpose}
+                    key={item.key}
                     onClick={() => {
                       setFileUploadPurpose(item.purpose);
                       fileInputRef.current?.click();
@@ -693,12 +856,18 @@ const ChatInputForm: React.FC<ChatInputFormProps> = ({
                   try {
                     // Determinar se é um PDF pelo tipo MIME ou pela extensão
                     const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+                    const isImage = file.type.startsWith('image/');
                     
                     // Para PDFs, sempre usar user_data conforme recomendação atual da OpenAI
+                    // Para imagens, usar vision para análise visual
                     let purposeToUse = fileUploadPurpose;
                     if (isPdf) {
                       purposeToUse = 'user_data';
                       console.log('Arquivo PDF detectado, usando purpose user_data');
+                    } else if (isImage && fileUploadPurpose === 'user_data') {
+                      // Se for imagem e o purpose for user_data (padrão), mudar para vision
+                      purposeToUse = 'vision';
+                      console.log('Arquivo de imagem detectado, usando purpose vision');
                     }
                     
                     // Criar FormData para enviar para a API local

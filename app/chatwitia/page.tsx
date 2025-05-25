@@ -22,7 +22,7 @@ const defaultMainModels = [
   { id: "chatgpt-4o-latest", name: "ChatGPT 4o", description: "Excelente para a maioria das perguntas" },
   { id: "o3", name: "o3", description: "Usa reflexão avançada (baseado no gpt-4o-2024-05-13)" },
   { id: "o4-mini", name: "o4-mini", description: "Mais rápido em reflexão avançada" },
-  { id: "claude-3-7-sonnet-20250219", name: "Claude 3.7 Sonnet", description: "Modelo Claude da Anthropic para tarefas avançadas" },
+  { id: "gpt-4.1-nano", name: "GPT-4.1 nano", description: "Fastest, most cost-effective GPT-4.1 model" },
   { id: "gpt-4.1", name: "GPT-4.1", description: "Ótimo para escrita e explorar ideias", beta: true, experimental: true },
   { id: "gpt-4o-tasks", name: "GPT-4o com tarefas agendadas", description: "Peça ao ChatGPT para dar um retorno mais tarde", beta: true },
 ];
