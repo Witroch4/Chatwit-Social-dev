@@ -39,6 +39,8 @@ export async function processManuscritoTask(job: Job<IManuscritoJobData>) {
       },
     });
 
+    // Bloco de notificação SSE removido
+    /*
     // Notificar o frontend via SSE
     try {
       // Determinar a URL base do servidor
@@ -72,6 +74,7 @@ export async function processManuscritoTask(job: Job<IManuscritoJobData>) {
       console.error(`[BullMQ] Erro ao enviar notificação SSE:`, error);
       // Não interromper o processamento se a notificação falhar
     }
+    */
 
     console.log(`[BullMQ] Lead atualizado com sucesso:`, leadAtualizado.id);
     return { success: true, message: 'Manuscrito processado com sucesso' };
@@ -79,4 +82,4 @@ export async function processManuscritoTask(job: Job<IManuscritoJobData>) {
     console.error(`[BullMQ] Erro ao processar manuscrito: ${error.message}`);
     throw error;
   }
-} 
+}
