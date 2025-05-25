@@ -103,6 +103,7 @@ const AgendamentoDePostagens: React.FC = () => {
         Reels: tipoPostagem.includes("Reels"),
         Stories: tipoPostagem.includes("Stories"),
         Diario: tipoPostagem.includes("Diario"),
+        Semanal: tipoPostagem.includes("Semanal"),
         Aleatorio: tipoPostagem.includes("Aleatório"),
       };
 
@@ -151,6 +152,7 @@ const AgendamentoDePostagens: React.FC = () => {
         Reels: tipos.Reels,
         PostNormal: tipos["Post Normal"],
         Diario: tipos.Diario,
+        Semanal: tipos.Semanal,
         Randomizar: tipos.Aleatorio,
         IGtoken: IGtoken,
         userID: userID,

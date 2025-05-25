@@ -5,6 +5,7 @@ import OpenAI from 'openai';
 import { Message } from '@/hooks/useChatwitIA';
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
+import { uploadToMinIO } from '@/lib/minio';
 // @ts-ignore - Adding Anthropic SDK
 import Anthropic from '@anthropic-ai/sdk';
 
@@ -95,12 +96,13 @@ const formatAndSendToOpenAI = async (messages: any[], modelToUse: string) => {
 
 export async function POST(req: Request) {
   try {
-    const { messages, model = 'gpt-4o-latest', sessionId, generateSummary = false, document, stream = false, fileIds = [] } = await req.json();
+    const { messages, model = 'gpt-4o-latest', sessionId, generateSummary = false, document, stream = false, fileIds = [], previousResponseId } = await req.json();
 
     console.log(`Recebida requisição para o modelo: ${model}`);
     console.log(`Sessão ID: ${sessionId || 'nova sessão'}`);
     console.log(`Número de mensagens: ${messages?.length || 0}`);
     console.log(`Streaming habilitado: ${stream}`);
+    console.log(`Previous Response ID: ${previousResponseId || 'nenhum'}`);
     if (fileIds.length > 0) {
       console.log(`Arquivos referenciados: ${fileIds.length} (${fileIds.join(', ')})`);
     }
@@ -159,7 +161,7 @@ export async function POST(req: Request) {
       aiResponse = await handleAnthropicRequest(messages, modelToUse);
     } else {
       // Passar fileIds para o handler da OpenAI quando presentes
-      aiResponse = await handleOpenAIRequest(messages, modelToUse, sessionId, fileIds);
+      aiResponse = await handleOpenAIRequest(messages, modelToUse, sessionId, fileIds, previousResponseId);
     }
     
     // Se o streaming estiver habilitado, retorne diretamente a resposta
@@ -284,8 +286,8 @@ export async function GET() {
     oModelTypes.forEach(baseModel => {
       // Filtrar modelos que começam com o tipo base (ex: todos os modelos 'o1-mini-*')
       const modelsOfType = categorizedModels.oSeries.filter(m => 
-        m.id === baseModel || m.id.startsWith(`${baseModel}-`)
-      );
+        m.id === baseModel || m.id.startsWith(`${baseModel}-`
+      ));
       
       if (modelsOfType.length > 0) {
         // Ordenar por data (mais recente primeiro)
@@ -343,7 +345,7 @@ export async function GET() {
 }
 
 // Função para processar requisições para a API do OpenAI, agora suportando streaming
-async function handleOpenAIRequest(messages: Message[], model: string, sessionId?: string, fileIds: string[] = []) {
+async function handleOpenAIRequest(messages: Message[], model: string, sessionId?: string, fileIds: string[] = [], previousResponseId?: string) {
   try {
     // Verificar se é um modelo Claude (não deveria chegar aqui, mas por segurança)
     if (model.includes('claude')) {
@@ -355,7 +357,7 @@ async function handleOpenAIRequest(messages: Message[], model: string, sessionId
     
     // Transformar os nomes amigáveis em identificadores corretos da API
     // GPT-4.1 Series
-    if (model === 'gpt-4.1') openaiModel = 'gpt-4-0125-preview';
+    if (model === 'gpt-4.1') openaiModel = 'gpt-4.1-2025-04-14';
     if (model === 'gpt-4.1-latest') openaiModel = 'gpt-4.1-2025-04-14';
     if (model === 'gpt-4.1-mini-latest') openaiModel = 'gpt-4.1-mini-2025-04-14';
     if (model === 'gpt-4.1-nano-latest') openaiModel = 'gpt-4.1-nano-2025-04-14';
@@ -368,8 +370,10 @@ async function handleOpenAIRequest(messages: Message[], model: string, sessionId
     if (model === 'gpt-4o') openaiModel = 'gpt-4o-2024-05-13';
     if (model === 'gpt-4o-mini') openaiModel = 'gpt-4o-mini-2024-07-18';
     if (model === 'gpt-4o-mini-latest') openaiModel = 'gpt-4o-mini-2024-07-18';
+    if (model === 'chatgpt-4o-latest') openaiModel = 'chatgpt-4o-latest'; // Manter para mapeamento posterior
+    if (model === 'gpt-4o-latest') openaiModel = 'gpt-4o-latest'; // Manter para mapeamento posterior
     if (model === 'gpt-4o-audio-preview') openaiModel = 'gpt-4o-2024-05-13'; // Usar o GPT-4o mais recente com suporte a áudio
-    if (model === 'chatgpt-4o-latest') openaiModel = 'chatgpt-4o-latest'; // Usar GPT-4o mais recente
+    if (model === 'gpt-4o-2024-11-20') openaiModel = 'gpt-4o-2024-11-20'; // Usar GPT-4o mais recente
     if (model === 'ChatGPT 4o') openaiModel = 'gpt-4o-2024-08-06'; // Interface mostra este nome
     if (model === 'gpt-4o-audio-preview-latest') openaiModel = 'gpt-4o-audio-preview-2024-12-17';
     if (model === 'gpt-4o-realtime-preview-latest') openaiModel = 'gpt-4o-realtime-preview-2024-12-17';
@@ -451,12 +455,61 @@ async function handleOpenAIRequest(messages: Message[], model: string, sessionId
     
     // Aliases para garantir compatibilidade com diferentes nomes de exibição
     if (model.startsWith('GPT-')) openaiModel = model.replace('GPT-', 'gpt-');
-    if (model === 'ChatGPT 4o') openaiModel = 'gpt-4o-2024-08-06';
-    if (model === 'ChatGPT-4o') openaiModel = 'gpt-4o-2024-08-06';
-    if (model === 'ChatGPT 4') openaiModel = 'gpt-4-turbo-2024-04-09';
-    if (model === 'GPT 4o') openaiModel = 'gpt-4o-2024-08-06';
-    if (model === 'GPT 4') openaiModel = 'gpt-4-turbo-2024-04-09';
-    if (model === 'GPT-4o') openaiModel = 'gpt-4o-2024-08-06';
+    if (model === 'ChatGPT 4o') openaiModel = 'gpt-4o-2024-11-20';
+    if (model === 'ChatGPT-4o') openaiModel = 'gpt-4o-2024-11-20';
+    if (model === 'ChatGPT 4') openaiModel = 'gpt-4o-2024-11-20';
+    if (model === 'GPT 4o') openaiModel = 'gpt-4o-2024-11-20';
+    if (model === 'GPT 4') openaiModel = 'gpt-4o-2024-11-20';
+    if (model === 'GPT-4o') openaiModel = 'gpt-4o-2024-11-20';
+    
+    // Verificar se o modelo suporta geração de imagem
+    // Lista específica de modelos que suportam a ferramenta image_generation na Responses API
+    const imageCompatibleModels = [
+      'gpt-4o-2024-11-20',
+      'gpt-4o',
+      'gpt-4o-2024-05-13',
+      'gpt-4o-2024-08-06',
+      'gpt-4.1',
+      'gpt-4.1-2025-04-14',
+      'gpt-4.1-mini',
+      'gpt-4.1-mini-2025-04-14',
+      'gpt-4.1-nano',
+      'gpt-4.1-nano-2025-04-14',
+      'o3-mini',
+      'o3'
+    ];
+    
+    // Mapear modelos "latest" para versões específicas compatíveis com Responses API
+    let modelForImageGeneration = openaiModel;
+    if (model.includes('latest') || model.includes('chatgpt-4o')) {
+      // Mapear modelos latest para versões compatíveis com imagem
+      if (model.includes('4o') || model.includes('chatgpt-4o')) {
+        modelForImageGeneration = 'gpt-4o-2024-11-20'; // Versão estável com suporte a imagem
+        console.log(`🔄 Mapeando ${openaiModel} para ${modelForImageGeneration} para suporte a geração de imagem`);
+      } else if (model.includes('4.1-mini')) {
+        modelForImageGeneration = 'gpt-4.1-mini-2025-04-14';
+        console.log(`🔄 Mapeando ${openaiModel} para ${modelForImageGeneration} para suporte a geração de imagem`);
+      } else if (model.includes('4.1-nano')) {
+        modelForImageGeneration = 'gpt-4.1-nano-2025-04-14';
+        console.log(`🔄 Mapeando ${openaiModel} para ${modelForImageGeneration} para suporte a geração de imagem`);
+      } else if (model.includes('4.1')) {
+        modelForImageGeneration = 'gpt-4.1-2025-04-14';
+        console.log(`🔄 Mapeando ${openaiModel} para ${modelForImageGeneration} para suporte a geração de imagem`);
+      }
+    }
+    
+    const supportsImageGeneration = imageCompatibleModels.some(compatibleModel => 
+      openaiModel === compatibleModel || 
+      openaiModel.startsWith(compatibleModel + '-') ||
+      modelForImageGeneration === compatibleModel ||
+      modelForImageGeneration.startsWith(compatibleModel + '-')
+    );
+
+    console.log(`Modelo ${openaiModel} suporta geração de imagem: ${supportsImageGeneration}`);
+    
+    if (modelForImageGeneration !== openaiModel) {
+      console.log(`✅ Modelo mapeado com sucesso: ${openaiModel} → ${modelForImageGeneration}`);
+    }
     
     // Verificar se o modelo é da família O
     const isOSeriesModel = openaiModel.startsWith('o') || model.startsWith('o');
@@ -503,16 +556,352 @@ async function handleOpenAIRequest(messages: Message[], model: string, sessionId
       };
     }) as OpenAI.Chat.ChatCompletionMessageParam[];
     
-    // Verificar se temos arquivos anexados e estamos usando modelo compatível com responses.create
-    const canUseResponsesApi = 
-      (openaiModel === 'gpt-4o' || 
+    // Verificar se temos arquivos anexados ou se devemos usar Responses API
+    const shouldUseResponsesApi = 
+      supportsImageGeneration || 
+      (fileIds.length > 0 && (openaiModel === 'gpt-4o' || 
        openaiModel.includes('gpt-4o') || 
        openaiModel.includes('-o') ||
-       openaiModel.startsWith('o')) && 
-      fileIds.length > 0;
+       openaiModel.startsWith('o')));
        
-    if (canUseResponsesApi) {
-      console.log(`Usando responses.create API para processar ${fileIds.length} arquivos`);
+    // Define a custom transformer class for Responses API events
+    class ChunkTransformer implements Transformer<Uint8Array, Uint8Array> {
+      private buffer: string = '';
+      private encoder = new TextEncoder();
+      private decoder = new TextDecoder();
+      private completeContent: string = '';
+      private responseId: string = '';
+      private imageResults: any[] = [];
+      
+      constructor(
+        private sessionIdForDB?: string,
+        private userPrompt?: string,
+        private modelName?: string
+      ) {}
+      
+      async transform(chunk: Uint8Array, controller: TransformStreamDefaultController<Uint8Array>) {
+        // Decode the received chunk
+        const text = this.decoder.decode(chunk);
+        
+        try {
+          // Add to buffer first before processing
+          this.buffer += text;
+          
+          // Split by lines and process each SSE event
+          const lines = this.buffer.split('\n');
+          // Keep the last line in the buffer if it's not complete
+          this.buffer = lines.pop() || '';
+                
+          const validLines = lines.filter(line => line.trim() !== '');
+          
+          for (const line of validLines) {
+            // Check if it's SSE event
+            if (line.startsWith('event: ')) {
+              // Skip event type lines, we'll handle them with data
+              continue;
+            }
+            
+            if (line.startsWith('data: ')) {
+              const data = line.slice(5).trim();
+              
+              // Check if it's the [DONE] marker
+              if (data === '[DONE]') {
+                console.log('✅ Responses API stream complete');
+                console.log(`📊 Final content length: ${this.completeContent.length}`);
+                console.log(`🖼️ Images generated: ${this.imageResults.length}`);
+                console.log(`🆔 Response ID: ${this.responseId}`);
+                
+                // Send final done message with response ID for multi-turn
+                controller.enqueue(this.encoder.encode(JSON.stringify({
+                type: 'done',
+                response: {
+                    role: "assistant",
+                    content: this.completeContent,
+                    images: this.imageResults
+                  },
+                  response_id: this.responseId, // Important for multi-turn
+                  done: true
+                }) + '\n'));
+                continue;
+              }
+              
+              try {
+                // Parse the JSON event from Responses API
+                const eventData = JSON.parse(data);
+                
+                // Handle different event types from Responses API
+                switch (eventData.type) {
+                  case 'response.created':
+                    console.log('🚀 Response started, ID:', eventData.response?.id);
+                    this.responseId = eventData.response?.id || '';
+                    break;
+                    
+                  case 'response.output_text.delta':
+                    // Text incremental
+                    const textDelta = eventData.delta || '';
+                    this.completeContent += textDelta;
+                    
+                    // Send the chunk to the client
+                    controller.enqueue(this.encoder.encode(JSON.stringify({
+                      type: 'chunk',
+                      content: textDelta,
+                      done: false
+                    }) + '\n'));
+                    break;
+                    
+                  case 'response.image_generation_call.started':
+                    console.log('🎨 Image generation started');
+                    
+                    // Send status to client
+                    controller.enqueue(this.encoder.encode(JSON.stringify({
+                      type: 'image_generation_started',
+                      message: 'Gerando imagem...'
+                    }) + '\n'));
+                    break;
+                    
+                  case 'response.image_generation_call.partial_image':
+                    console.log(`🖼️ Partial image received, index: ${eventData.partial_image_index}`);
+                    
+                    // Send partial image to client
+                    controller.enqueue(this.encoder.encode(JSON.stringify({
+                      type: 'partial_image',
+                      image_data: eventData.partial_image_b64 || '',
+                      index: eventData.partial_image_index || 0
+                    }) + '\n'));
+                    break;
+                    
+                  case 'response.image_generation_call.completed':
+                    console.log('✅ Image generation completed');
+                    // Image will be processed in response.completed
+                    break;
+                    
+                  case 'response.completed':
+                    console.log('🏁 Response completed, processing final output');
+              
+                    // Process final output for images
+                    if (eventData.response?.output && Array.isArray(eventData.response.output)) {
+                      for (const output of eventData.response.output) {
+                        if (output.type === 'image_generation_call') {
+                          console.log('🖼️ Processing generated image');
+                          
+                          // Save image to MinIO and database
+                          try {
+                            const session = await auth();
+                            
+                            if (session?.user?.id && output.result) {
+                              // Convert base64 to buffer
+                              const base64Data = output.result.replace(/^data:image\/\w+;base64,/, '');
+                              const imageBuffer = Buffer.from(base64Data, 'base64');
+                              
+                              // Upload to MinIO
+                              const uploadResult = await uploadToMinIO(
+                                imageBuffer,
+                                `generated-image-${Date.now()}.png`,
+                                'image/png',
+                                true // Generate thumbnail
+                              );
+                              
+                              const imageUrl = uploadResult.url;
+                              const thumbnailUrl = uploadResult.thumbnail_url || '';
+                              
+                              console.log(`💾 Image saved to MinIO: ${imageUrl}`);
+                              
+                              // Save to database
+                              const savedImage = await db.generatedImage.create({
+                                data: {
+                                  userId: session.user.id,
+                                  sessionId: this.sessionIdForDB || null,
+                                  prompt: this.userPrompt || 'Imagem gerada',
+                                  revisedPrompt: output.revised_prompt || null,
+                                  model: this.modelName || '',
+                                  imageUrl: imageUrl,
+                                  thumbnailUrl: thumbnailUrl,
+                                  mimeType: uploadResult.mime_type,
+                                  createdAt: new Date()
+                                }
+                              });
+                              
+                              console.log(`💾 Image saved to database: ${savedImage.id}`);
+                              
+                              // Store image result for final response
+                              const imageResult = {
+                                id: output.id,
+                                result: output.result,
+                                revised_prompt: output.revised_prompt,
+                                url: imageUrl,
+                                image_url: imageUrl,
+                                thumbnail_url: thumbnailUrl
+                              };
+                              
+                              this.imageResults.push(imageResult);
+                      
+                              // Send image generated event immediately
+                              controller.enqueue(this.encoder.encode(JSON.stringify({
+                                type: 'image_generated',
+                                image_data: output.result,
+                                image_url: imageUrl,
+                                thumbnail_url: thumbnailUrl,
+                                revised_prompt: output.revised_prompt,
+                                image_id: output.id
+                              }) + '\n'));
+                              
+              } else {
+                              console.log('⚠️ Could not save image: user not authenticated or empty result');
+                              
+                              // Still send the event with available data
+                              const imageResult = {
+                                id: output.id,
+                                result: output.result,
+                                revised_prompt: output.revised_prompt,
+                                url: '',
+                                image_url: '',
+                                thumbnail_url: ''
+                              };
+                              
+                              this.imageResults.push(imageResult);
+                              
+                              controller.enqueue(this.encoder.encode(JSON.stringify({
+                                type: 'image_generated',
+                                image_data: output.result || '',
+                                image_url: '',
+                                thumbnail_url: '',
+                                revised_prompt: output.revised_prompt,
+                                image_id: output.id
+                              }) + '\n'));
+                            }
+                          } catch (saveError) {
+                            console.error('❌ Error saving image to MinIO:', saveError);
+                            
+                            // Still send the event with available data
+                            const imageResult = {
+                              id: output.id,
+                              result: output.result,
+                              revised_prompt: output.revised_prompt,
+                              url: '',
+                              image_url: '',
+                              thumbnail_url: ''
+                            };
+                            
+                            this.imageResults.push(imageResult);
+                            
+                            controller.enqueue(this.encoder.encode(JSON.stringify({
+                              type: 'image_generated',
+                              image_data: output.result || '',
+                              image_url: '',
+                              thumbnail_url: '',
+                              revised_prompt: output.revised_prompt,
+                              image_id: output.id
+                            }) + '\n'));
+                          }
+                        }
+                      }
+                    }
+                    
+                    // IMPORTANTE: Salvar mensagem do assistente no banco também aqui (Responses API)
+                    if (this.sessionIdForDB) {
+                      try {
+                        let contentToSave = this.completeContent;
+                        
+                        // Se temos imagens, adicionar elas como markdown ao conteúdo
+                        if (this.imageResults.length > 0) {
+                          // Buscar as imagens salvas no banco para obter as URLs corretas
+                          const session = await auth();
+                          
+                          if (session?.user?.id) {
+                            const savedImages = await db.generatedImage.findMany({
+                              where: {
+                                userId: session.user.id,
+                                sessionId: this.sessionIdForDB
+                              },
+                              orderBy: {
+                                createdAt: 'desc'
+                              },
+                              take: this.imageResults.length
+                            });
+                            
+                            // Usar as URLs das imagens salvas
+                            savedImages.forEach((img, index) => {
+                              const imageMarkdown = `![Imagem gerada](${img.imageUrl})`;
+                          
+                              if (contentToSave) {
+                                contentToSave += `\n\n${imageMarkdown}`;
+                              } else {
+                                contentToSave = imageMarkdown;
+                              }
+                            });
+                          } else {
+                            // Fallback: usar as URLs dos resultados (se disponíveis)
+                            this.imageResults.forEach((img, index) => {
+                              const imageUrl = img.url || img.image_url || '';
+                              if (imageUrl) {
+                                const imageMarkdown = `![Imagem gerada](${imageUrl})`;
+                        
+                                if (contentToSave) {
+                                  contentToSave += `\n\n${imageMarkdown}`;
+                                } else {
+                                  contentToSave = imageMarkdown;
+                                }
+                              }
+                            });
+                          }
+                        }
+                        
+                        await saveMessageToDatabase(this.sessionIdForDB, {
+                          role: 'assistant',
+                          content: contentToSave,
+                          contentType: 'text'
+                        });
+                        
+                        console.log('✅ Assistant message saved to database [COMPLETED]');
+                      } catch (dbError) {
+                        console.error('❌ Error saving message to database [COMPLETED]:', dbError);
+                      }
+                    }
+                    
+                    break;
+                    
+                  case 'response.failed':
+                    console.error('❌ Response failed:', eventData.response?.error);
+                    controller.enqueue(this.encoder.encode(JSON.stringify({
+                      type: 'error',
+                      error: eventData.response?.error?.message || 'Response failed'
+                    }) + '\n'));
+                    break;
+                    
+                  default:
+                    console.log(`ℹ️ Unhandled event type: ${eventData.type}`);
+                }
+                  
+              } catch (parseErr: any) {
+                // Log the error but don't crash the stream
+                console.error('❌ Error parsing Responses API event:', parseErr.message);
+                console.log('🔍 Problematic data:', data.substring(0, 100) + (data.length > 100 ? '...' : ''));
+                
+                // If the error is about unterminated JSON, keep in buffer for next chunk
+                if (parseErr.message.includes('Unterminated string') || 
+                    parseErr.message.includes('Unexpected end of JSON')) {
+                  // Put the data back in the buffer to combine with the next chunk
+                  this.buffer = 'data: ' + data + '\n' + this.buffer;
+                  console.log('📝 Added incomplete JSON back to buffer for next chunk');
+                  continue;
+                }
+              }
+            }
+          }
+        } catch (outerError) {
+          // Catch any errors in the outer processing to prevent the stream from breaking
+          console.error('❌ Error processing chunk:', outerError);
+          // Continue processing - don't break the stream
+        }
+      }
+    }
+       
+    if (shouldUseResponsesApi) {
+      console.log(`Usando Responses API para modelo ${openaiModel} com suporte a geração de imagem`);
+      
+      // Usar o modelo mapeado para geração de imagem se disponível
+      const apiModel = supportsImageGeneration ? modelForImageGeneration : openaiModel;
+      console.log(`Modelo para API: ${apiModel} (original: ${openaiModel})`);
       
       // Extrair a última mensagem do usuário para usar como prompt
       const lastUserMessage = [...messages].reverse().find(m => m.role === 'user');
@@ -546,231 +935,97 @@ async function handleOpenAIRequest(messages: Message[], model: string, sessionId
       }
       
       // Se não tiver conteúdo, usar uma instrução genérica
-      const promptText = userContent || "Analise o conteúdo deste arquivo.";
+      const promptText = userContent || "Analise o conteúdo fornecido.";
       
-      // Preparar o conteúdo com os file_ids para o formato responses.create
-      const content: any[] = [
+      // Preparar o input para a Responses API
+      const inputContent: any[] = [
         { type: "input_text", text: promptText }
       ];
       
       // Adicionar cada arquivo como um item separado no content
       fileIds.forEach(fileId => {
-        content.push({ type: "input_file", file_id: fileId });
+        inputContent.push({ type: "input_file", file_id: fileId });
       });
       
       // Adicionar URLs de imagem diretamente, se presentes
       imageUrls.forEach(imageUrl => {
-        content.push({ 
+        inputContent.push({ 
           type: "input_image", 
           image_url: { url: imageUrl },
           detail: "high"
         });
       });
       
-      // Configurar a stream para retornar os dados de volta ao cliente
-      const stream = new TransformStream();
-      const writer = stream.writable.getWriter();
-      const encoder = new TextEncoder();
-      const decoder = new TextDecoder();
-      
-      // Iniciar o processamento em segundo plano
-      (async () => {
-        try {
-          console.log(`Iniciando processamento de ${fileIds.length} arquivos com modelo ${openaiModel}`);
+      // Preparar ferramentas - sempre incluir image_generation para modelos compatíveis
+      const tools: any[] = [];
+      if (supportsImageGeneration) {
+        tools.push({ 
+          type: "image_generation",
+          quality: "high",
+          size: "auto",
+          background: "auto",
+          partial_images: 2  // Receber 2 imagens parciais durante o streaming
+        });
+      }
           
-          // Tentar primeiro com streaming
-          try {
-            // Fazer a chamada para a API responses.create com streaming
-            const streamOptions: any = {
-              model: openaiModel,
-              input: [
-                {
-                  role: "user",
-                  content
-                }
-              ],
-              stream: true
-            };
-            
-            // Adicionar temperatura com valor adequado para cada tipo de modelo
-            if (openaiModel.startsWith('o')) {
-              streamOptions.temperature = 1;
-            } else {
-              streamOptions.temperature = 0.7;
-            }
-            
-            const streamResponse = await openai.responses.create(streamOptions);
-            
-            let fullContent = '';
-            let hasReceivedChunks = false;
-            
-            try {
-              // Processar cada evento do stream usando o iterador fornecido pelo SDK
-              for await (const event of streamResponse as unknown as AsyncIterable<any>) {
-                // Registrar tipo de evento para debug
-                console.log(`Evento recebido: ${event.type}`);
-                
-                if (event.type === 'response.output_text.delta') {
-                  // Este é o evento específico para incrementos de texto na responses API
-                  const textDelta = event.delta || '';
-                  fullContent += textDelta;
-                  hasReceivedChunks = true;
-                  
-                  // Enviar o chunk para o cliente
-                  const message = JSON.stringify({
-                    type: 'chunk',
-                    content: textDelta
-                  });
-                  
-                  await writer.write(encoder.encode(message + '\n'));
-                }
-                else if (event.type === 'response.created' || event.type === 'response.in_progress') {
-                  // Eventos de início/progresso, podemos logar mas não precisamos enviar ao cliente
-                  console.log(`Evento de progresso: ${event.type}`);
-                }
-                else if (event.type === 'response.completed') {
-                  // Resposta completa, podemos logar os detalhes se necessário
-                  console.log(`Resposta completa recebida: ${event.response?.id}`);
-                  
-                  // Se temos um sessionId, salvar a mensagem no banco de dados
-                  if (sessionId) {
-                    try {
-                      // Verificar se já temos um conteúdo completo
-                      if (fullContent) {
-                        await saveMessageToDatabase(sessionId, {
-                          role: 'assistant',
-                          content: fullContent,
-                          contentType: 'text'
-                        });
-                        console.log(`Resposta da análise de PDF salva no banco de dados. Tamanho: ${fullContent.length} caracteres`);
-                      }
-                    } catch (dbError) {
-                      console.error('Erro ao salvar resposta do PDF no banco de dados:', dbError);
-                    }
-                  }
-                }
-                else if (event.type === 'response.failed') {
-                  // Erro na resposta
-                  console.error('Falha na resposta:', event.response?.error);
-                  throw new Error(event.response?.error?.message || 'Falha na API responses.create');
-                }
-              }
-              
-              // Se recebemos chunks com sucesso, finalize o stream
-              if (hasReceivedChunks) {
-                // Finalizar o stream com uma mensagem de conclusão
-                const doneMessage = JSON.stringify({
-                  type: 'done',
-                  response: {
-                    role: 'assistant',
-                    content: fullContent
-                  }
-                });
-                
-                await writer.write(encoder.encode(doneMessage + '\n'));
-                await writer.close();
-                return; // Terminar o processamento aqui
-              } else {
-                console.log('Nenhum chunk recebido no stream, tentando versão não-stream');
-                // Continuar para a versão non-streaming abaixo
-              }
-            } catch (streamError) {
-              console.error('Erro ao processar stream, usando fallback sem streaming:', streamError);
-              // Continuar para a versão non-streaming abaixo
-            }
-          } catch (streamSetupError) {
-            console.error('Erro ao configurar streaming, usando fallback sem streaming:', streamSetupError);
-            // Continuar para a versão non-streaming abaixo
-          }
-          
-          // Fallback: usar versão sem streaming se o streaming falhar
-          console.log('Usando API sem streaming como fallback');
-          
-          // Criar objeto de opções sem o parâmetro temperature para modelos da série O
-          const nonStreamOptions: any = {
-            model: openaiModel,
+          // Configurar opções para a requisição
+          const requestOptions: any = {
+        model: apiModel,
             input: [
               {
                 role: "user",
-                content
+                content: inputContent
               }
             ],
-            stream: false
-          };
-          
-          // Adicionar temperatura com valor adequado para cada tipo de modelo
-          if (openaiModel.startsWith('o')) {
-            nonStreamOptions.temperature = 1;
-          } else {
-            nonStreamOptions.temperature = 0.7;
-          }
-          
-          const nonStreamResponse = await openai.responses.create(nonStreamOptions);
-          
-          // Extrair o texto de saída da resposta não streamada
-          let responseText = '';
-          
-          // Navegar pela estrutura da resposta para encontrar o texto
-          if (nonStreamResponse.output && Array.isArray(nonStreamResponse.output)) {
-            for (const output of nonStreamResponse.output) {
-              if (output.type === 'message' && Array.isArray(output.content)) {
-                for (const content of output.content) {
-                  if (content.type === 'output_text') {
-                    responseText += content.text || '';
-                  }
-                }
-              }
-            }
-          }
-          
-          // Se não conseguimos extrair o texto da estrutura, usar output_text
-          if (!responseText && typeof nonStreamResponse.output_text === 'string') {
-            responseText = nonStreamResponse.output_text;
-          }
-          
-          console.log(`Resposta não-stream obtida com ${responseText.length} caracteres`);
-          
-          // Salvar no banco de dados para requests sem streaming
-          if (sessionId) {
-            try {
-              await saveMessageToDatabase(sessionId, {
-                role: 'assistant',
-                content: responseText,
-                contentType: 'text'
-              });
-              console.log(`Resposta não-stream salva no banco de dados`);
-            } catch (dbError) {
-              console.error('Erro ao salvar resposta não-stream no banco de dados:', dbError);
-            }
-          }
-          
-          // Finalizar com o texto completo
-          const doneMessage = JSON.stringify({
-            type: 'done',
-            response: {
-              role: 'assistant',
-              content: responseText
-            }
-          });
-          
-          await writer.write(encoder.encode(doneMessage + '\n'));
-          await writer.close();
-        } catch (error) {
-          console.error('Erro ao processar responses.create API:', error);
-          
-          // Enviar erro formatado para o cliente
-          const errorMsg = JSON.stringify({
-            type: 'error',
-            error: error instanceof Error ? error.message : 'Erro desconhecido ao processar o arquivo'
-          });
-          
-          await writer.write(encoder.encode(errorMsg));
-          await writer.close();
-        }
-      })();
+        stream: true,
+        store: true // Salvar para permitir referência futura
+      };
       
-      // Retornar a stream para o cliente
-      return new Response(stream.readable, {
+      // Usar previous_response_id se disponível (para multi-turn image generation)
+      if (previousResponseId) {
+        console.log(`🔗 Usando previous_response_id: ${previousResponseId} para multi-turn image generation`);
+        requestOptions.previous_response_id = previousResponseId;
+      }
+          
+          // Adicionar ferramentas se disponíveis
+          if (tools.length > 0) {
+            requestOptions.tools = tools;
+          }
+          
+      // Adicionar temperatura com valor adequado para cada tipo de modelo
+      if (apiModel.startsWith('o')) {
+            requestOptions.temperature = 1;
+          } else {
+            requestOptions.temperature = 0.7;
+          }
+          
+      // Create a manual streaming response using the Responses API
+      // instead of Chat Completions API to support image generation
+      const API_URL = "https://api.openai.com/v1/responses";
+
+      // Store the sessionId for database operations
+      console.log('Using session ID for database:', sessionId);
+
+      const response = await fetch(API_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
+        },
+        body: JSON.stringify(requestOptions),
+      });
+
+      // Check if the fetch was successful
+      if (!response.ok) {
+        throw new Error(`OpenAI API responded with status ${response.status}`);
+      }
+
+      // Create our transformer instance
+      const transformer = new ChunkTransformer(sessionId, userContent, apiModel);
+      const transformStream = new TransformStream(transformer);
+
+      // Return the transformed stream
+      return new NextResponse(response.body?.pipeThrough(transformStream), {
         headers: {
           'Content-Type': 'text/event-stream',
           'Cache-Control': 'no-cache',
@@ -779,7 +1034,7 @@ async function handleOpenAIRequest(messages: Message[], model: string, sessionId
       });
     }
     
-    // Usar parâmetros específicos para modelos da família O
+    // Usar parâmetros específicos para modelos da família O (chat completions)
     const requestOptions = {
       model: openaiModel,
       messages: formattedMessages,
@@ -787,8 +1042,8 @@ async function handleOpenAIRequest(messages: Message[], model: string, sessionId
       top_p: 1,
       frequency_penalty: 0,
       presence_penalty: 0,
-      stream: true, // Enable streaming
-    } as any; // Usando 'any' para permitir diferentes parâmetros
+      stream: true,
+    } as any;
     
     // Usar max_completion_tokens para modelos da família O e max_tokens para outros modelos
     if (isOSeriesModel) {
@@ -797,12 +1052,8 @@ async function handleOpenAIRequest(messages: Message[], model: string, sessionId
       requestOptions.max_tokens = 2000;
     }
     
-    // Create a manual streaming response using fetch instead of the SDK
-    // to avoid typing issues with the streaming API
+    // Use Chat Completions API for models that don't support Responses API
     const API_URL = "https://api.openai.com/v1/chat/completions";
-
-    // Store the sessionId for database operations
-    console.log('Using session ID for database:', sessionId);
 
     const response = await fetch(API_URL, {
       method: "POST",
@@ -818,170 +1069,42 @@ async function handleOpenAIRequest(messages: Message[], model: string, sessionId
       throw new Error(`OpenAI API responded with status ${response.status}`);
     }
 
-    // Define a custom transformer class that has a buffer property
-    class ChunkTransformer implements Transformer<Uint8Array, Uint8Array> {
-      private buffer: string = '';
-      private encoder = new TextEncoder();
-      private decoder = new TextDecoder();
-      private completeContent: string = '';
-      
-      constructor(private sessionIdForDB?: string) {}
-      
-      async transform(chunk: Uint8Array, controller: TransformStreamDefaultController<Uint8Array>) {
-        // Decode the received chunk
-        const text = this.decoder.decode(chunk);
+    // For Chat Completions API, use a simple transform stream
+    const encoder = new TextEncoder();
+    const transformStream = new TransformStream({
+      async transform(chunk, controller) {
+        const text = new TextDecoder().decode(chunk);
         
-        // Sometimes chunks can be incomplete or malformed, so we need to handle them carefully
-        try {
-          // Add to buffer first before processing
-          this.buffer += text;
-          
-          // Split by lines and process each SSE event
-          const lines = this.buffer.split('\n');
-          // Keep the last line in the buffer if it's not complete (doesn't end with newline)
-          this.buffer = lines.pop() || '';
-          
-          const validLines = lines.filter(line => line.trim() !== '');
-          
-          for (const line of validLines) {
-            // Check if it's SSE data
-            if (line.startsWith('data: ')) {
-              const data = line.slice(5).trim();
-              
-              // Check if it's the [DONE] marker
-              if (data === '[DONE]') {
-                console.log('Stream complete, final content length:', this.completeContent.length);
-                
-                // Final message to save to DB if we have a session ID
-                if (this.sessionIdForDB) {
-                  try {
-                    // Save the assistant message to the database
-                    await saveMessageToDatabase(this.sessionIdForDB, {
-                      role: 'assistant',
-                      content: this.completeContent,
-                      contentType: 'text'
-                    });
-                    
-                    console.log('Successfully saved assistant message to database');
-                  } catch (dbError) {
-                    console.error('Error saving message to database:', dbError);
-                  }
-                }
-                
-                // Send a final done message
-                controller.enqueue(this.encoder.encode(JSON.stringify({
-                  type: 'done',
-                  response: {
-                    role: "assistant",
-                    content: this.completeContent // Include complete content in done message
-                  },
-                  done: true
-                }) + '\n'));
-                continue;
-              }
-              
+        // Process SSE chunks
+        const lines = text.split('\n');
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = line.slice(6);
+            if (data === '[DONE]') {
+              controller.enqueue(encoder.encode(JSON.stringify({
+                type: 'done',
+                done: true
+              }) + '\n'));
+            } else {
               try {
-                // Parse the JSON chunk from OpenAI - wrap in try/catch to handle malformed JSON
-                const parsedData = JSON.parse(data);
-                const content = parsedData.choices?.[0]?.delta?.content || '';
-                
+                const parsed = JSON.parse(data);
+                const content = parsed.choices?.[0]?.delta?.content || '';
                 if (content) {
-                  // Accumulate the content for the complete message
-                  this.completeContent += content;
-                  
-                  // Send the chunk to the client
-                  controller.enqueue(this.encoder.encode(JSON.stringify({
+                  controller.enqueue(encoder.encode(JSON.stringify({
                     type: 'chunk',
                     content: content,
                     done: false
                   }) + '\n'));
                 }
-              } catch (parseErr: any) {
-                // Log the error but don't crash the stream
-                console.error('Error parsing OpenAI response chunk:', parseErr.message);
-                console.log('Problematic chunk:', data.substring(0, 100) + (data.length > 100 ? '...' : ''));
-                
-                // If the error is about unterminated JSON, keep in buffer for next chunk
-                if (parseErr.message.includes('Unterminated string') || 
-                    parseErr.message.includes('Unexpected end of JSON')) {
-                  // Put the data back in the buffer to combine with the next chunk
-                  this.buffer = 'data: ' + data + '\n' + this.buffer;
-                  console.log('Added incomplete JSON back to buffer for next chunk');
-                  continue;
-                }
-                
-                // Try to extract content directly if JSON parsing fails
-                // This is a fallback mechanism for malformed JSON
-                try {
-                  // Look for content patterns in the raw data
-                  const contentMatch = /"content":"([^"]*)"/.exec(data);
-                  if (contentMatch && contentMatch[1]) {
-                    const extractedContent = contentMatch[1];
-                    this.completeContent += extractedContent;
-                    
-                    // Send the extracted content to the client
-                    controller.enqueue(this.encoder.encode(JSON.stringify({
-                      type: 'chunk',
-                      content: extractedContent,
-                      done: false
-                    }) + '\n'));
-                    
-                    console.log('Extracted content from malformed JSON:', extractedContent);
-                  }
-                } catch (extractError) {
-                  // If even the extraction fails, just continue without crashing
-                  console.log('Could not extract content from malformed JSON');
-                }
+              } catch (e) {
+                // Ignore parse errors
               }
             }
           }
-        } catch (outerError) {
-          // Catch any errors in the outer processing to prevent the stream from breaking
-          console.error('Error processing chunk:', outerError);
-          // Continue processing - don't break the stream
         }
       }
-      
-      // Process any remaining buffered content when the stream ends
-      flush(controller: TransformStreamDefaultController<Uint8Array>) {
-        if (this.buffer.trim() !== '') {
-          console.log('Processing remaining buffer on stream end:', 
-            this.buffer.substring(0, 100) + (this.buffer.length > 100 ? '...' : ''));
-          
-          try {
-            // Try to handle any remaining data in the buffer
-            if (this.buffer.startsWith('data: ')) {
-              const data = this.buffer.slice(5).trim();
-              
-              try {
-                const parsedData = JSON.parse(data);
-                const content = parsedData.choices?.[0]?.delta?.content || '';
-                
-                if (content) {
-                  this.completeContent += content;
-                  console.log('Added final content from buffer:', content);
-                }
-              } catch (parseErr) {
-                console.log('Could not parse final buffer content as JSON');
-              }
-            }
-          } catch (error) {
-            console.error('Error in flush handler:', error);
-          }
-        }
-      }
-      
-      // Getter for complete content
-      getCompleteContent() {
-        return this.completeContent;
-      }
-    }
+    });
 
-    // Create our transformer instance
-    const transformer = new ChunkTransformer(sessionId);
-    const transformStream = new TransformStream(transformer);
-
-    // Return the transformed stream
     return new NextResponse(response.body?.pipeThrough(transformStream), {
       headers: {
         'Content-Type': 'text/event-stream',

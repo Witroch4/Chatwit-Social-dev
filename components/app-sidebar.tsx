@@ -16,6 +16,10 @@ import {
   Atom,
   Plus,
   Check,
+  Shield,
+  Bell,
+  LayoutDashboard,
+  Headphones,
 } from "lucide-react";
 import {
   Sidebar,
@@ -401,11 +405,13 @@ export function AppSidebar() {
 
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
-                  className="flex items-center gap-2 cursor-pointer text-primary"
+                  className="flex items-center gap-2 cursor-pointer text-primary hover-effect-9"
                   onClick={() => router.push("/registro/redesocial")}
                 >
-                  <Plus className="h-4 w-4" />
-                  <span>Adicionar nova conta</span>
+                  <span className="hover-span relative flex items-center gap-2">
+                    <Plus className="w-4 h-4" />
+                    <span>Adicionar nova conta</span>
+                  </span>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -534,10 +540,12 @@ export function AppSidebar() {
                       <SidebarMenuButton asChild>
                         <Link
                           href="/registro/redesocial"
-                          className="flex items-center gap-2 text-primary"
+                          className="flex items-center gap-2 text-primary hover-effect-9"
                         >
-                          <Plus className="w-4 h-4" />
-                          <span>Adicionar nova conta</span>
+                          <span className="hover-span relative flex items-center gap-2">
+                            <Plus className="w-4 h-4" />
+                            <span>Adicionar nova conta</span>
+                          </span>
                         </Link>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
@@ -586,13 +594,13 @@ export function AppSidebar() {
                 }`}
               >
                 <CollapsibleTrigger className="flex items-center justify-center cursor-pointer">
-                  <HelpCircle
+                  <Shield
                     className={`transition-all duration-300 ${
                       state === "collapsed" ? "mx-auto" : "mr-2"
                     }`}
                   />
                   {state !== "collapsed" && (
-                    <span className="ml-2 font-bold">Admin</span>
+                    <span className="ml-2 font-bold">Administração</span>
                   )}
                   <ChevronDown
                     className={`ml-auto transition-transform duration-300 ${
@@ -608,13 +616,15 @@ export function AppSidebar() {
                     <SidebarMenuItem>
                       <SidebarMenuButton asChild>
                         <Link
-                          href="/admin/queue"
-                          className={`flex items-center ${
-                            state === "collapsed" ? "justify-start pl-4" : "justify-start pl-2"
+                          href="/admin"
+                          className={`flex items-center hover-effect-9 ${
+                            state === "collapsed" ? "justify-center" : "justify-start"
                           }`}
                         >
-                          <Calendar className="mr-2" />
-                          {state !== "collapsed" && <span>Admin Queue</span>}
+                          <span className="hover-span relative flex items-center">
+                            <LayoutDashboard className="mr-2" />
+                            {state !== "collapsed" && <span>Dashboard Admin</span>}
+                          </span>
                         </Link>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
@@ -622,13 +632,127 @@ export function AppSidebar() {
                     <SidebarMenuItem>
                       <SidebarMenuButton asChild>
                         <Link
-                          href="/admin"
-                          className={`flex items-center ${
-                            state === "collapsed" ? "justify-start pl-4" : "justify-start pl-2"
+                          href="/admin/users"
+                          className={`flex items-center hover-effect-9 ${
+                            state === "collapsed" ? "justify-center" : "justify-start"
                           }`}
                         >
-                          <Users className="mr-2" />
-                          {state !== "collapsed" && <span>Admin Dashboard</span>}
+                          <span className="hover-span relative flex items-center">
+                            <Users className="mr-2" />
+                            {state !== "collapsed" && <span>Gerenciar Usuários</span>}
+                          </span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+
+                    <SidebarMenuItem>
+                      <SidebarMenuButton asChild>
+                        <Link
+                          href="/admin/notifications"
+                          className={`flex items-center hover-effect-9 ${
+                            state === "collapsed" ? "justify-center" : "justify-start"
+                          }`}
+                        >
+                          <span className="hover-span relative flex items-center">
+                            <Bell className="mr-2" />
+                            {state !== "collapsed" && <span>Sistema de Notificações</span>}
+                          </span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+
+                    <SidebarMenuItem>
+                      <SidebarMenuButton asChild>
+                        <Link
+                          href="/admin/leads-chatwit"
+                          className={`flex items-center hover-effect-9 ${
+                            state === "collapsed" ? "justify-center" : "justify-start"
+                          }`}
+                        >
+                          <span className="hover-span relative flex items-center">
+                            <MessageCircle className="mr-2" />
+                            {state !== "collapsed" && <span>Leads Chatwit</span>}
+                          </span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+
+                    <SidebarMenuItem>
+                      <SidebarMenuButton asChild>
+                        <Link
+                          href="/admin/atendimento"
+                          className={`flex items-center hover-effect-9 ${
+                            state === "collapsed" ? "justify-center" : "justify-start"
+                          }`}
+                        >
+                          <span className="hover-span relative flex items-center">
+                            <Headphones className="mr-2" />
+                            {state !== "collapsed" && <span>Atendimento WhatsApp</span>}
+                          </span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+
+                    <SidebarMenuItem>
+                      <SidebarMenuButton asChild>
+                        <Link
+                          href="/admin/disparo-oab"
+                          className={`flex items-center hover-effect-9 ${
+                            state === "collapsed" ? "justify-center" : "justify-start"
+                          }`}
+                        >
+                          <span className="hover-span relative flex items-center">
+                            <Users className="mr-2" />
+                            {state !== "collapsed" && <span>Disparo OAB</span>}
+                          </span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+
+                    <SidebarMenuItem>
+                      <SidebarMenuButton asChild>
+                        <Link
+                          href="/admin/templates"
+                          className={`flex items-center hover-effect-9 ${
+                            state === "collapsed" ? "justify-center" : "justify-start"
+                          }`}
+                        >
+                          <span className="hover-span relative flex items-center">
+                            <HelpCircle className="mr-2" />
+                            {state !== "collapsed" && <span>Templates WhatsApp</span>}
+                          </span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+
+                    <SidebarMenuItem>
+                      <SidebarMenuButton asChild>
+                        <Link
+                          href="/admin/disparo-em-massa"
+                          className={`flex items-center hover-effect-9 ${
+                            state === "collapsed" ? "justify-center" : "justify-start"
+                          }`}
+                        >
+                          <span className="hover-span relative flex items-center">
+                            <Zap className="mr-2" />
+                            {state !== "collapsed" && <span>Disparo em Massa</span>}
+                          </span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+
+                    <SidebarMenuItem>
+                      <SidebarMenuButton asChild>
+                        <Link
+                          href="/admin/queue"
+                          className={`flex items-center hover-effect-9 ${
+                            state === "collapsed" ? "justify-center" : "justify-start"
+                          }`}
+                        >
+                          <span className="hover-span relative flex items-center">
+                            <Calendar className="mr-2" />
+                            {state !== "collapsed" && <span>Fila de Processamento</span>}
+                          </span>
                         </Link>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
@@ -637,12 +761,14 @@ export function AppSidebar() {
                       <SidebarMenuButton asChild>
                         <Link
                           href="/api/auth/get-token"
-                          className={`flex items-center ${
-                            state === "collapsed" ? "justify-start pl-4" : "justify-start pl-2"
+                          className={`flex items-center hover-effect-9 ${
+                            state === "collapsed" ? "justify-center" : "justify-start"
                           }`}
                         >
-                          <MessageCircle className="mr-2" />
-                          {state !== "collapsed" && <span>API Auth Get Token</span>}
+                          <span className="hover-span relative flex items-center">
+                            <MessageCircle className="mr-2" />
+                            {state !== "collapsed" && <span>API Auth Token</span>}
+                          </span>
                         </Link>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
@@ -651,12 +777,14 @@ export function AppSidebar() {
                       <SidebarMenuButton asChild>
                         <Link
                           href="/auth/users"
-                          className={`flex items-center ${
-                            state === "collapsed" ? "justify-start pl-4" : "justify-start pl-2"
+                          className={`flex items-center hover-effect-9 ${
+                            state === "collapsed" ? "justify-center" : "justify-start"
                           }`}
                         >
-                          <User2 className="mr-2" />
-                          {state !== "collapsed" && <span>Auth Users</span>}
+                          <span className="hover-span relative flex items-center">
+                            <User2 className="mr-2" />
+                            {state !== "collapsed" && <span>Auth Users</span>}
+                          </span>
                         </Link>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
@@ -675,12 +803,14 @@ export function AppSidebar() {
                 <SidebarMenuButton asChild>
                   <Link
                     href="/contatos"
-                    className={`flex items-center ${
-                      state === "collapsed" ? "justify-start pl-4" : "justify-start pl-2"
+                    className={`flex items-center hover-effect-9 ${
+                      state === "collapsed" ? "justify-center" : "justify-start"
                     }`}
                   >
-                    <Users className="mr-2" />
-                    {state !== "collapsed" && <span>Contatos</span>}
+                    <span className="hover-span relative flex items-center">
+                      <Users className="mr-2" />
+                      {state !== "collapsed" && <span>Contatos</span>}
+                    </span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
@@ -696,12 +826,14 @@ export function AppSidebar() {
                 <SidebarMenuButton asChild>
                   <Link
                     href={activeAccountId ? `/${activeAccountId}/dashboard/agendamento` : "/dashboard/agendamento"}
-                    className={`flex items-center ${
-                      state === "collapsed" ? "justify-start pl-4" : "justify-start pl-2"
+                    className={`flex items-center hover-effect-9 ${
+                      state === "collapsed" ? "justify-center" : "justify-start"
                     }`}
                   >
-                    <Zap className="mr-2" />
-                    {state !== "collapsed" && <span>Agendamento de Postagens</span>}
+                    <span className="hover-span relative flex items-center">
+                      <Zap className="mr-2" />
+                      {state !== "collapsed" && <span>Agendamento de Postagens</span>}
+                    </span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
@@ -717,12 +849,14 @@ export function AppSidebar() {
                 <SidebarMenuButton asChild>
                   <Link
                     href={activeAccountId ? `/${activeAccountId}/dashboard/calendario` : "/dashboard/calendario"}
-                    className={`flex items-center ${
-                      state === "collapsed" ? "justify-start pl-4" : "justify-start pl-2"
+                    className={`flex items-center hover-effect-9 ${
+                      state === "collapsed" ? "justify-center" : "justify-start"
                     }`}
                   >
-                    <Calendar className="mr-2" />
-                    {state !== "collapsed" && <span>Calendários</span>}
+                    <span className="hover-span relative flex items-center">
+                      <Calendar className="mr-2" />
+                      {state !== "collapsed" && <span>Calendários</span>}
+                    </span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
@@ -738,93 +872,20 @@ export function AppSidebar() {
                 <SidebarMenuButton asChild>
                   <Link
                     href={activeAccountId ? `/${activeAccountId}/dashboard/automacao` : "/dashboard/automacao"}
-                    className={`flex items-center ${
-                      state === "collapsed" ? "justify-start pl-4" : "justify-start pl-2"
+                    className={`flex items-center hover-effect-9 ${
+                      state === "collapsed" ? "justify-center" : "justify-start"
                     }`}
                   >
-                    <Atom className="mr-2" />
-                    {state !== "collapsed" && <span>Automação</span>}
+                    <span className="hover-span relative flex items-center">
+                      <Atom className="mr-2" />
+                      {state !== "collapsed" && <span>Automação</span>}
+                    </span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
-
-        {/* Atendimento WhatsApp */}
-        <Collapsible defaultOpen={false} className="group/collapsible">
-          <SidebarGroup>
-            <div
-              className={`flex items-center justify-center p-2 relative ${
-                state === "collapsed" ? "flex-col space-y-1" : "flex-row"
-              }`}
-            >
-              <CollapsibleTrigger className="flex items-center justify-center cursor-pointer">
-                <Zap
-                  className={`transition-all duration-300 ${
-                    state === "collapsed" ? "mx-auto" : "mr-2"
-                  }`}
-                />
-                {state !== "collapsed" && (
-                  <span className="ml-2 font-medium">Atendimento WhatsApp</span>
-                )}
-                <ChevronDown
-                  className={`ml-auto transition-transform duration-300 ${
-                    state === "collapsed" ? "hidden" : "inline-block"
-                  } group-data-[state=open]/collapsible:rotate-180`}
-                />
-              </CollapsibleTrigger>
-            </div>
-
-            <CollapsibleContent>
-              <SidebarGroupContent className="bg-background">
-                <SidebarMenu>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton asChild>
-                      <Link
-                        href="/admin/atendimento"
-                        className={`flex items-center ${
-                          state === "collapsed" ? "justify-start pl-4" : "justify-start pl-2"
-                        }`}
-                      >
-                        <MessageCircle className="mr-2" />
-                        {state !== "collapsed" && <span>Sistema de Atendimento</span>}
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-
-                  <SidebarMenuItem>
-                    <SidebarMenuButton asChild>
-                      <Link
-                        href="/admin/disparo-oab"
-                        className={`flex items-center ${
-                          state === "collapsed" ? "justify-start pl-4" : "justify-start pl-2"
-                        }`}
-                      >
-                        <Users className="mr-2" />
-                        {state !== "collapsed" && <span>Disparo Template OAB</span>}
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-
-                  <SidebarMenuItem>
-                    <SidebarMenuButton asChild>
-                      <Link
-                        href="/admin/templates"
-                        className={`flex items-center ${
-                          state === "collapsed" ? "justify-start pl-4" : "justify-start pl-2"
-                        }`}
-                      >
-                        <HelpCircle className="mr-2" />
-                        {state !== "collapsed" && <span>Documentação Templates</span>}
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </CollapsibleContent>
-          </SidebarGroup>
-        </Collapsible>
 
         {/* Chat ao Vivo */}
         <SidebarGroup>
@@ -834,12 +895,14 @@ export function AppSidebar() {
                 <SidebarMenuButton asChild>
                   <Link
                     href="/chatwitia"
-                    className={`flex items-center ${
-                      state === "collapsed" ? "justify-start pl-4" : "justify-start pl-2"
+                    className={`flex items-center hover-effect-9 ${
+                      state === "collapsed" ? "justify-center" : "justify-start"
                     }`}
                   >
-                    <Atom className="mr-2" />
-                    {state !== "collapsed" && <span>ChatwitIA</span>}
+                    <span className="hover-span relative flex items-center">
+                      <Atom className="mr-2" />
+                      {state !== "collapsed" && <span>ChatwitIA</span>}
+                    </span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
@@ -855,12 +918,14 @@ export function AppSidebar() {
                 <SidebarMenuButton asChild>
                   <Link
                     href="/docs"
-                    className={`flex items-center ${
-                      state === "collapsed" ? "justify-start pl-4" : "justify-start pl-2"
+                    className={`flex items-center hover-effect-9 ${
+                      state === "collapsed" ? "justify-center" : "justify-start"
                     }`}
                   >
-                    <HelpCircle className="mr-2" />
-                    {state !== "collapsed" && <span>Ajuda (Docs)</span>}
+                    <span className="hover-span relative flex items-center">
+                      <HelpCircle className="mr-2" />
+                      {state !== "collapsed" && <span>Ajuda (Docs)</span>}
+                    </span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>

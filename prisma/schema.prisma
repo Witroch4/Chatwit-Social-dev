@@ -60,6 +60,9 @@ model User {
 
   // Relação com sessões de chat de IA
   chatSessions           ChatSession[]
+  
+  // Relação com imagens geradas por IA
+  generatedImages        GeneratedImage[]
 }
 
 model Account {
@@ -276,6 +279,7 @@ model Agendamento {
   Reels                      Boolean   @default(false)
   PostNormal                 Boolean   @default(false)
   Diario                     Boolean   @default(false)
+  Semanal                    Boolean   @default(false)
   Randomizar                 Boolean   @default(false)
   TratarComoUnicoPost        Boolean   @default(false) // Todas as mídias em um único post
   TratarComoPostagensIndividuais Boolean @default(false) // Cada mídia postada individualmente
@@ -496,6 +500,7 @@ model ChatSession {
   summary     String?       // Resumo gerado automaticamente da conversa
   messages    ChatMessage[]
   files       ChatFile[]    // Relação com arquivos
+  generatedImages GeneratedImage[] // Relação com imagens geradas
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 
@@ -537,5 +542,28 @@ model ChatFile {
 
   @@index([sessionId])
   @@index([openaiFileId])
+}
+
+// Modelo para armazenar imagens geradas por IA
+model GeneratedImage {
+  id            String       @id @default(cuid())
+  userId        String
+  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sessionId     String?      // Opcional - associado a uma sessão de chat específica
+  session       ChatSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  prompt        String       @db.Text // Prompt original usado para gerar a imagem
+  revisedPrompt String?      @db.Text // Prompt revisado pela IA (se aplicável)
+  model         String       @default("gpt-image-1") // Modelo usado para gerar a imagem
+  imageUrl      String       // URL da imagem no MinIO
+  thumbnailUrl  String?      // URL da thumbnail no MinIO
+  mimeType      String       @default("image/png") // Tipo MIME da imagem
+  size          String?      // Tamanho da imagem (ex: 1024x1024)
+  quality       String?      // Qualidade da imagem (ex: auto, high)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  @@index([userId])
+  @@index([sessionId])
+  @@index([createdAt])
 }
 

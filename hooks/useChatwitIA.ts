@@ -87,28 +87,42 @@ export function useChatwitIA(chatId?: string | null, initialModel = 'chatgpt-4o-
     setCurrentSessionId(chatId || null);
   }, [chatId]);
   
+  // OTIMIZAÇÃO ANTI-PISCAR AVANÇADA:
+  // - Compara tamanho da última imagem parcial com a final
+  // - Se similares (diferença < 10%), reutiliza a parcial para zero piscar
+  // - Se diferentes, aplica transição suave com delay mínimo
+  
   // Carregar chat do banco de dados quando o ID mudar
   useEffect(() => {
-    if (chatId) {
-      loadChatFromDB(chatId);
-    } else {
-      // Reset messages when no chatId is provided (new chat)
-      setMessages([]);
-    }
-  }, [chatId, authSession]);
-
-  // Carregar mensagens quando o chatId mudar ou o usuário estiver autenticado
-  useEffect(() => {
     if (chatId && authSession?.user) {
-      loadChatFromDB(chatId);
+      // 🔧 CORREÇÃO: Só carregar do banco se não temos mensagens em memória
+      // ou se o chatId mudou para uma sessão diferente da atual
+      if (messages.length === 0 || chatId !== currentSessionId) {
+        console.log(`📚 Carregando chat do banco: ${chatId} (mensagens atuais: ${messages.length})`);
+        loadChatFromDB(chatId);
+      } else {
+        console.log(`✅ Chat ${chatId} já carregado em memória, mantendo estado atual`);
+        // Apenas atualizar o currentSessionId se necessário
+        if (currentSessionId !== chatId) {
+          setCurrentSessionId(chatId);
+        }
+      }
     } else if (!chatId) {
+      // Reset messages when no chatId is provided (new chat)
+      console.log(`🔄 Resetando mensagens para novo chat`);
       setMessages([]);
       setCurrentSessionId(null);
     }
-  }, [chatId, authSession?.user]);
+  }, [chatId, authSession?.user]); // 🔧 OTIMIZAÇÃO: Remover dependências desnecessárias
 
   // Carregar chat do banco de dados
   const loadChatFromDB = async (id: string) => {
+    // 🔧 OTIMIZAÇÃO: Evitar carregamento duplicado
+    if (isFetchingSession) {
+      console.log(`⏭️ Já carregando sessão ${id}, pulando...`);
+      return;
+    }
+    
     setIsFetchingSession(true);
     try {
       const response = await axios.get<ChatSessionResponse>(`/api/chatwitia/sessions/${id}`);
@@ -118,11 +132,30 @@ export function useChatwitIA(chatId?: string | null, initialModel = 'chatgpt-4o-
       const convertedMessages: Message[] = sessionData.messages.map(msg => {
         let content: MessageContent = msg.content;
         
-        // Se for um tipo especial (áudio ou imagem), converter para o formato apropriado
+        // Se for um tipo especial (áudio), converter para o formato apropriado
         if (msg.contentType === 'audio' && msg.audioData) {
           content = [{ type: 'audio', audio_data: msg.audioData }];
         } else if (msg.contentType === 'image' && msg.imageUrl) {
-          content = [{ type: 'image', image_url: msg.imageUrl }];
+          // PARA MENSAGENS CARREGADAS DO BANCO: usar URLs do MinIO
+          // (isso acontece apenas no reload da página, não durante streaming)
+          
+          // Verificar se o content já contém markdown de imagem
+          const hasImageMarkdown = typeof msg.content === 'string' && 
+                                 (msg.content.includes('![Imagem gerada]') || 
+                                  msg.content.includes('!['));
+          
+          if (hasImageMarkdown) {
+            // Se já tem markdown, manter o content original (pode ter URLs do MinIO)
+            content = msg.content;
+            console.log(`🖼️ Carregando do banco: Mantendo markdown existente`);
+          } else {
+            // Se não tem markdown, criar a partir da imageUrl do MinIO
+            const baseContent = typeof msg.content === 'string' ? msg.content.trim() : '';
+            content = baseContent ? 
+              `${baseContent}\n\n![Imagem gerada](${msg.imageUrl})` : 
+              `![Imagem gerada](${msg.imageUrl})`;
+            console.log(`🖼️ Carregando do banco: Criando markdown com URL do MinIO`);
+          }
         }
         
         return {
@@ -131,13 +164,41 @@ export function useChatwitIA(chatId?: string | null, initialModel = 'chatgpt-4o-
         };
       });
       
-      setMessages(convertedMessages);
-      setModel(sessionData.model);
-      setCurrentSessionId(id);
+      console.log(`📚 Carregadas ${convertedMessages.length} mensagens do banco para sessão ${id}`);
+      console.log(`🖼️ Mensagens com imagens do MinIO:`, convertedMessages.filter(m => 
+        typeof m.content === 'string' && m.content.includes('![Imagem gerada](https://')
+      ).length);
+      console.log(`🎨 Mensagens com imagens base64:`, convertedMessages.filter(m => 
+        typeof m.content === 'string' && m.content.includes('![Imagem gerada](data:image/')
+      ).length);
+      
+      // 🔧 CORREÇÃO: Só atualizar mensagens se realmente mudaram
+      const shouldUpdateMessages = messages.length === 0 || 
+                                  messages.length !== convertedMessages.length ||
+                                  currentSessionId !== id;
+      
+      if (shouldUpdateMessages) {
+        console.log(`📝 Atualizando mensagens do banco (${convertedMessages.length} mensagens)`);
+        setMessages(convertedMessages);
+        setModel(sessionData.model);
+        setCurrentSessionId(id);
+      } else {
+        console.log(`✅ Mensagens já estão sincronizadas, mantendo estado atual`);
+        // Apenas atualizar o modelo e sessionId se necessário
+        if (model !== sessionData.model) {
+          setModel(sessionData.model);
+        }
+        if (currentSessionId !== id) {
+          setCurrentSessionId(id);
+        }
+      }
     } catch (err) {
       console.error('Erro ao carregar chat do banco:', err);
       setError('Não foi possível carregar a conversa.');
-      setMessages([]);
+      // 🔧 CORREÇÃO: Só limpar mensagens se realmente houve erro e não temos conteúdo válido
+      if (messages.length === 0) {
+        setMessages([]);
+      }
     } finally {
       setIsFetchingSession(false);
     }
@@ -206,173 +267,71 @@ export function useChatwitIA(chatId?: string | null, initialModel = 'chatgpt-4o-
     }
   };
 
-  const sendMessage = async (content: string | Blob | UploadContent, systemPrompt?: string, selectedModel?: string) => {
-    // Prevent duplicate calls/API requests with the same message
-    if (isProcessingRef.current) {
-      console.log('Ignoring duplicate sendMessage call - already processing');
-      return;
-    }
+  const sendMessage = async (content: string, systemPrompt?: string, modelParam?: string) => {
+    if (isLoading) return;
     
-    isProcessingRef.current = true;
-    
-    // Always use the selectedModel parameter if provided, falling back to current model state
-    const modelToUse = selectedModel || model;
-    console.log(`Enviando mensagem usando modelo: ${modelToUse}`);
-    
-    // Update the model state to match what we're using for this message
-    if (modelToUse !== model) {
-      console.log(`Modelo alterado de "${model}" para "${modelToUse}"`);
-      setModel(modelToUse);
-    }
+    // Validar entrada
+    if (!content?.trim()) return;
     
     setIsLoading(true);
-    setError(null);
-
+    
     try {
-      // Garantir que temos uma sessão para salvar as mensagens
-      let sessionIdToUse = currentSessionId;
-      let isNewSession = false;
+      // Use o modelo especificado ou o padrão
+      const modelToUse = modelParam || model || 'gpt-4o-latest';
       
-      if (!sessionIdToUse && authSession?.user) {
-        // Pass the explicitly selected model to createChatSession
-        sessionIdToUse = await createChatSession('Nova conversa', modelToUse);
-        isNewSession = true;
-      }
-      
-      // Prepara o array de mensagens para enviar para a API
-      const messagesToSend: Message[] = [...messages];
-      
-      // Adiciona um system prompt se fornecido e não existir um já
-      if (systemPrompt && !messages.some(m => m.role === 'system')) {
-        const systemMessage: Message = { role: 'system', content: systemPrompt };
-        messagesToSend.unshift(systemMessage);
-        
-        // Salvar a mensagem de sistema no banco se tivermos uma sessão
-        if (sessionIdToUse && authSession?.user) {
-          await saveChatMessageToDB(sessionIdToUse, systemMessage);
-        }
-      }
-      
-      let userMessage: Message;
-      let contentType: 'text' | 'audio' | 'image' | 'document' = 'text';
-      
-      // Verifica se o conteúdo é um blob de áudio
-      if (content instanceof Blob) {
-        // Converte o blob de áudio para base64
-        const base64Audio = await blobToBase64(content);
-        
-        userMessage = {
-          role: 'user',
-          content: [
-            {
-              type: 'audio',
-              audio_data: base64Audio
-            }
-          ]
-        };
-        contentType = 'audio';
-      } 
-      // Verifica se é um objeto de upload
-      else if (typeof content === 'object' && 'type' in content && 'file' in content) {
-        if (content.type === 'upload' && content.file.type.startsWith('image/')) {
-          // Upload de imagem
-          userMessage = {
-            role: 'user',
-            content: [
-              {
-                type: 'image',
-                image_url: content.file.content,
-                file_name: content.file.name,
-                file_type: content.file.type
-              }
-            ]
-          };
-          contentType = 'image';
-        } else if (content.type === 'document') {
-          // Upload de documento
-          userMessage = {
-            role: 'user',
-            content: [
-              {
-                type: 'document',
-                file_name: content.file.name,
-                file_type: content.file.type,
-                file_content: content.file.content,
-                text: `[Documento carregado: ${content.file.name}]`
-              }
-            ]
-          };
-          contentType = 'document';
-        } else {
-          // Tipo não suportado
-          userMessage = { 
-            role: 'user', 
-            content: `[Arquivo não suportado: ${content.file.name}]` 
-          };
-        }
-      } else {
-        // Mensagem de texto normal
-        userMessage = { role: 'user', content };
-      }
-      
-      // Adiciona a mensagem do usuário
-      messagesToSend.push(userMessage);
-      
-      // Para visualização do usuário, usamos um formato simplificado
-      let displayContent: string;
-      
-      if (content instanceof Blob) {
-        displayContent = '[Áudio enviado]';
-      } else if (typeof content === 'object' && 'type' in content && 'file' in content) {
-        if (content.type === 'upload') {
-          displayContent = `[Imagem: ${content.file.name}]`;
-        } else if (content.type === 'document') {
-          displayContent = `[Documento: ${content.file.name}]`;
-        } else {
-          displayContent = `[Arquivo: ${content.file.name}]`;
-        }
-      } else {
-        displayContent = content as string;
-      }
-      
-      const displayUserMessage: Message = {
+      // Adicionar mensagem do usuário ao estado
+      const userMessage: Message = {
         role: 'user',
-        content: displayContent
+        content
       };
       
-      // Atualiza o estado com a mensagem do usuário para visualização
-      const updatedMessages = [...messages, displayUserMessage];
-      setMessages(updatedMessages);
-
-      // Se for um documento, adicione informações para o processamento de embedding
-      let additionalData = {};
-      if (typeof content === 'object' && 'type' in content && 'file' in content && content.type === 'document') {
-        additionalData = {
-          document: {
-            name: content.file.name,
-            content: content.file.content,
-            type: content.file.type
-          }
-        };
+      // Detectar se é refinamento de imagem e temos um response ID anterior
+      const isRefinement = isImageRefinementPrompt(content);
+      const shouldUseMultiTurn = isRefinement && 
+                               lastResponseId && 
+                               messages.length > 0 && 
+                               messages[messages.length - 1].role === 'assistant';
+      
+      if (shouldUseMultiTurn) {
+        console.log(`🔗 Detectado refinamento de imagem, usando multi-turn com response ID: ${lastResponseId}`);
       }
-
-      // Save user message to DB if we have a session
-      if (sessionIdToUse && authSession?.user) {
-        await saveChatMessageToDB(sessionIdToUse, userMessage, contentType);
+      
+      setMessages(prev => [...prev, userMessage]);
+      
+      // Salvar a mensagem do usuário no banco de dados
+      if (currentSessionId) {
+        try {
+          await saveChatMessageToDB(currentSessionId, userMessage);
+        } catch (saveError) {
+          console.error('Erro ao salvar mensagem do usuário:', saveError);
+        }
       }
-
-      // For visualizing what we're sending to the API for debugging
-      console.log('Sending messages to API:', messagesToSend);
-
-      // Prepare for streaming - add placeholder assistant message
+      
+      // 🔧 CORREÇÃO: Adicionar apenas UMA mensagem do assistente para streaming
       const assistantPlaceholder: Message = {
         role: 'assistant',
         content: ''
       };
       
-      // Add placeholder message that will be updated with streaming content
       setMessages(prev => [...prev, assistantPlaceholder]);
       
+      // Preparar payload
+      const payload: any = {
+        messages: [...messages, userMessage],
+        model: modelToUse,
+        stream: true,
+        sessionId: currentSessionId,
+        systemPrompt
+      };
+      
+      // Adicionar previousResponseId se for refinamento
+      if (shouldUseMultiTurn) {
+        payload.previousResponseId = lastResponseId;
+      }
+      
+      // For visualizing what we're sending to the API for debugging
+      console.log('Sending messages to API:', payload);
+
       // If the content contains file references, we need to include them in the API request
       if (typeof content === 'string') {
         // Try to extract file IDs from the content
@@ -383,10 +342,106 @@ export function useChatwitIA(chatId?: string | null, initialModel = 'chatgpt-4o-
         
         // Include fileIds in the API request if any were found
         if (fileIds.length > 0) {
-          additionalData = { ...additionalData, fileIds };
+          payload.fileIds = fileIds;
           console.log(`Found ${fileIds.length} file references in message:`, fileIds);
         }
       }
+      
+      // Array para armazenar imagens geradas e parciais
+      let generatedImages: any[] = [];
+      let partialImages: { [key: string]: string } = {};
+      let lastPartialImage: string = ''; // Armazenar a última imagem parcial
+      
+      // Flag para evitar atualizações após done (movida para fora do try/catch)
+      let isStreamComplete = false;
+      
+      // Function to update messages with throttling
+      const updateMessageWithStream = (content: string, images: any[] = [], partialImageData?: { index: number, base64: string }) => {
+        // Não atualizar se o stream já foi concluído
+        if (isStreamComplete) {
+          console.log('🚫 Stream já concluído, ignorando atualização:', content.substring(0, 50) + '...');
+          return;
+        }
+        
+        console.log('✅ Processando atualização:', content.substring(0, 50) + '...', 'Images:', images.length);
+        
+        // Clear any pending update
+        if (updateTimeoutRef.current) {
+          clearTimeout(updateTimeoutRef.current);
+        }
+        
+        // Schedule an update with 50ms delay to prevent too many renders
+        updateTimeoutRef.current = setTimeout(() => {
+          // Verificar novamente se não foi concluído no intervalo
+          if (isStreamComplete) {
+            console.log('🚫 Stream concluído durante timeout, ignorando atualização');
+            return;
+          }
+          
+          setMessages(prev => {
+            const updatedMessages = [...prev];
+            const lastIndex = updatedMessages.length - 1;
+            
+            if (lastIndex >= 0 && updatedMessages[lastIndex].role === 'assistant') {
+              // 🔧 CORREÇÃO: Simplificar lógica - sempre atualizar quando temos imagens finais
+              const currentContent = updatedMessages[lastIndex].content as string;
+              
+              // Limpar conteúdo de status antigo
+              let cleanContent = content.replace(/🎨 Gerando imagem\.\.\.(\s*\(progresso\))?/g, '').trim();
+              
+              // Se temos imagens finais, remover também as imagens parciais
+              if (images.length > 0) {
+                cleanContent = cleanContent.replace(/\n\n!\[Gerando imagem\.\.\.\]\(data:image\/png;base64,[^)]+\)/g, '');
+                console.log('🧹 Removendo imagens parciais, adicionando imagens finais');
+              }
+              
+              // Construir conteúdo final
+              let messageContent = cleanContent;
+              
+              // Add partial image if available (durante a geração) - APENAS se não temos imagens finais
+              if (partialImageData && images.length === 0) {
+                const partialImageContent = `\n\n![Gerando imagem...](data:image/png;base64,${partialImageData.base64})`;
+                messageContent += partialImageContent;
+                console.log('🎨 Adicionando imagem parcial');
+              }
+              
+              // Add completed images to the message content if any
+              // PRIORIZAR SEMPRE image_data (base64) sobre image_url (MinIO)
+              if (images.length > 0) {
+                const imageContent = images.map(img => {
+                  // 🔧 CORREÇÃO: Priorizar image_data (base64) para evitar "piscar" da imagem
+                  let imageUrl;
+                  if (img.image_data && img.image_data.startsWith('data:image/')) {
+                    // Se temos dados base64 completos, usar eles
+                    imageUrl = img.image_data;
+                    console.log('🎨 Usando image_data (base64) completo');
+                  } else if (img.image_data && !img.image_data.startsWith('data:image/')) {
+                    // Se temos dados base64 sem prefixo, adicionar prefixo
+                    imageUrl = `data:image/png;base64,${img.image_data}`;
+                    console.log('🎨 Usando image_data (base64) com prefixo adicionado');
+                  } else {
+                    // Fallback para URL do MinIO apenas se não temos base64
+                    imageUrl = img.image_url || img.thumbnail_url;
+                    console.log('🔗 Fallback para image_url (MinIO)');
+                  }
+                  
+                  return `\n\n![Imagem gerada](${imageUrl})`;
+                }).join('');
+                messageContent += imageContent;
+                
+                console.log(`🖼️ Adicionando ${images.length} imagem(ns) final(is) ao conteúdo da mensagem`);
+                console.log(`📝 Conteúdo final da mensagem: ${messageContent.substring(0, 100)}...`);
+              }
+              
+              updatedMessages[lastIndex] = {
+                ...updatedMessages[lastIndex],
+                content: messageContent
+              };
+            }
+            return updatedMessages;
+          });
+        }, 50);
+      };
       
       // Make API call with streaming enabled
       const response = await fetch('/api/chatwitia', {
@@ -394,14 +449,7 @@ export function useChatwitIA(chatId?: string | null, initialModel = 'chatgpt-4o-
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          messages: messagesToSend, 
-          model: modelToUse,
-          sessionId: sessionIdToUse,
-          generateSummary: isNewSession,
-          stream: true,
-          ...additionalData
-        }),
+        body: JSON.stringify(payload),
       });
       
       if (!response.ok) {
@@ -419,48 +467,47 @@ export function useChatwitIA(chatId?: string | null, initialModel = 'chatgpt-4o-
       
       console.log('Starting to read stream response...');
       
-      // Function to update messages with throttling
-      const updateMessageWithStream = (content: string) => {
-        // Clear any pending update
-        if (updateTimeoutRef.current) {
-          clearTimeout(updateTimeoutRef.current);
-        }
-        
-        // Schedule an update with 50ms delay to prevent too many renders
-        updateTimeoutRef.current = setTimeout(() => {
-          setMessages(prev => {
-            const updatedMessages = [...prev];
-            const lastIndex = updatedMessages.length - 1;
-            if (lastIndex >= 0 && updatedMessages[lastIndex].role === 'assistant') {
-              updatedMessages[lastIndex] = {
-                ...updatedMessages[lastIndex],
-                content: content
-              };
-            }
-            return updatedMessages;
-          });
-        }, 50);
-      };
+      // Buffer para reconstruir JSONs quebrados
+      let jsonBuffer = '';
       
       while (true) {
         const { done, value } = await reader.read();
         if (done) {
           console.log('Stream complete');
           
-          // Make sure we do a final update
+          // Marcar stream como completo IMEDIATAMENTE
+          isStreamComplete = true;
+          
+          // Se o stream já foi marcado como completo por 'done', não fazer mais atualizações
           if (updateTimeoutRef.current) {
             clearTimeout(updateTimeoutRef.current);
           }
           
-          // Update the final message
+          // Update the final message - APENAS se não tiver imagens finais
           setMessages(prev => {
             const updatedMessages = [...prev];
             const lastIndex = updatedMessages.length - 1;
             if (lastIndex >= 0 && updatedMessages[lastIndex].role === 'assistant') {
-              updatedMessages[lastIndex] = {
-                ...updatedMessages[lastIndex],
-                content: streamContentRef.current
-              };
+              const currentContent = updatedMessages[lastIndex].content as string;
+              const hasFinalImages = currentContent && currentContent.includes('![Imagem gerada](data:image/png;base64,');
+              const hasMinIOImages = currentContent && currentContent.includes('![Imagem gerada](https://');
+              
+              console.log(`🔍 Stream done - Análise final:`);
+              console.log(`   - Tem imagens base64: ${hasFinalImages}`);
+              console.log(`   - Tem imagens MinIO: ${hasMinIOImages}`);
+              console.log(`   - Conteúdo atual: ${currentContent.substring(0, 150)}...`);
+              
+              if (hasFinalImages || hasMinIOImages) {
+                console.log('✅ Mensagem já contém imagens finais, mantendo conteúdo atual');
+                // Não sobrescrever - manter o conteúdo atual que já tem as imagens
+              } else {
+                console.log('📝 Finalizando com conteúdo final do stream (sem imagens)');
+                console.log(`📝 Conteúdo do streamContentRef: ${streamContentRef.current.substring(0, 150)}...`);
+                updatedMessages[lastIndex] = {
+                  ...updatedMessages[lastIndex],
+                  content: streamContentRef.current
+                };
+              }
             }
             return updatedMessages;
           });
@@ -470,13 +517,68 @@ export function useChatwitIA(chatId?: string | null, initialModel = 'chatgpt-4o-
         
         // Decode the received chunk
         const chunk = decoder.decode(value, { stream: true });
-        console.log('Received chunk:', chunk);
+        console.log('Received chunk:', chunk.substring(0, 100) + (chunk.length > 100 ? '...' : ''));
         
-        // Process each line from the chunk
-        const lines = chunk.split('\n').filter(line => line.trim() !== '');
+        // Adicionar ao buffer
+        jsonBuffer += chunk;
+        
+        // Tentar processar linhas completas
+        const lines = jsonBuffer.split('\n');
+        
+        // Manter a última linha no buffer se não terminar com \n
+        if (!jsonBuffer.endsWith('\n')) {
+          jsonBuffer = lines.pop() || '';
+        } else {
+          jsonBuffer = '';
+        }
+        
+        // Process each complete line
         for (const line of lines) {
+          if (!line.trim()) continue;
+          
           try {
-            console.log('Processing line:', line);
+            console.log('Processing line:', line.substring(0, 100) + (line.length > 100 ? '...' : ''));
+            
+            // Verificar se a linha parece ser JSON válido
+            if (!line.startsWith('{') && !line.startsWith('[')) {
+              console.log('Linha não parece ser JSON, ignorando:', line.substring(0, 50));
+              continue;
+            }
+            
+            // Verificar se o JSON está completo (heurística mais avançada)
+            let isCompleteJson = false;
+            try {
+              // Tentar parsear diretamente
+              JSON.parse(line);
+              isCompleteJson = true;
+            } catch (parseError) {
+              // Se falhou, verificar se é um JSON incompleto
+              const openBraces = (line.match(/\{/g) || []).length;
+              const closeBraces = (line.match(/\}/g) || []).length;
+              const openBrackets = (line.match(/\[/g) || []).length;
+              const closeBrackets = (line.match(/\]/g) || []).length;
+              
+              // Se as chaves/colchetes não estão balanceados, é incompleto
+              if (openBraces !== closeBraces || openBrackets !== closeBrackets) {
+                console.log('JSON incompleto detectado (chaves desbalanceadas), adicionando ao buffer');
+                jsonBuffer = line + '\n' + jsonBuffer;
+                continue;
+              }
+              
+              // Verificar se termina abruptamente (strings não fechadas)
+              const lastChar = line.trim().slice(-1);
+              if (lastChar !== '}' && lastChar !== ']') {
+                console.log('JSON incompleto detectado (não termina corretamente), adicionando ao buffer');
+                jsonBuffer = line + '\n' + jsonBuffer;
+                continue;
+              }
+              
+              // Se chegou aqui, pode ser um erro de parsing real
+              console.log('Erro real de parsing JSON:', parseError instanceof Error ? parseError.message : 'Erro desconhecido');
+              continue;
+            }
+            
+            // Se chegou aqui, o JSON é válido
             const data = JSON.parse(line);
             console.log('Parsed data:', data);
             
@@ -486,41 +588,114 @@ export function useChatwitIA(chatId?: string | null, initialModel = 'chatgpt-4o-
               console.log('Updated content:', streamContentRef.current);
               
               // Update the UI with throttling
-              updateMessageWithStream(streamContentRef.current);
+              updateMessageWithStream(streamContentRef.current, generatedImages);
+            } else if (data.type === 'image_generated') {
+              // Handle image generation events
+              console.log('Image generated:', data);
+              
+              // 🔧 CORREÇÃO: Sempre usar a imagem final para garantir renderização correta
+              const imageData = {
+                id: data.image_id,
+                image_data: data.image_data, // Sempre usar a imagem final
+                image_url: data.image_url,
+                thumbnail_url: data.thumbnail_url,
+                revised_prompt: data.revised_prompt
+              };
+              
+              generatedImages.push(imageData);
+              
+              // Limpar o conteúdo de status/parcial
+              let cleanContent = streamContentRef.current
+                .replace(/🎨 Gerando imagem\.\.\.(\s*\(progresso\))?/g, '')
+                .replace(/\n\n!\[Gerando imagem\.\.\.\]\(data:image\/png;base64,[^)]+\)/g, '')
+                .trim();
+              
+              streamContentRef.current = cleanContent;
+              
+              console.log(`🖼️ Imagem final gerada: ${imageData.image_url || 'base64 data'}`);
+              console.log(`🧹 Conteúdo limpo: ${cleanContent.substring(0, 50)}...`);
+              
+              // 🔧 CORREÇÃO: Atualizar imediatamente sem delay para garantir renderização
+              updateMessageWithStream(streamContentRef.current, generatedImages);
+            } else if (data.type === 'image_generation_started') {
+              // Handle image generation started
+              console.log('Image generation started');
+              
+              // Add a placeholder message
+              streamContentRef.current += '\n\n🎨 Gerando imagem...';
+              updateMessageWithStream(streamContentRef.current, generatedImages);
+            } else if (data.type === 'partial_image') {
+              // Handle partial image streaming
+              console.log('Partial image received:', data.index);
+              
+              // Store the partial image
+              partialImages[data.index] = data.image_data;
+              
+              // Armazenar a última imagem parcial para comparação
+              lastPartialImage = data.image_data;
+              
+              // Show the most recent partial image
+              const partialImageData = {
+                index: data.index,
+                base64: data.image_data
+              };
+              
+              // Update status with partial image
+              const lastContent = streamContentRef.current.replace('🎨 Gerando imagem...', '🎨 Gerando imagem... (progresso)');
+              streamContentRef.current = lastContent;
+              updateMessageWithStream(streamContentRef.current, generatedImages, partialImageData);
             } else if (data.type === 'done') {
-              console.log('Received done event:', data);
-              // Final update with complete message
-              if (updateTimeoutRef.current) {
-                clearTimeout(updateTimeoutRef.current);
+              console.log('✅ Processamento completo');
+              
+              // Marcar stream como completo para evitar atualizações futuras
+              isStreamComplete = true;
+              
+              // Capturar response_id para multi-turn image generation
+              if (data.response_id) {
+                console.log(`💾 Salvando response ID para multi-turn: ${data.response_id}`);
+                setLastResponseId(data.response_id);
               }
               
-              const finalContent = data.response?.content || streamContentRef.current;
-              console.log('Setting final content:', finalContent);
-              streamContentRef.current = finalContent;
+              // Final content - should already be accumulated
+              const finalResponse = data.response;
               
-              // Final update
-              setMessages(prev => {
-                const updatedMessages = [...prev];
-                const lastIndex = updatedMessages.length - 1;
-                if (lastIndex >= 0 && updatedMessages[lastIndex].role === 'assistant') {
-                  updatedMessages[lastIndex] = {
-                    ...updatedMessages[lastIndex],
-                    content: finalContent,
-                    summary: data.summary || null // Garantir que o summary é atualizado
-                  };
+              // Update messages with final response - PRESERVAR IMAGENS
+              setMessages(prevMessages => {
+                const newMessages = [...prevMessages];
+                const lastMessage = newMessages[newMessages.length - 1];
+                
+                if (lastMessage && lastMessage.role === 'assistant') {
+                  // Se a mensagem atual já contém imagens FINAIS (URLs), preservar SEMPRE
+                  const currentContent = lastMessage.content as string;
+                  const hasFinalImages = currentContent && currentContent.includes('![Imagem gerada](https://');
+                  const hasPartialImages = currentContent && currentContent.includes('![Gerando imagem...](data:image/png;base64');
+                  
+                  console.log(`🔍 Análise do conteúdo atual:`);
+                  console.log(`   - Tem imagens finais: ${hasFinalImages}`);
+                  console.log(`   - Tem imagens parciais: ${hasPartialImages}`);
+                  console.log(`   - Conteúdo: ${currentContent.substring(0, 100)}...`);
+                  
+                  if (hasFinalImages) {
+                    // Se já tem imagens finais, SEMPRE preservar o conteúdo atual
+                    console.log(`✅ Preservando conteúdo com imagens finais - NÃO sobrescrever`);
+                    // Não fazer nada - manter o conteúdo atual
+                  } else {
+                    // Se não tem imagens finais, usar o conteúdo final
+                    const finalContent = finalResponse?.content || streamContentRef.current;
+                    console.log(`📝 Atualizando com conteúdo final: ${finalContent.substring(0, 100)}...`);
+                    lastMessage.content = finalContent;
+                  }
+                  
+                  // Limpar qualquer flag de loading
+                  delete (lastMessage as any).isLoading;
+                  
+                  return newMessages;
                 }
-                return updatedMessages;
+                return prevMessages;
               });
               
-              // No need to save to DB here since it's now handled on the server side
-              // when the streaming is complete
-
-              // Handle summary if present
-              if (data.summary && isNewSession && sessionIdToUse) {
-                await axios.put(`/api/chatwitia/sessions/${sessionIdToUse}`, {
-                  title: data.summary
-                });
-              }
+              setIsLoading(false);
+              return;
             }
           } catch (e) {
             console.error('Error parsing streaming data:', e, 'Line:', line);
@@ -530,6 +705,12 @@ export function useChatwitIA(chatId?: string | null, initialModel = 'chatgpt-4o-
     } catch (err: any) {
       console.error('Error in chat:', err);
       setError(err.message || 'Ocorreu um erro ao processar sua solicitação.');
+      
+      // Cancelar timeouts pendentes em caso de erro
+      if (updateTimeoutRef.current) {
+        clearTimeout(updateTimeoutRef.current);
+        updateTimeoutRef.current = null;
+      }
       
       // Remove the placeholder assistant message if we had an error
       setMessages(prev => {
@@ -1196,6 +1377,25 @@ export function useChatwitIA(chatId?: string | null, initialModel = 'chatgpt-4o-
     }
   };
   
+  // Estado para multi-turn image generation
+  const [lastResponseId, setLastResponseId] = useState<string | null>(null);
+  
+  // Função para detectar se a mensagem é um refinamento de imagem
+  const isImageRefinementPrompt = (message: string): boolean => {
+    const refinementKeywords = [
+      'agora', 'mais realista', 'realista', 'mais realistca', 'torne', 'faça',
+      'modifique', 'mude', 'altere', 'transforme', 'ajuste',
+      'melhor qualidade', 'alta resolução', 'maior resolução',
+      'mais detalhes', 'mais cores', 'colorido', 'preto e branco',
+      'estilo', 'cartoon', 'anime', 'fotográfico', 'pintura',
+      'background diferente', 'fundo diferente', 'sem fundo',
+      'maior', 'menor', 'rotacione', 'vire', 'inverta'
+    ];
+    
+    const lowerMessage = message.toLowerCase();
+    return refinementKeywords.some(keyword => lowerMessage.includes(keyword));
+  };
+
   return {
     messages,
     isLoading,
@@ -1224,6 +1424,7 @@ export function useChatwitIA(chatId?: string | null, initialModel = 'chatgpt-4o-
     // Diagnóstico
     checkOpenApiConnection,
     checkApiConnection,
-    testUpload
+    testUpload,
+    lastResponseId
   };
 } 

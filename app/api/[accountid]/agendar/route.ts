@@ -123,6 +123,7 @@ export async function POST(
       Reels: body.Reels || false,
       PostNormal: body.PostNormal || false,
       Diario: body.Diario || false,
+      Semanal: body.Semanal || false,
       Randomizar: body.Randomizar || false,
       TratarComoUnicoPost: !body.TratarComoIndividual,
       TratarComoPostagensIndividuais: body.TratarComoIndividual || false,

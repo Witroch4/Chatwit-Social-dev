@@ -4,8 +4,9 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter, useParams, useSearchParams } from 'next/navigation';  // ← importe useSearchParams
 import Link from 'next/link';
-import { ArrowLeft, MessageSquare, Plus, ChevronDown, User2, X, ChevronRight, MoreVertical, Share, Edit, Archive, Trash2 } from 'lucide-react';
+import { ArrowLeft, MessageSquare, Plus, ChevronDown, User2, X, ChevronRight, MoreVertical, Share, Edit, Archive, Trash2, ImageIcon } from 'lucide-react';
 import ChatwitIA from '@/app/components/ChatwitIA/ChatwithIA';
+import ImageGalleryModal from '@/app/components/ImageGallery';
 
 interface ChatHistory {
   id: string;
@@ -50,32 +51,37 @@ export default function ChatPage() {
   const searchParams = useSearchParams();
   const chatId = params?.id as string;
   
-  // Get pending message data (message + model) from sessionStorage
-  const pendingData = typeof window !== "undefined" 
-    ? sessionStorage.getItem(`pending_${chatId}`) 
-    : null;
+  // State for pending message to handle async loading
+  const [pendingMessage, setPendingMessage] = useState<string | null>(null);
+  const [pendingModel, setPendingModel] = useState<string | null>(null);
+  const [hasProcessedPending, setHasProcessedPending] = useState(false);
   
-  // Try to parse the pending data as JSON, fall back to treating it as a plain message
-  let pendingMsg = null;
-  let pendingModelId = null;
-  
-  if (pendingData) {
-    try {
-      // Try to parse as JSON first (new format with model)
-      const parsed = JSON.parse(pendingData);
-      pendingMsg = parsed.message;
-      pendingModelId = parsed.model;
-      console.log("Parsed pending message data:", pendingMsg, "with model:", pendingModelId);
-    } catch (e) {
-      // Fall back to treating as plain string (old format)
-      pendingMsg = pendingData;
-      console.log("Using legacy format pending message:", pendingMsg);
+  // 🔧 OTIMIZAÇÃO: Processar sessionStorage apenas uma vez
+  useEffect(() => {
+    if (typeof window !== "undefined" && chatId && !hasProcessedPending) {
+      const pendingData = sessionStorage.getItem(`pending_${chatId}`);
+      console.log(`🔍 [${chatId}] Verificando sessionStorage:`, pendingData);
+      
+      if (pendingData) {
+        try {
+          const parsed = JSON.parse(pendingData);
+          setPendingMessage(parsed.message);
+          setPendingModel(parsed.model);
+          console.log(`📦 [${chatId}] Dados parseados:`, parsed.message, "com modelo:", parsed.model);
+        } catch (e) {
+          setPendingMessage(pendingData);
+          console.log(`📦 [${chatId}] Formato legado:`, pendingData);
+        }
+        // Limpar sessionStorage imediatamente após processar
+        sessionStorage.removeItem(`pending_${chatId}`);
+      }
+      setHasProcessedPending(true);
     }
-  }
+  }, [chatId, hasProcessedPending]);
 
-  // 3) Get model from URL query params or pending data or default
+  // 🔧 OTIMIZAÇÃO: Modelo inicial mais inteligente
   const urlModel = searchParams?.get('model');
-  const initialModel = urlModel || pendingModelId || 'chatgpt-4o-latest';
+  const initialModel = pendingModel || urlModel || 'chatgpt-4o-latest';
   const [selectedModel, setSelectedModel] = useState<string>(initialModel);
   const [selectedModelName, setSelectedModelName] = useState<string>(() => {
     const m = [...defaultMainModels, ...defaultAdditionalModels].find(m => m.id === initialModel);
@@ -101,12 +107,17 @@ export default function ChatPage() {
   const [newChatTitle, setNewChatTitle] = useState('');
   const [confirmDeleteVisible, setConfirmDeleteVisible] = useState(false);
   const [chatToDelete, setChatToDelete] = useState<string | null>(null);
+  const [remountKey, setRemountKey] = useState(0);
+  
+  // Estado para controlar a galeria de imagens
+  const [showImageGallery, setShowImageGallery] = useState(false);
 
-  // Modelos da API
+  // 🔧 OTIMIZAÇÃO: Modelos carregados apenas uma vez
   const [mainModels, setMainModels] = useState<Model[]>(defaultMainModels);
   const [additionalModels, setAdditionalModels] = useState<Model[]>(defaultAdditionalModels);
   const [apiModels, setApiModels] = useState<any>({});
   const [isLoadingModels, setIsLoadingModels] = useState(false);
+  const [modelsLoaded, setModelsLoaded] = useState(false);
 
   // Refs para fechar menus
   const contextMenuRef = useRef<HTMLDivElement>(null);
@@ -528,23 +539,23 @@ export default function ChatPage() {
     return modelCategories;
   };
 
-  // Carregar modelos disponíveis da API
+  // 🔧 OTIMIZAÇÃO: Carregar modelos apenas uma vez
   const loadAvailableModels = async () => {
+    if (modelsLoaded || isLoadingModels) {
+      console.log('⏭️ Modelos já carregados ou carregando, pulando...');
+      return;
+    }
+    
+    setIsLoadingModels(true);
     try {
-      setIsLoadingModels(true);
       const response = await fetch('/api/chatwitia');
       if (response.ok) {
         const data = await response.json();
-        setApiModels(data);
         
-        // Log para debug dos modelos disponíveis
+        // Log apenas uma vez para debug
         console.log('Modelos disponíveis da API:', data);
         
-        // Processar GPT-4o e O Series para os modelos principais (manter os originais e adicionar novos)
-        const gpt4oModels = data.models?.gpt4o || [];
-        const oSeriesModels = data.models?.oSeries || [];
-        
-        // Adicionar modelos da API à lista de modelos adicionais
+        // Processar modelos sem logs excessivos
         const newAdditionalModels: Array<{
           id: string;
           name: string;
@@ -560,75 +571,37 @@ export default function ChatPage() {
             newAdditionalModels.push({
               id: model.id,
               name: model.display_name || model.id,
-              description: `Modelo Anthropic ${model.id} (${model.created_at?.split('T')[0] || 'Data desconhecida'})`,
+              description: `Modelo Anthropic ${model.id}`,
               category: 'Claude / Anthropic'
             });
           });
         }
 
-        // Processar GPT-4
-        if (data.models?.gpt4?.length) {
-          data.models.gpt4.forEach((model: any) => {
-            newAdditionalModels.push({
-              id: model.id,
-              name: model.id.replace('gpt-', 'GPT-').replace(/-/g, ' '),
-              description: `Modelo ${model.id} (${model.created})`,
-              category: 'GPT-4'
+        // Processar outros modelos sem logs excessivos
+        ['gpt4', 'gpt4o', 'oSeries', 'gpt3'].forEach(category => {
+          if (data.models?.[category]?.length) {
+            data.models[category].forEach((model: any) => {
+              if (!mainModels.some(m => m.id === model.id)) {
+                newAdditionalModels.push({
+                  id: model.id,
+                  name: model.id.replace('gpt-', 'GPT-').replace(/-/g, ' '),
+                  description: `Modelo ${model.id}`,
+                  category: category === 'gpt4o' ? 'GPT-4o' : category === 'oSeries' ? 'O Series' : category.toUpperCase()
+                });
+              }
             });
-          });
-        }
+          }
+        });
         
-        // Processar GPT-4o que não estão nos modelos principais
-        if (data.models?.gpt4o?.length) {
-          data.models.gpt4o.forEach((model: any) => {
-            // Verificar se já não está nos modelos principais
-            if (!mainModels.some(m => m.id === model.id)) {
-              newAdditionalModels.push({
-                id: model.id,
-                name: model.id.replace('gpt-', 'GPT-').replace(/-/g, ' '),
-                description: `Modelo ${model.id} (${model.created})`,
-                category: 'GPT-4o'
-              });
-            }
-          });
-        }
-        
-        // Processar O Series que não estão nos modelos principais
-        if (data.models?.oSeries?.length) {
-          data.models.oSeries.forEach((model: any) => {
-            // Verificar se já não está nos modelos principais
-            if (!mainModels.some(m => m.id === model.id)) {
-              newAdditionalModels.push({
-                id: model.id,
-                name: model.id,
-                description: `Modelo ${model.id} (${model.created})`,
-                category: 'O Series'
-              });
-            }
-          });
-        }
-        
-        // Processar GPT-3
-        if (data.models?.gpt3?.length) {
-          data.models.gpt3.forEach((model: any) => {
-            newAdditionalModels.push({
-              id: model.id,
-              name: model.id.replace('gpt-', 'GPT-').replace(/-/g, ' '),
-              description: `Modelo ${model.id} (${model.created})`,
-              category: 'GPT-3'
-            });
-          });
-        }
-        
-        // Adicionar outros modelos que existem como padrão
+        // Adicionar modelos padrão que não existem na API
         defaultAdditionalModels.forEach(model => {
           if (!newAdditionalModels.some(m => m.id === model.id)) {
             newAdditionalModels.push(model);
           }
         });
         
-        // Atualizar estado
         setAdditionalModels(newAdditionalModels);
+        setModelsLoaded(true);
       }
     } catch (error) {
       console.error("Erro ao carregar modelos disponíveis:", error);
@@ -637,25 +610,26 @@ export default function ChatPage() {
     }
   };
   
-  // Carregar modelos quando o componente é montado
+  // 🔧 OTIMIZAÇÃO: Carregar modelos apenas uma vez quando componente monta
   useEffect(() => {
-    loadAvailableModels();
-  }, []);
+    if (!modelsLoaded) {
+      loadAvailableModels();
+    }
+  }, [modelsLoaded]);
 
-  // Uncomment and fix the load chat info effect
+  // 🔧 OTIMIZAÇÃO: Carregar info do chat apenas uma vez e de forma mais eficiente
   useEffect(() => {
-    if (chatId) {
+    if (chatId && modelsLoaded) {
       const fetchChatInfo = async () => {
         try {
           const response = await fetch(`/api/chatwitia/sessions/${chatId}`);
           if (response.ok) {
             const data = await response.json();
-            if (data.model) {
-              console.log(`Carregando modelo do chat: ${data.model}`);
-              // Update selected model based on the chat's model
+            if (data.model && data.model !== selectedModel) {
+              console.log(`🔄 Carregando modelo do chat: ${data.model}`);
               setSelectedModel(data.model);
               
-              // Find model name from available models
+              // Atualizar nome do modelo
               const allModels = [...mainModels, ...additionalModels];
               const modelInfo = allModels.find(m => m.id === data.model);
               if (modelInfo) {
@@ -670,35 +644,27 @@ export default function ChatPage() {
       
       fetchChatInfo();
     }
-  }, [chatId, mainModels, additionalModels]);
+  }, [chatId, modelsLoaded]); // Remover dependências desnecessárias
 
-  // Atualizar modelName quando selectedModel mudar
+  // 🔧 OTIMIZAÇÃO: Atualizar nome do modelo apenas quando necessário
   useEffect(() => {
-    console.log(`Atualizando nome do modelo para: ${selectedModel}`);
-    // Find model name from available models
-    const allModels = [...mainModels, ...additionalModels];
-    const modelInfo = allModels.find(m => m.id === selectedModel);
-    if (modelInfo) {
-      setSelectedModelName(modelInfo.name);
-    } else {
-      // Tentar formatar o nome do modelo
-      setSelectedModelName(selectedModel.replace('gpt-', 'GPT-').replace(/-/g, ' '));
+    if (modelsLoaded) {
+      const allModels = [...mainModels, ...additionalModels];
+      const modelInfo = allModels.find(m => m.id === selectedModel);
+      const newModelName = modelInfo?.name || selectedModel.replace('gpt-', 'GPT-').replace(/-/g, ' ');
+      
+      if (newModelName !== selectedModelName) {
+        console.log(`Atualizando nome do modelo para: ${selectedModel}`);
+        setSelectedModelName(newModelName);
+      }
     }
-  }, [selectedModel, mainModels, additionalModels]);
+  }, [selectedModel, modelsLoaded]); // Remover dependências desnecessárias
 
-  // 🚀 Verifica modelo e limpa ?model= apenas uma vez por chatId
+  // 🔧 OTIMIZAÇÃO: Limpar URL apenas uma vez
   useEffect(() => {
     if (!chatId) return;
-    (async () => {
-      try {
-        const res = await fetch(`/api/chatwitia/sessions/${chatId}`);
-        const data = await res.json();
-        if (data.model !== selectedModel) {
-          await updateSessionModel(chatId, selectedModel);
-        }
-      } catch (e) {
-        console.error(e);
-      }
+    
+    const cleanupUrl = () => {
       if (typeof window !== 'undefined') {
         const url = new URL(window.location.href);
         if (url.searchParams.has('model')) {
@@ -706,21 +672,42 @@ export default function ChatPage() {
           window.history.replaceState({}, document.title, url.toString());
         }
       }
-    })();
+    };
+    
+    // Executar apenas uma vez por chatId
+    const timeoutId = setTimeout(cleanupUrl, 100);
+    return () => clearTimeout(timeoutId);
   }, [chatId]);
+
+  // 🔧 OTIMIZAÇÃO: Processar modelo pendente apenas quando necessário
+  useEffect(() => {
+    if (pendingModel && pendingModel !== selectedModel && hasProcessedPending) {
+      console.log(`🔄 [${chatId}] Aplicando modelo pendente: ${pendingModel}`);
+      setSelectedModel(pendingModel);
+    }
+  }, [pendingModel, hasProcessedPending, chatId]);
 
   return (
     <div className="flex h-screen">
       {/* Sidebar with chat history */}
       <div className="w-64 bg-gray-50 border-r h-full flex flex-col">
         {/* New Chat Button */}
-        <div className="p-3">
+        <div className="p-3 space-y-2">
           <button 
             onClick={createNewChat}
             className="w-full flex items-center justify-center gap-2 p-3 bg-white border rounded-md hover:bg-gray-50 transition-colors"
           >
             <Plus size={16} />
             <span>Nova conversa</span>
+          </button>
+          
+          {/* Gallery Button */}
+          <button 
+            onClick={() => setShowImageGallery(true)}
+            className="w-full flex items-center justify-center gap-2 p-3 bg-white border rounded-md hover:bg-gray-50 transition-colors"
+          >
+            <ImageIcon size={16} />
+            <span>Galeria</span>
           </button>
         </div>
         
@@ -1052,7 +1039,7 @@ export default function ChatPage() {
             key={chatId}
             chatId={chatId}
             modelId={selectedModel}
-            initialMessage={pendingMsg}
+            initialMessage={pendingMessage}
             onTitleChange={handleChatTitleChange}
           />
         </div>
@@ -1113,6 +1100,12 @@ export default function ChatPage() {
           </div>
         </div>
       )}
+      
+      {/* Image Gallery Modal */}
+      <ImageGalleryModal 
+        isOpen={showImageGallery}
+        onClose={() => setShowImageGallery(false)}
+      />
     </div>
   );
 } 

@@ -47,6 +47,22 @@ export async function processAgendamentoTask(job: Job<IAgendamentoJobData>) {
       });
     }
 
+    if (job.data.Semanal) {
+      const jobDate = new Date(job.data.Data);
+      const nextWeek = new Date(jobDate);
+      nextWeek.setDate(nextWeek.getDate() + 7);
+
+      console.log(`[BullMQ] Reagendando job semanal para: ${nextWeek.toISOString()}`);
+
+      await scheduleAgendamentoJob({
+        id: agendamentoId,
+        Data: nextWeek,
+        userId: job.data.userId,
+        accountId: job.data.accountId,
+        Semanal: true,
+      });
+    }
+
     return { success: true, message: 'Agendamento processado com sucesso' };
   } catch (error: any) {
     console.error(`[BullMQ] Erro ao processar job de agendamento: ${error.message}`);

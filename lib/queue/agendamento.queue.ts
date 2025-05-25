@@ -11,9 +11,10 @@ const AGENDAMENTO_QUEUE_NAME = 'agendamento';
 export interface IAgendamentoJobData {
   agendamentoId: string;  // ID direto do Prisma
   Data: string;           // data em ISO string
-  userId: string;         // padronize: userId (minúsculo “u”)
+  userId: string;         // padronize: userId (minúsculo "u")
   accountId: string;
   Diario?: boolean;
+  Semanal?: boolean;
 }
 
 /**
@@ -34,7 +35,7 @@ export const agendamentoQueue = new Queue<IAgendamentoJobData>('agendamento', {
 
 /**
  * Agenda um job na fila com delay calculado.
- * @param agendamento Objeto com os dados do agendamento (id, Data, userID, accountId, Diario)
+ * @param agendamento Objeto com os dados do agendamento (id, Data, userID, accountId, Diario, Semanal)
  */
 export async function scheduleAgendamentoJob(agendamento: {
   id: string;
@@ -42,6 +43,7 @@ export async function scheduleAgendamentoJob(agendamento: {
   userId: string;
   accountId: string;
   Diario?: boolean;
+  Semanal?: boolean;
 }) {
   // Calcula o delay em milissegundos
   const delay = new Date(agendamento.Data).getTime() - Date.now();
@@ -53,6 +55,7 @@ export async function scheduleAgendamentoJob(agendamento: {
     userId: agendamento.userId,
     accountId: agendamento.accountId,
     Diario: agendamento.Diario,
+    Semanal: agendamento.Semanal,
   };
   
 

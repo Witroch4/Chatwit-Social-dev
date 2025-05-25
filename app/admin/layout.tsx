@@ -128,6 +128,9 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
           <AdminNavLink href="/admin" icon={<LayoutDashboard className="h-5 w-5 mr-3" />} exact>
             Dashboard
           </AdminNavLink>
+          <AdminNavLink href="/" icon={<LayoutDashboard className="h-5 w-5 mr-3" />} exact>
+            Home
+          </AdminNavLink>
           <AdminNavLink href="/admin/notifications" icon={<Bell className="h-5 w-5 mr-3" />}>
             Notificações
           </AdminNavLink>

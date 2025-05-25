@@ -19,6 +19,7 @@ export interface CreateAgendamentoDTO {
   Reels?: boolean;
   PostNormal?: boolean;
   Diario?: boolean;
+  Semanal?: boolean;
   Randomizar?: boolean;
   TratarComoUnicoPost?: boolean;
   TratarComoPostagensIndividuais?: boolean;
@@ -45,6 +46,7 @@ export interface UpdateAgendamentoDTO {
   Reels?: boolean;
   PostNormal?: boolean;
   Diario?: boolean;
+  Semanal?: boolean;
   Randomizar?: boolean;
   TratarComoUnicoPost?: boolean;
   TratarComoPostagensIndividuais?: boolean;
@@ -76,6 +78,7 @@ export async function createAgendamento(data: CreateAgendamentoDTO): Promise<Age
         Reels: data.Reels || false,
         PostNormal: data.PostNormal || false,
         Diario: data.Diario || false,
+        Semanal: data.Semanal || false,
         Randomizar: data.Randomizar || false,
         TratarComoUnicoPost: data.TratarComoUnicoPost || false,
         TratarComoPostagensIndividuais: data.TratarComoPostagensIndividuais || false,
@@ -119,6 +122,7 @@ export async function createAgendamento(data: CreateAgendamentoDTO): Promise<Age
       userId: agendamento.userId,
       accountId: agendamento.accountId,
       Diario: agendamento.Diario,
+      Semanal: agendamento.Semanal,
     });
 
     return agendamento;
@@ -270,6 +274,7 @@ export async function updateAgendamento(id: string, data: UpdateAgendamentoDTO):
     if (data.Reels !== undefined) updateData.Reels = data.Reels;
     if (data.PostNormal !== undefined) updateData.PostNormal = data.PostNormal;
     if (data.Diario !== undefined) updateData.Diario = data.Diario;
+    if (data.Semanal !== undefined) updateData.Semanal = data.Semanal;
     if (data.Randomizar !== undefined) updateData.Randomizar = data.Randomizar;
     if (data.TratarComoUnicoPost !== undefined) updateData.TratarComoUnicoPost = data.TratarComoUnicoPost;
     if (data.TratarComoPostagensIndividuais !== undefined) updateData.TratarComoPostagensIndividuais = data.TratarComoPostagensIndividuais;
@@ -326,6 +331,7 @@ export async function updateAgendamento(id: string, data: UpdateAgendamentoDTO):
         userId: updatedAgendamento.userId,
         accountId: updatedAgendamento.accountId,
         Diario: updatedAgendamento.Diario,
+        Semanal: updatedAgendamento.Semanal,
       });
     }
 
@@ -504,6 +510,7 @@ export async function prepareWebhookData(agendamentoId: string): Promise<any> {
       reels: agendamento.Reels,
       postNormal: agendamento.PostNormal,
       diario: agendamento.Diario,
+      semanal: agendamento.Semanal,
       randomizar: agendamento.Randomizar,
       tratarComoPostagensIndividuais: agendamento.TratarComoPostagensIndividuais,
       tokenExpired,

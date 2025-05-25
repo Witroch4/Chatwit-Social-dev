@@ -35,6 +35,7 @@ const PostTypeSelector: React.FC<PostTypeSelectorProps> = ({
 }) => {
   const { toast } = useToast();
   const [isPostagemDiaria, setIsPostagemDiaria] = useState(false);
+  const [isPostagemSemanal, setIsPostagemSemanal] = useState(false);
   const [isPostagemAleatoria, setIsPostagemAleatoria] = useState(false);
   const [localTratarMidiasComoUnica, setLocalTratarMidiasComoUnica] = useState(tratarMidiasComoUnica);
   const [localTratarMidiasComoIndividuais, setLocalTratarMidiasComoIndividuais] = useState(tratarMidiasComoIndividuais);
@@ -42,6 +43,7 @@ const PostTypeSelector: React.FC<PostTypeSelectorProps> = ({
   // Sincroniza os estados dos switches com o array tipoPostagem
   useEffect(() => {
     setIsPostagemDiaria(tipoPostagem.includes("Diario"));
+    setIsPostagemSemanal(tipoPostagem.includes("Semanal"));
     setIsPostagemAleatoria(tipoPostagem.includes("Aleatório"));
   }, [tipoPostagem]);
 
@@ -70,6 +72,21 @@ const PostTypeSelector: React.FC<PostTypeSelectorProps> = ({
       setTipoPostagem((prev) => prev.filter((item) => item !== "Diario"));
     }
     setIsPostagemDiaria(checked);
+  };
+
+  const handlePostagemSemanalChange = (checked: boolean) => {
+    if (checked) {
+      setTipoPostagem((prev) =>
+        prev.includes("Semanal") ? prev : [...prev, "Semanal"]
+      );
+      toast({
+        title: "Postagem Semanal Ativada",
+        description: "Esta postagem será publicada automaticamente todas as semanas no horário selecionado.",
+      });
+    } else {
+      setTipoPostagem((prev) => prev.filter((item) => item !== "Semanal"));
+    }
+    setIsPostagemSemanal(checked);
   };
 
   const handlePostagemAleatoriaChange = (checked: boolean) => {
@@ -165,6 +182,17 @@ const PostTypeSelector: React.FC<PostTypeSelectorProps> = ({
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
             <Switch
+              id="postagem-semanal"
+              checked={isPostagemSemanal}
+              onCheckedChange={handlePostagemSemanalChange}
+            />
+            <Label htmlFor="postagem-semanal">Postagem Semanal</Label>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            <Switch
               id="postagem-aleatoria"
               checked={isPostagemAleatoria}
               onCheckedChange={handlePostagemAleatoriaChange}
@@ -190,11 +218,12 @@ const PostTypeSelector: React.FC<PostTypeSelectorProps> = ({
                       <p className="font-semibold">2️⃣ Postar cada mídia como uma postagem separada.</p>
                       <p>- Se essa opção for ativada, cada mídia carregada será tratada como uma postagem individual.</p>
                       <p>- Caso uma descrição seja preenchida, ela será replicada para cada postagem gerada.</p>
-                      <p>- Se a "Postagem Diária" estiver ativada, uma mídia será postada por dia.</p>
+                      <p>- Se a "Postagem Diária" ou "Postagem Semanal" estiver ativada, uma mídia será postada por período (dia/semana).</p>
                     </div>
                     <p className="font-semibold mt-2">Importante:</p>
                     <p>- Se a "Postagem Aleatória" estiver desativada, o comportamento padrão do sistema será postar todas as mídias como um único post.</p>
                     <p>- Se houver mais de uma postagem programada para a mesma hora e dia, o sistema escolherá aleatoriamente qual delas será publicada.</p>
+                    <p>- Postagem Semanal: republica automaticamente a cada 7 dias no mesmo horário.</p>
                   </div>
                 </TooltipContent>
               </Tooltip>

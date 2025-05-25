@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useCallback, useMemo } from "react";
 import MessageContent from "./MessageContent";
 import AnimatedMessage from "./AnimatedMessage";
 import { FileIcon } from "lucide-react";
@@ -11,15 +11,15 @@ interface MessagesListProps {
   endRef: React.RefObject<HTMLDivElement>;
 }
 
-export default function MessagesList({
+const MessagesList = React.memo(function MessagesList({
   messages,
   isLoading,
   error,
   containerRef,
   endRef,
 }: MessagesListProps) {
-  // Verificar se já temos uma resposta em progresso (stream começou)
-  const hasResponseInProgress = React.useMemo(() => {
+  // Verificar se já temos uma resposta em progresso (stream começou) - memoizado
+  const hasResponseInProgress = useMemo(() => {
     if (messages.length === 0) return false;
     
     const lastMessage = messages[messages.length - 1];
@@ -27,24 +27,33 @@ export default function MessagesList({
     return lastMessage.role === 'assistant' && lastMessage.content !== '';
   }, [messages]);
   
-  // Verificar se o streaming está ativo ou se já acabou
-  const isStreamActive = isLoading && hasResponseInProgress;
+  // Verificar se o streaming está ativo ou se já acabou - memoizado
+  const isStreamActive = useMemo(() => {
+    return isLoading && hasResponseInProgress;
+  }, [isLoading, hasResponseInProgress]);
+
+  // Scroll function memoizada
+  const scrollToEnd = useCallback(() => {
+    endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+  }, [endRef]);
 
   // rolar sempre que chegar nova msg ou quando a resposta em stream mudar
   useEffect(() => {
     // Usar scrollIntoView com comportamento suave quando novas mensagens chegarem
     if (messages.length) {
-      endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+      scrollToEnd();
     }
-  }, [messages.length, hasResponseInProgress]);
+  }, [messages.length, hasResponseInProgress, scrollToEnd]);
 
-  if (!messages.length)
-    return (
-      <div className="h-full flex flex-col items-center justify-center px-4 text-center">
-        <h1 className="text-4xl font-bold mb-8">ChatwitIA</h1>
-        <p className="text-gray-500">Envie uma mensagem para começar.</p>
-      </div>
-    );
+  // Conteúdo vazio memoizado
+  const emptyContent = useMemo(() => (
+    <div className="h-full flex flex-col items-center justify-center px-4 text-center">
+      <h1 className="text-4xl font-bold mb-8">ChatwitIA</h1>
+      <p className="text-gray-500">Envie uma mensagem para começar.</p>
+    </div>
+  ), []);
+
+  if (!messages.length) return emptyContent;
 
   return (
     <section
@@ -111,4 +120,6 @@ export default function MessagesList({
       </div>
     </section>
   );
-}
+});
+
+export default MessagesList;

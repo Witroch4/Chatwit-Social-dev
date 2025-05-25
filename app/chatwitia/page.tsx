@@ -4,9 +4,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, MessageSquare, Plus, ChevronDown, User2, X, ChevronRight, MoreVertical, Share, Edit, Archive, Trash2, LightbulbIcon, ArrowUp, Type, Mic, Settings, Upload, Image, Bold, Italic, List, ListOrdered, Heading, Code, FileCode } from 'lucide-react';
+import { ArrowLeft, MessageSquare, Plus, ChevronDown, User2, X, ChevronRight, MoreVertical, Share, Edit, Archive, Trash2, LightbulbIcon, ArrowUp, Type, Mic, Settings, Upload, Image, Bold, Italic, List, ListOrdered, Heading, Code, FileCode, ImageIcon } from 'lucide-react';
 import ChatwitIA from '@/app/components/ChatwitIA/ChatwithIA';
 import ChatInputForm from '@/app/components/ChatInputForm';
+import ImageGalleryModal from '@/app/components/ImageGallery';
 
 interface ChatHistory {
   id: string;
@@ -61,6 +62,9 @@ export default function ChatPage() {
   const [pendingMessage, setPendingMessage] = useState<string | null>(null);
   const [forceRemount, setForceRemount] = useState(0);
   const [inputValue, setInputValue] = useState('');
+  
+  // Estado para controlar a galeria de imagens
+  const [showImageGallery, setShowImageGallery] = useState(false);
   
   const contextMenuRef = useRef<HTMLDivElement>(null);
   const modelDropdownRef = useRef<HTMLDivElement>(null);
@@ -610,18 +614,40 @@ export default function ChatPage() {
     });
   }, [router, selectedModel]);
 
+  // Função para lidar com geração de imagem na página inicial
+  const handleGenerateImage = useCallback(async (prompt: string) => {
+    console.log(`🎨 Página inicial - handleGenerateImage chamado com prompt: "${prompt}"`);
+    
+    if (!prompt.trim()) {
+      return;
+    }
+
+    // Para a página inicial, tratamos geração de imagem como uma mensagem normal
+    // O ChatwithIA na nova sessão irá detectar e processar adequadamente
+    await handleInitialMessage(prompt);
+  }, [handleInitialMessage]);
+
   return (
     <div className="flex h-screen">
       {/* Sidebar with chat history */}
       <div className="w-64 bg-gray-50 border-r h-full flex flex-col">
         {/* New Chat Button */}
-        <div className="p-3">
+        <div className="p-3 space-y-2">
           <button 
             onClick={createNewChat}
             className="w-full flex items-center justify-center gap-2 p-3 bg-white border rounded-md hover:bg-gray-50 transition-colors"
           >
             <Plus size={16} />
             <span>Nova conversa</span>
+          </button>
+          
+          {/* Gallery Button */}
+          <button 
+            onClick={() => setShowImageGallery(true)}
+            className="w-full flex items-center justify-center gap-2 p-3 bg-white border rounded-md hover:bg-gray-50 transition-colors"
+          >
+            <ImageIcon size={16} />
+            <span>Galeria</span>
           </button>
         </div>
         
@@ -995,6 +1021,7 @@ export default function ChatPage() {
               setSystemPrompt={() => {}}
               onAudioCapture={() => {}}
               onImageGenerate={() => {}}
+              onGenerateImage={handleGenerateImage}
               handleTranscriptReady={(t) => setInputValue((p) => (p ? `${p} ${t}` : t))}
               files={[]}
               onUploadFile={() => Promise.resolve()}
@@ -1005,6 +1032,8 @@ export default function ChatPage() {
               currentSessionId={undefined}
               isCnisAnalysisActive={false}
               onToggleCnisAnalysis={() => {}}
+              onSearchToggle={() => {}}
+              onInvestigateToggle={() => {}}
             />
           </div>
         </div>
@@ -1065,6 +1094,12 @@ export default function ChatPage() {
           </div>
         </div>
       )}
+      
+      {/* Image Gallery Modal */}
+      <ImageGalleryModal 
+        isOpen={showImageGallery}
+        onClose={() => setShowImageGallery(false)}
+      />
     </div>
   );
 } 

@@ -1,7 +1,7 @@
 // app/components/ChatInputForm.tsx
 'use client';
 
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import {
   Plus,
   Settings,
@@ -52,6 +52,7 @@ export interface ChatInputFormProps {
   onToggleCnisAnalysis?: (isActive: boolean) => void;
   onSearchToggle?: (isActive: boolean) => void;
   onInvestigateToggle?: (isActive: boolean) => void;
+  onGenerateImage?: (prompt: string) => Promise<any>;
 }
 
 const MAX_CHAR_LIMIT = 474743;
@@ -79,6 +80,7 @@ const ChatInputForm: React.FC<ChatInputFormProps> = ({
   onToggleCnisAnalysis,
   onSearchToggle,
   onInvestigateToggle,
+  onGenerateImage,
 }) => {
   const [showFormatMenu, setShowFormatMenu] = useState(false);
   const [showUploadMenu, setShowUploadMenu] = useState(false);
@@ -124,11 +126,105 @@ const ChatInputForm: React.FC<ChatInputFormProps> = ({
     return () => document.removeEventListener("mousedown", onClick);
   }, []);
 
+  // Detectar se o usuário está solicitando geração de imagem usando LLM
+  const detectImageGenerationIntent = useCallback(async (text: string): Promise<boolean> => {
+    // Verificações rápidas primeiro (para performance)
+    const lowerText = text.toLowerCase();
+    
+    // Comandos explícitos óbvios (detecção rápida)
+    const obviousCommands = [
+      'gerar imagem', 'criar imagem', 'desenhar', 'gere uma imagem', 
+      'crie uma imagem', 'faça uma imagem', 'crie a imagem',
+      'generate image', 'create image', 'draw', 'make an image'
+    ];
+    
+    if (obviousCommands.some(cmd => lowerText.includes(cmd))) {
+      console.log(`✅ Comando óbvio detectado rapidamente`);
+      return true;
+    }
+    
+    // Se não for óbvio, usar LLM para classificação inteligente
+    try {
+      console.log(`🤖 Usando LLM para detectar intenção: "${text}"`);
+      
+      const response = await fetch('/api/chatwitia/classify-intent', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          text: text,
+          maxTokens: 10, // Resposta muito curta para economizar tokens
+        }),
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        const isImageIntent = result.isImageGeneration === true;
+        console.log(`🤖 LLM classificou como geração de imagem: ${isImageIntent}`);
+        return isImageIntent;
+      } else {
+        console.warn(`⚠️ Erro na classificação LLM, usando fallback`);
+      }
+    } catch (error) {
+      console.warn(`⚠️ Erro na classificação LLM:`, error);
+    }
+    
+    // Fallback: análise de padrões mais sofisticada
+    const fallbackPatterns = [
+      /\b(crie|faça|gere|desenhe|ilustre)\s+.*\b(imagem|desenho|ilustração|figura)/i,
+      /\b(uma?|um)\s+(imagem|desenho|ilustração|figura)\s+(de|do|da)/i,
+      /\bvisuali[sz]e?\s+.*\b(como|sendo)/i,
+      /\bimagin[ae]\s+.*\b(visual|imagem)/i,
+      /\b(como\s+seria|o\s+que\s+parece)\s+.*\b(visual|visualmente)/i
+    ];
+    
+    const hasFallbackPattern = fallbackPatterns.some(pattern => pattern.test(text));
+    if (hasFallbackPattern) {
+      console.log(`✅ Padrão sofisticado detectado no fallback`);
+      return true;
+    }
+    
+    console.log(`❌ Nenhuma intenção de imagem detectada`);
+    return false;
+  }, []);
+
+  // Versão síncrona da detecção (para casos onde não podemos aguardar)
+  const detectImageGenerationIntentSync = useCallback((text: string): boolean => {
+    const lowerText = text.toLowerCase();
+    
+    // Comandos explícitos óbvios
+    const obviousCommands = [
+      'gerar imagem', 'criar imagem', 'desenhar', 'gere uma imagem', 
+      'crie uma imagem', 'faça uma imagem', 'crie a imagem',
+      'generate image', 'create image', 'draw', 'make an image'
+    ];
+    
+    if (obviousCommands.some(cmd => lowerText.includes(cmd))) {
+      return true;
+    }
+    
+    // Padrões sofisticados
+    const patterns = [
+      /\b(crie|faça|gere|desenhe|ilustre)\s+.*\b(imagem|desenho|ilustração|figura)/i,
+      /\b(uma?|um)\s+(imagem|desenho|ilustração|figura)\s+(de|do|da)/i,
+      /\bvisuali[sz]e?\s+.*\b(como|sendo)/i,
+      /\bimagin[ae]\s+.*\b(visual|imagem)/i
+    ];
+    
+    return patterns.some(pattern => pattern.test(text));
+  }, []);
+
   // Handle send with debounce against duplicates
-  const handleSend = async (e: React.MouseEvent | React.KeyboardEvent) => {
+  const handleSend = useCallback(async (e: React.MouseEvent | React.KeyboardEvent) => {
     e.preventDefault();
-    if (isLoading || sendingRef.current) return;
+    if (isLoading || sendingRef.current) {
+      console.log(`⏸️ Bloqueando envio: isLoading=${isLoading}, sending=${sendingRef.current}`);
+      return;
+    }
     sendingRef.current = true;
+
+    console.log(`🚀 Iniciando handleSend com conteúdo: "${input.trim()}"`);
 
     // Sincronizar PDFs com a OpenAI antes de enviar
     const syncPdfs = async (): Promise<void> => {
@@ -142,7 +238,7 @@ const ChatInputForm: React.FC<ChatInputFormProps> = ({
         return Promise.resolve();
       }
       
-      console.log('Sincronizando PDFs com OpenAI:', pdfsToSync);
+      console.log('📄 Sincronizando PDFs com OpenAI:', pdfsToSync);
       
       // Sincronizar cada PDF com OpenAI
       const syncPromises = pdfsToSync.map(async (pdf) => {
@@ -170,7 +266,7 @@ const ChatInputForm: React.FC<ChatInputFormProps> = ({
           const result = await response.json();
           
           if (result.openaiFileId) {
-            console.log(`PDF sincronizado: ${pdf.filename || pdf.name} -> ${result.openaiFileId}`);
+            console.log(`📄 PDF sincronizado: ${pdf.filename || pdf.name} -> ${result.openaiFileId}`);
             
             // Substituir o ID interno pelo ID da OpenAI
             setPendingPdfRefs(prev =>
@@ -197,6 +293,76 @@ const ChatInputForm: React.FC<ChatInputFormProps> = ({
     // Cria conteúdo apropriado para diferentes tipos de arquivos
     let content = input.trim();
     
+    // Verificar se há intenção de gerar imagem (assíncrono)
+    const shouldGenerateImage = await detectImageGenerationIntent(content);
+    
+    console.log(`🔍 Analisando texto: "${content}"`);
+    console.log(`🎨 Deve gerar imagem: ${shouldGenerateImage}`);
+    console.log(`🔧 onGenerateImage disponível: ${typeof onGenerateImage}`);
+    console.log(`🔧 onGenerateImage existe: ${!!onGenerateImage}`);
+    
+    if (shouldGenerateImage) {
+      if (!onGenerateImage) {
+        console.log(`❌ onGenerateImage não está definido!`);
+      } else {
+        console.log(`✅ Todas as condições atendidas, chamando onGenerateImage`);
+      }
+    }
+    
+    if (shouldGenerateImage && onGenerateImage) {
+      console.log(`🎨 Detectada intenção de gerar imagem: "${content}"`);
+      
+      // Extrair o prompt da imagem do texto
+      let imagePrompt = content;
+      
+      // Remover palavras-chave de comando apenas se foram comandos explícitos
+      const explicitCommands = [
+        'gerar imagem', 'criar imagem', 'desenhar', 'ilustrar', 'desenhe', 'ilustre', 
+        'crie uma imagem', 'faça uma imagem', 'gere uma imagem', 'crie a imagem',
+        'generate image', 'create image', 'draw', 'illustrate', 'make a drawing'
+      ];
+      
+      const hasExplicitCommand = explicitCommands.some(cmd => 
+        content.toLowerCase().includes(cmd)
+      );
+      
+      if (hasExplicitCommand) {
+        // Só remover palavras-chave se foi um comando explícito
+        const cleanPrompt = imagePrompt
+          .replace(/^(gerar imagem|criar imagem|desenhar|ilustrar|desenhe|ilustre|crie uma imagem|faça uma imagem|gere uma imagem|crie a imagem|generate image|create image|draw|illustrate|make a drawing)\s*(de|do|da|of|a)?\s*/i, '')
+          .trim();
+        
+        if (cleanPrompt) {
+          imagePrompt = cleanPrompt;
+        }
+      }
+      // Se não foi comando explícito, usar a descrição natural como está
+      
+      if (imagePrompt) {
+        try {
+          console.log(`🎨 Gerando imagem via onGenerateImage: "${imagePrompt}"`);
+          
+          // Chamar função de geração de imagem se fornecida
+          await onGenerateImage(imagePrompt);
+          
+          // Limpar estado e sair - IMPORTANTE: não continuar para onSubmit
+          setInput("");
+          setPendingPdfRefs([]);
+          sendingRef.current = false;
+          console.log(`✅ Geração de imagem concluída, não enviando para chat normal`);
+          return; // ⚠️ CRUCIAL: Retornar aqui para evitar envio duplo
+        } catch (error) {
+          console.error('❌ Erro ao gerar imagem:', error);
+          toast.error('Erro ao gerar imagem. Enviando como mensagem normal.');
+          // Se houver erro, continuar com envio normal (não fazer return)
+        }
+      }
+    } else {
+      console.log(`❌ Condição de geração de imagem não atendida - shouldGenerateImage: ${shouldGenerateImage}, onGenerateImage: ${typeof onGenerateImage}`);
+    }
+
+    console.log(`💬 Prosseguindo com envio normal do chat`);
+
     // Se temos arquivos para enviar com a mensagem
     if (pendingPdfRefs.length > 0) {
       // Separa imagens e outros arquivos
@@ -225,44 +391,56 @@ const ChatInputForm: React.FC<ChatInputFormProps> = ({
     }
 
     if (!content) {
+      console.log(`⚠️ Conteúdo vazio, cancelando envio`);
       sendingRef.current = false;
       return;
     }
 
+    console.log(`📤 Enviando conteúdo final: "${content}"`);
     await onSubmit(content);
     setInput("");
     setPendingPdfRefs([]);
     sendingRef.current = false;
-  };
+    console.log(`✅ handleSend concluído`);
+  }, [
+    isLoading, 
+    input,
+    pendingPdfRefs, 
+    detectImageGenerationIntent, 
+    onGenerateImage, 
+    onSubmit, 
+    currentSessionId, 
+    setInput
+  ]);
 
   // Toggle CNIS analysis
-  const toggleCnis = () => {
+  const toggleCnis = useCallback(() => {
     const next = !cnisActive;
     setCnisActive(next);
     onToggleCnisAnalysis?.(next);
-  };
+  }, [cnisActive, onToggleCnisAnalysis]);
 
-  const toggleBuscar = () => {
+  const toggleBuscar = useCallback(() => {
     const next = !buscarActive;
     setBuscarActive(next);
     onSearchToggle?.(next);
-  };
+  }, [buscarActive, onSearchToggle]);
 
-  const toggleInvestigar = () => {
+  const toggleInvestigar = useCallback(() => {
     const next = !investigarActive;
     setInvestigarActive(next);
     onInvestigateToggle?.(next);
-  };
+  }, [investigarActive, onInvestigateToggle]);
 
-  // Funções adaptadoras para garantir consistência de tipos
-  const handleDeleteFile = (fileId: string) => {
+  // Funções adaptadoras para garantir consistência de tipos - memoizadas
+  const handleDeleteFile = useCallback((fileId: string) => {
     if (onDeleteFile) {
       return onDeleteFile(fileId);
     }
     return Promise.resolve();
-  };
+  }, [onDeleteFile]);
 
-  const handleVariationImage = (fileId: string) => {
+  const handleVariationImage = useCallback((fileId: string) => {
     // Encontrar o arquivo correspondente
     const file = files.find(f => f.id === fileId);
     if (file && file.content && onVariationImage) {
@@ -279,15 +457,27 @@ const ChatInputForm: React.FC<ChatInputFormProps> = ({
         });
     }
     return Promise.resolve();
-  };
+  }, [files, onVariationImage]);
 
-  // Função adaptadora para edição de imagem
-  const handleImageEdit = (file: File, prompt: string, mask?: File) => {
+  // Função adaptadora para edição de imagem - memoizada
+  const handleImageEdit = useCallback((file: File, prompt: string, mask?: File) => {
     if (onEditImage) {
       return onEditImage(file, prompt, mask);
     }
     return Promise.resolve();
-  };
+  }, [onEditImage]);
+
+  // Menu items memoizado para evitar re-renders
+  const uploadMenuItems = useMemo(() => [
+    { purpose: "user_data" as UploadPurpose, label: "Carregar arquivo", icon: Upload },
+    { purpose: "vision" as UploadPurpose, label: "PDF – análise pontual", icon: PdfIcon },
+    { purpose: "assistants" as UploadPurpose, label: "PDF → banco vetorial", icon: BookOpen },
+  ], []);
+
+  // Verificar se deve exibir envio - memoizado
+  const canSend = useMemo(() => {
+    return !isLoading && (input.trim() || pendingPdfRefs.length > 0);
+  }, [isLoading, input, pendingPdfRefs.length]);
 
   return (
     <>
@@ -468,7 +658,7 @@ const ChatInputForm: React.FC<ChatInputFormProps> = ({
                 {/* botões da direita */}
                 <div className="flex items-center space-x-2">
                   <button onClick={onAudioCapture} disabled={isLoading} className="p-2 rounded-full hover:bg-gray-200"><Mic size={20} /></button>
-                  <button onClick={handleSend} disabled={isLoading || (!input.trim() && pendingPdfRefs.length === 0)} className="p-2 rounded-full bg-blue-600 text-white hover:bg-blue-700 disabled:bg-blue-300"><ArrowUp size={20} /></button>
+                  <button onClick={handleSend} disabled={!canSend} className="p-2 rounded-full bg-blue-600 text-white hover:bg-blue-700 disabled:bg-blue-300"><ArrowUp size={20} /></button>
                 </div>
               </div>
             </div>
@@ -476,11 +666,7 @@ const ChatInputForm: React.FC<ChatInputFormProps> = ({
             {/* Upload menu */}
             {showUploadMenu && (
               <div ref={uploadMenuRef} className="absolute bottom-20 left-4 bg-white border rounded-lg shadow-lg py-1 min-w-[220px] z-50">
-                {[
-                  { purpose: "user_data" as UploadPurpose, label: "Carregar arquivo", icon: Upload },
-                  { purpose: "vision" as UploadPurpose, label: "PDF – análise pontual", icon: PdfIcon },
-                  { purpose: "assistants" as UploadPurpose, label: "PDF → banco vetorial", icon: BookOpen },
-                ].map(item => (
+                {uploadMenuItems.map(item => (
                   <button
                     key={item.purpose}
                     onClick={() => {

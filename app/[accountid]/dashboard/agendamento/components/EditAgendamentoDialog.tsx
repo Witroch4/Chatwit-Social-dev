@@ -79,6 +79,7 @@ const EditAgendamentoDialog: React.FC<EditAgendamentoDialogProps> = ({
     const tipos: string[] = [];
     if (agendamento.Randomizar) tipos.push("Aleatório");
     if (agendamento.Diario) tipos.push("Diario");
+    if (agendamento.Semanal) tipos.push("Semanal");
     if (agendamento.PostNormal) tipos.push("Post Normal");
     if (agendamento.Reels) tipos.push("Reels");
     if (agendamento.Stories) tipos.push("Stories");
@@ -119,6 +120,7 @@ const EditAgendamentoDialog: React.FC<EditAgendamentoDialogProps> = ({
         Reels: tipoPostagem.includes("Reels"),
         Stories: tipoPostagem.includes("Stories"),
         Diario: tipoPostagem.includes("Diario"),
+        Semanal: tipoPostagem.includes("Semanal"),
         Aleatorio: tipoPostagem.includes("Aleatório"),
       };
 
@@ -134,6 +136,7 @@ const EditAgendamentoDialog: React.FC<EditAgendamentoDialogProps> = ({
         Reels: tipos.Reels,
         PostNormal: tipos["Post Normal"],
         Diario: tipos.Diario,
+        Semanal: tipos.Semanal,
         Randomizar: tipos.Aleatorio,
         userId: agendamento.userId,
         accountId: agendamento.accountId,

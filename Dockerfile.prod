@@ -131,11 +131,12 @@ ENV S3Endpoint=${S3Endpoint}
 ENV ILOVEPDF_PUBLIC_KEY=${ILOVEPDF_PUBLIC_KEY}
 ENV ILOVEPDF_SECRET_KEY=${ILOVEPDF_SECRET_KEY}
 
-# Copia package.json e instala dependências
+# Copia package.json e instala dependências (TODAS para o build)
 COPY package*.json ./
 COPY prisma ./prisma/
 
-RUN npm ci --omit=dev
+# Instala TODAS as dependências para o processo de build
+RUN npm ci
 
 # Copia o restante dos arquivos
 COPY . .
@@ -170,14 +171,18 @@ RUN if [ -f /etc/ImageMagick-6/policy.xml ]; then \
       echo "Nenhum arquivo de política do ImageMagick encontrado"; \
     fi
 
-
-
-# Copia apenas os arquivos necessários da imagem de build
+# Copia package.json e instala APENAS dependências de produção
 COPY --from=builder /app/package*.json ./
-COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/prisma ./prisma/
+
+# Instala apenas as dependências de produção (sem devDependencies)
+RUN npm ci --omit=dev && \
+    npx prisma generate && \
+    npm cache clean --force
+
+# Copia apenas os arquivos buildados necessários
 COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/public ./public
-COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/server.js ./server.js
 COPY --from=builder /app/bull-board-server.js ./bull-board-server.js
 COPY --from=builder /app/dist ./dist

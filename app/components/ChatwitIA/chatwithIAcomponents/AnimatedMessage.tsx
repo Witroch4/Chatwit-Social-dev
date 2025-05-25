@@ -1,12 +1,14 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 
-export default function AnimatedMessage({
-  children,
-  isAssistant,
-}: {
+interface AnimatedMessageProps {
   children: React.ReactNode;
   isAssistant: boolean;
-}) {
+}
+
+const AnimatedMessage = React.memo(function AnimatedMessage({
+  children,
+  isAssistant,
+}: AnimatedMessageProps) {
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
@@ -14,18 +16,23 @@ export default function AnimatedMessage({
     return () => clearTimeout(t);
   }, []);
 
+  // Memoizar as classes CSS para evitar recalculações
+  const className = useMemo(() => {
+    return `
+      ${visible ? "opacity-100" : "opacity-0"} 
+      ${isAssistant 
+        ? "assistant-message-enter" 
+        : "transition-all duration-300 ease-out " + 
+          (visible ? "translate-y-0" : "translate-y-4")
+      }
+    `;
+  }, [visible, isAssistant]);
+
   return (
-    <div
-      className={`
-        ${visible ? "opacity-100" : "opacity-0"} 
-        ${isAssistant 
-          ? "assistant-message-enter" 
-          : "transition-all duration-300 ease-out " + 
-            (visible ? "translate-y-0" : "translate-y-4")
-        }
-      `}
-    >
+    <div className={className}>
       {children}
     </div>
   );
-}
+});
+
+export default AnimatedMessage;

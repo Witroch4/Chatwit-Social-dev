@@ -30,7 +30,11 @@ export type ImageSize =
 
 export type ImageQuality = 
   | 'standard'
-  | 'hd';
+  | 'hd'
+  | 'low'
+  | 'medium'
+  | 'high'
+  | 'auto';
 
 export type ImageStyle = 
   | 'vivid'
@@ -60,13 +64,15 @@ export interface ChatOptions {
 
 // Interface para as opções de geração de imagem
 export interface ImageGenerationOptions {
-  model?: ImageModel;
+  model?: ImageModel | 'gpt-image-1';
   n?: number;
   quality?: ImageQuality;
   response_format?: 'url' | 'b64_json';
   size?: ImageSize;
   style?: ImageStyle;
   user?: string;
+  background?: 'auto' | 'transparent' | 'opaque';
+  moderation?: 'auto' | 'low';
 }
 
 // Interface for file options
@@ -78,6 +84,7 @@ export interface FileUploadOptions {
 export interface IOpenAIService {
   createChatCompletion(messages: any[], options?: ChatOptions): Promise<any>;
   generateImage(prompt: string, options?: ImageGenerationOptions): Promise<any>;
+  generateImageWithResponses(prompt: string, options?: any): Promise<any>;
   transcribeAudio(audioFile: File): Promise<any>;
   getEmbeddings(input: string | string[]): Promise<any>;
   moderateContent(input: string | string[]): Promise<any>;
@@ -273,31 +280,107 @@ class ServerOpenAIService implements IOpenAIService {
   
   async generateImage(prompt: string, options: ImageGenerationOptions = {}) {
     const defaultOptions: ImageGenerationOptions = {
-      model: 'dall-e-2',
+      model: 'gpt-image-1',
       n: 1,
       size: '1024x1024',
-      response_format: 'url',
-      quality: 'standard',
-      style: 'vivid',
+      quality: 'auto',
+      background: 'auto',
     };
     
     const mergedOptions = { ...defaultOptions, ...options };
     
     try {
-      const response = await this.client.images.generate({
-        model: mergedOptions.model,
+      console.log(`Servidor: Gerando imagem com modelo ${mergedOptions.model}`);
+      
+      // Preparar parâmetros compatíveis com a SDK
+      const generateParams: any = {
+        model: mergedOptions.model as any,
         prompt,
         n: mergedOptions.n,
-        size: mergedOptions.size,
-        quality: mergedOptions.quality,
-        response_format: mergedOptions.response_format,
-        style: mergedOptions.style,
         user: mergedOptions.user,
-      });
+      };
       
+      // Adicionar parâmetros específicos baseado no modelo
+      if (mergedOptions.model === 'gpt-image-1') {
+        // Para gpt-image-1, usar apenas parâmetros suportados
+        if (mergedOptions.size) generateParams.size = mergedOptions.size;
+        if (mergedOptions.quality) generateParams.quality = mergedOptions.quality;
+        if (mergedOptions.background) generateParams.background = mergedOptions.background;
+        // gpt-image-1 sempre retorna base64, não usar response_format
+      } else if (mergedOptions.model === 'dall-e-3') {
+        // Para DALL-E 3, usar parâmetros completos
+        if (mergedOptions.size) generateParams.size = mergedOptions.size;
+        if (mergedOptions.response_format) generateParams.response_format = mergedOptions.response_format;
+        if (mergedOptions.quality) generateParams.quality = mergedOptions.quality;
+        if (mergedOptions.style) generateParams.style = mergedOptions.style;
+      } else if (mergedOptions.model === 'dall-e-2') {
+        // Para DALL-E 2, usar apenas parâmetros suportados
+        if (mergedOptions.size) generateParams.size = mergedOptions.size;
+        if (mergedOptions.response_format) generateParams.response_format = mergedOptions.response_format;
+      }
+      
+      const response = await this.client.images.generate(generateParams);
+      
+      console.log(`Servidor: Imagem gerada com sucesso - ${response.data.length} imagem(ns)`);
       return response;
     } catch (error) {
       console.error('Erro ao gerar imagem:', error);
+      throw error;
+    }
+  }
+  
+  /**
+   * Gera imagem usando a Responses API para conversas interativas
+   */
+  async generateImageWithResponses(prompt: string, options: any = {}) {
+    try {
+      console.log(`Servidor: Gerando imagem via Responses API com prompt: "${prompt.substring(0, 50)}..."`);
+      
+      const defaultOptions = {
+        model: 'gpt-4.1-mini',
+        quality: 'auto',
+        size: 'auto',
+        background: 'auto',
+        stream: false
+      };
+      
+      const mergedOptions = { ...defaultOptions, ...options };
+      
+      const response = await this.client.responses.create({
+        model: mergedOptions.model,
+        input: prompt,
+        tools: [{
+          type: "image_generation",
+          quality: mergedOptions.quality,
+          size: mergedOptions.size,
+          background: mergedOptions.background
+        }],
+        stream: mergedOptions.stream
+      } as any);
+      
+      if (mergedOptions.stream) {
+        // Retornar stream diretamente
+        return response;
+      }
+      
+      // Extrair dados de imagem da resposta
+      const imageData = response.output
+        ?.filter((output: any) => output.type === "image_generation_call")
+        ?.map((output: any) => ({
+          id: output.id,
+          result: output.result,
+          revised_prompt: output.revised_prompt
+        }));
+      
+      console.log(`Servidor: Imagens geradas via Responses API: ${imageData?.length || 0}`);
+      
+      return {
+        images: imageData || [],
+        text_response: response.output_text || '',
+        response_id: response.id
+      };
+    } catch (error) {
+      console.error('Erro ao gerar imagem via Responses API:', error);
       throw error;
     }
   }
@@ -810,30 +893,80 @@ class ClientOpenAIService implements IOpenAIService {
   
   async generateImage(prompt: string, options: ImageGenerationOptions = {}) {
     try {
-      const response = await fetch('/api/chatwitia/images/generations', {
+      console.log(`Cliente: Preparando geração de imagem: "${prompt.substring(0, 50)}..."`);
+      
+      const requestBody: any = {
+        prompt,
+        model: options.model || 'gpt-image-1',
+        size: options.size || '1024x1024',
+        quality: options.quality || 'auto',
+        background: options.background || 'auto',
+        n: options.n || 1
+      };
+      
+      // Adicionar response_format apenas se especificado para modelos que suportam
+      if (options.response_format && (options.model === 'dall-e-3' || options.model === 'dall-e-2')) {
+        requestBody.response_format = options.response_format;
+      }
+      
+      const response = await fetch('/api/chatwitia/image', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
+      });
+      
+      console.log(`Cliente: Resposta recebida com status: ${response.status}`);
+      
+      if (!response.ok) {
+        const errorData = await response.text();
+        console.error('Cliente: Erro detalhado:', errorData);
+        throw new Error(`Erro ao gerar imagem: ${response.status} - ${errorData}`);
+      }
+      
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('Cliente: Erro ao gerar imagem:', error);
+      throw error;
+    }
+  }
+  
+  async generateImageWithResponses(prompt: string, options: any = {}) {
+    try {
+      console.log(`Cliente: Gerando imagem via Responses API: "${prompt.substring(0, 50)}..."`);
+      
+      const response = await fetch('/api/chatwitia', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          prompt,
-          model: options.model,
-          n: options.n,
-          size: options.size,
-          quality: options.quality,
-          response_format: options.response_format,
-          style: options.style,
-          user: options.user
+          messages: [
+            {
+              role: 'user',
+              content: prompt
+            }
+          ],
+          model: options.model || 'gpt-4.1-mini',
+          generateImage: true,
+          imageOptions: {
+            quality: options.quality || 'high',
+            size: options.size || 'auto',
+            background: options.background || 'auto'
+          }
         }),
       });
       
       if (!response.ok) {
-        throw new Error(`API respondeu com status: ${response.status}`);
+        const errorData = await response.text();
+        throw new Error(`Erro ao gerar imagem via Responses API: ${response.status} - ${errorData}`);
       }
       
       return await response.json();
     } catch (error) {
-      console.error('Cliente: Erro ao gerar imagem:', error);
+      console.error('Cliente: Erro ao gerar imagem via Responses API:', error);
       throw error;
     }
   }

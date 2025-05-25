@@ -82,6 +82,7 @@ export async function PATCH(
       ...(updatedData.Reels !== undefined && { Reels: updatedData.Reels }),
       ...(updatedData.PostNormal !== undefined && { PostNormal: updatedData.PostNormal }),
       ...(updatedData.Diario !== undefined && { Diario: updatedData.Diario }),
+      ...(updatedData.Semanal !== undefined && { Semanal: updatedData.Semanal }),
       ...(updatedData.Randomizar !== undefined && { Randomizar: updatedData.Randomizar }),
       ...(updatedData.TratarComoIndividual !== undefined && {
         TratarComoUnicoPost: !updatedData.TratarComoIndividual,

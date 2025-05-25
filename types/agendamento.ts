@@ -13,6 +13,7 @@ export interface Agendamento {
     Reels: boolean;
     PostNormal: boolean;
     Diario: boolean;
+    Semanal: boolean;
     Randomizar: boolean;
     TratarComoUnicoPost: boolean;
     TratarComoPostagensIndividuais: boolean;

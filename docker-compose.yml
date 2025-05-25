@@ -1,13 +1,16 @@
-#docker-compose.yml (usado pra fazer o comando docker compose build - p/ produção)
+# docker-compose.yml (usado para o comando docker compose build - produção)
 services:
   redis:
-    container_name: redis
-    image: redis:alpine
+    container_name: chatwit_redis
+    image: redis:7-alpine
     command: redis-server --appendonly yes
     ports:
       - "6379:6379"
+    volumes:
+      - redis_data:/data
     networks:
       - minha_rede
+    restart: unless-stopped
 
   app:
     container_name: chatwit_prod
@@ -15,11 +18,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.prod
-      # Habilita o uso da rede do host durante o build (necessário com BuildKit)
       network: host
       args:
-        # Variáveis para build – use REDIS_HOST=localhost para que o contêiner em build
-        # possa conectar ao Redis via a porta mapeada no host.
         DATABASE_URL: ${DATABASE_URL}
         AUTH_SECRET: ${AUTH_SECRET}
         AUTH_LOGIN_REDIRECT: ${AUTH_LOGIN_REDIRECT}
@@ -50,7 +50,6 @@ services:
         BASEROW_TOKEN: ${BASEROW_TOKEN}
         BASEROW_UPLOAD_URL: ${BASEROW_UPLOAD_URL}
         BASEROW_TABLE_ID: ${BASEROW_TABLE_ID}
-        # IMPORTANTE: durante o build, use "localhost" para o REDIS_HOST
         REDIS_HOST: localhost
         REDIS_PORT: 6379
         REDIS_PASSWORD: ${REDIS_PASSWORD}
@@ -72,7 +71,6 @@ services:
       - .env.production
     environment:
       NODE_ENV: production
-      # Em runtime, a aplicação deverá encontrar o contêiner Redis via DNS do Docker
       REDIS_HOST: redis
     ports:
       - "3000:3000"
@@ -82,6 +80,10 @@ services:
     networks:
       - minha_rede
     restart: unless-stopped
+
+volumes:
+  redis_data:
+    driver: local
 
 networks:
   minha_rede:
