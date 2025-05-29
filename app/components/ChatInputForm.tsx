@@ -16,6 +16,8 @@ import {
   Globe,
   Search,
   MoreHorizontal,
+  MessageSquare,
+  X,
 } from "lucide-react";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { FileWithContent } from "@/hooks/useChatwitIA";
@@ -53,6 +55,12 @@ export interface ChatInputFormProps {
   onSearchToggle?: (isActive: boolean) => void;
   onInvestigateToggle?: (isActive: boolean) => void;
   onGenerateImage?: (prompt: string) => Promise<any>;
+  referencedImage?: {
+    url: string;
+    prompt?: string;
+    responseId?: string;
+  } | null;
+  onClearReferencedImage?: () => void;
 }
 
 const MAX_CHAR_LIMIT = 474743;
@@ -81,6 +89,8 @@ const ChatInputForm: React.FC<ChatInputFormProps> = ({
   onSearchToggle,
   onInvestigateToggle,
   onGenerateImage,
+  referencedImage,
+  onClearReferencedImage,
 }) => {
   const [showFormatMenu, setShowFormatMenu] = useState(false);
   const [showUploadMenu, setShowUploadMenu] = useState(false);
@@ -103,15 +113,7 @@ const ChatInputForm: React.FC<ChatInputFormProps> = ({
   const [pdfQuestion, setPdfQuestion] = useState("");
   const sendingRef = useRef(false);
   
-  // Estado para imagens extraídas do input
-  const [inputImages, setInputImages] = useState<{
-    url: string;
-    thumbnailUrl?: string;
-    name: string;
-    isReference?: boolean;
-  }[]>([]);
-  
-  // Estado para o texto visível (sem blocos IMAGES_JSON)
+  // Estado para o texto visível
   const [visibleText, setVisibleText] = useState('');
   
   // toggle states for overlay buttons
@@ -124,44 +126,17 @@ const ChatInputForm: React.FC<ChatInputFormProps> = ({
   const uploadMenuRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Extrair imagens do input
+  // Sincronizar texto visível com input
   useEffect(() => {
-    const extractImagesFromInput = () => {
-      const imagesJsonRegex = /<!-- IMAGES_JSON (\[.*?\]) -->/g;
-      const matches = [...input.matchAll(imagesJsonRegex)];
-      
-      const extractedImages: typeof inputImages = [];
-      
-      matches.forEach(match => {
-        try {
-          const imageData = JSON.parse(match[1]);
-          imageData.forEach((img: any) => {
-            if (img.url) {
-              extractedImages.push({
-                url: img.url,
-                thumbnailUrl: img.thumbnailUrl,
-                name: img.name || 'Imagem',
-                isReference: img.isReference
-              });
-            }
-          });
-        } catch (e) {
-          console.error('Erro ao processar IMAGES_JSON:', e);
-        }
-      });
-      
-      setInputImages(extractedImages);
-      
-      // Calcular texto visível removendo blocos IMAGES_JSON
-      let cleanText = input.replace(/<!-- IMAGES_JSON \[.*?\] -->/g, '');
-      
-      // Limpar quebras de linha excessivas mas preservar espaços
-      cleanText = cleanText.replace(/^\s*\n+/, '').replace(/\n+\s*$/, '');
-      
-      setVisibleText(cleanText);
-    };
+    setVisibleText(input);
     
-    extractImagesFromInput();
+    // 🔧 CORREÇÃO: Sincronizar também o textarea quando o input muda externamente
+    if (inputRef.current && inputRef.current.value !== input) {
+      inputRef.current.value = input;
+      // Ajustar altura do textarea
+      inputRef.current.style.height = "auto";
+      inputRef.current.style.height = `${Math.min(Math.max(inputRef.current.scrollHeight, 100), 280)}px`;
+    }
   }, [input]);
 
   // Close menus on outside click
@@ -178,94 +153,7 @@ const ChatInputForm: React.FC<ChatInputFormProps> = ({
     return () => document.removeEventListener("mousedown", onClick);
   }, []);
 
-  // Detectar se o usuário está solicitando geração de imagem usando LLM
-  const detectImageGenerationIntent = useCallback(async (text: string): Promise<boolean> => {
-    // Verificações rápidas primeiro (para performance)
-    const lowerText = text.toLowerCase();
-    
-    // Comandos explícitos óbvios (detecção rápida)
-    const obviousCommands = [
-      'gerar imagem', 'criar imagem', 'desenhar', 'gere uma imagem', 
-      'crie uma imagem', 'faça uma imagem', 'crie a imagem',
-      'generate image', 'create image', 'draw', 'make an image'
-    ];
-    
-    if (obviousCommands.some(cmd => lowerText.includes(cmd))) {
-      console.log(`✅ Comando óbvio detectado rapidamente`);
-      return true;
-    }
-    
-    // Se não for óbvio, usar LLM para classificação inteligente
-    try {
-      console.log(`🤖 Usando LLM para detectar intenção: "${text}"`);
-      
-      const response = await fetch('/api/chatwitia/classify-intent', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          text: text,
-          maxTokens: 10, // Resposta muito curta para economizar tokens
-        }),
-      });
-      
-      if (response.ok) {
-        const result = await response.json();
-        const isImageIntent = result.isImageGeneration === true;
-        console.log(`🤖 LLM classificou como geração de imagem: ${isImageIntent}`);
-        return isImageIntent;
-      } else {
-        console.warn(`⚠️ Erro na classificação LLM, usando fallback`);
-      }
-    } catch (error) {
-      console.warn(`⚠️ Erro na classificação LLM:`, error);
-    }
-    
-    // Fallback: análise de padrões mais sofisticada
-    const fallbackPatterns = [
-      /\b(crie|faça|gere|desenhe|ilustre)\s+.*\b(imagem|desenho|ilustração|figura)/i,
-      /\b(uma?|um)\s+(imagem|desenho|ilustração|figura)\s+(de|do|da)/i,
-      /\bvisuali[sz]e?\s+.*\b(como|sendo)/i,
-      /\bimagin[ae]\s+.*\b(visual|imagem)/i,
-      /\b(como\s+seria|o\s+que\s+parece)\s+.*\b(visual|visualmente)/i
-    ];
-    
-    const hasFallbackPattern = fallbackPatterns.some(pattern => pattern.test(text));
-    if (hasFallbackPattern) {
-      console.log(`✅ Padrão sofisticado detectado no fallback`);
-      return true;
-    }
-    
-    console.log(`❌ Nenhuma intenção de imagem detectada`);
-    return false;
-  }, []);
 
-  // Versão síncrona da detecção (para casos onde não podemos aguardar)
-  const detectImageGenerationIntentSync = useCallback((text: string): boolean => {
-    const lowerText = text.toLowerCase();
-    
-    // Comandos explícitos óbvios
-    const obviousCommands = [
-      'gerar imagem', 'criar imagem', 'desenhar', 'gere uma imagem', 
-      'crie uma imagem', 'faça uma imagem', 'crie a imagem',
-      'generate image', 'create image', 'draw', 'make an image'
-    ];
-    
-    if (obviousCommands.some(cmd => lowerText.includes(cmd))) {
-      return true;
-    }
-    
-    // Padrões sofisticados
-    const patterns = [
-      /\b(crie|faça|gere|desenhe|ilustre)\s+.*\b(imagem|desenho|ilustração|figura)/i,
-      /\b(uma?|um)\s+(imagem|desenho|ilustração|figura)\s+(de|do|da)/i,
-      /\bvisuali[sz]e?\s+.*\b(como|sendo)/i,
-      /\bimagin[ae]\s+.*\b(visual|imagem)/i
-    ];
-    
-    return patterns.some(pattern => pattern.test(text));
-  }, []);
 
   // Handle send with debounce against duplicates
   const handleSend = useCallback(async (e: React.MouseEvent | React.KeyboardEvent) => {
@@ -344,102 +232,13 @@ const ChatInputForm: React.FC<ChatInputFormProps> = ({
 
     // Cria conteúdo apropriado para diferentes tipos de arquivos
     let content = input.trim();
-    
-    // Verificar se há intenção de gerar imagem (assíncrono)
-    const shouldGenerateImage = await detectImageGenerationIntent(content);
-    
-    console.log(`🔍 Analisando texto: "${content}"`);
-    console.log(`🎨 Deve gerar imagem: ${shouldGenerateImage}`);
-    console.log(`🔧 onGenerateImage disponível: ${typeof onGenerateImage}`);
-    console.log(`🔧 onGenerateImage existe: ${!!onGenerateImage}`);
-    
-    if (shouldGenerateImage) {
-      if (!onGenerateImage) {
-        console.log(`❌ onGenerateImage não está definido!`);
-      } else {
-        console.log(`✅ Todas as condições atendidas, chamando onGenerateImage`);
-      }
-    }
-    
-    if (shouldGenerateImage && onGenerateImage) {
-      console.log(`🎨 Detectada intenção de gerar imagem: "${content}"`);
-      
-      // Extrair o prompt da imagem do texto
-      let imagePrompt = content;
-      
-      // Remover palavras-chave de comando apenas se foram comandos explícitos
-      const explicitCommands = [
-        'gerar imagem', 'criar imagem', 'desenhar', 'ilustrar', 'desenhe', 'ilustre', 
-        'crie uma imagem', 'faça uma imagem', 'gere uma imagem', 'crie a imagem',
-        'generate image', 'create image', 'draw', 'illustrate', 'make a drawing'
-      ];
-      
-      const hasExplicitCommand = explicitCommands.some(cmd => 
-        content.toLowerCase().includes(cmd)
-      );
-      
-      if (hasExplicitCommand) {
-        // Só remover palavras-chave se foi um comando explícito
-        const cleanPrompt = imagePrompt
-          .replace(/^(gerar imagem|criar imagem|desenhar|ilustrar|desenhe|ilustre|crie uma imagem|faça uma imagem|gere uma imagem|crie a imagem|generate image|create image|draw|illustrate|make a drawing)\s*(de|do|da|of|a)?\s*/i, '')
-          .trim();
-        
-        if (cleanPrompt) {
-          imagePrompt = cleanPrompt;
-        }
-      }
-      // Se não foi comando explícito, usar a descrição natural como está
-      
-      if (imagePrompt) {
-        try {
-          console.log(`🎨 Gerando imagem via onGenerateImage: "${imagePrompt}"`);
-          
-          // Chamar função de geração de imagem se fornecida
-          await onGenerateImage(imagePrompt);
-          
-          // Limpar estado e sair - IMPORTANTE: não continuar para onSubmit
-          setInput("");
-          setPendingPdfRefs([]);
-          sendingRef.current = false;
-          console.log(`✅ Geração de imagem concluída, não enviando para chat normal`);
-          return; // ⚠️ CRUCIAL: Retornar aqui para evitar envio duplo
-        } catch (error) {
-          console.error('❌ Erro ao gerar imagem:', error);
-          toast.error('Erro ao gerar imagem. Enviando como mensagem normal.');
-          // Se houver erro, continuar com envio normal (não fazer return)
-        }
-      }
-    } else {
-      console.log(`❌ Condição de geração de imagem não atendida - shouldGenerateImage: ${shouldGenerateImage}, onGenerateImage: ${typeof onGenerateImage}`);
-    }
-
-    console.log(`💬 Prosseguindo com envio normal do chat`);
 
     // Se temos arquivos para enviar com a mensagem
     if (pendingPdfRefs.length > 0) {
-      // Separa imagens e outros arquivos
-      const images = pendingPdfRefs.filter(ref => ref.isImage);
-      const files = pendingPdfRefs.filter(ref => !ref.isImage);
-      
-      // Adiciona referências de arquivos não-imagem (PDFs, etc.)
-      if (files.length > 0) {
-        const fileLinks = files.map(r => `[${r.name}](file_id:${r.id})`).join("\n");
-        if (content) content += "\n\n";
-        content += fileLinks;
-      }
-      
-      // Para imagens, cria um formato especial que a OpenAI entenderá
-      if (images.length > 0) {
-        // Vamos adicionar um JSON especial que será processado no backend
-        // para ser transformado em formato de mensagem com imagem para OpenAI
-        if (content) content += "\n\n";
-        content += "<!-- IMAGES_JSON " + 
-                  JSON.stringify(images.map(img => ({
-                    url: img.id,
-                    name: img.name
-                  }))) + 
-                  " -->";
-      }
+      // Adiciona referências de todos os arquivos (PDFs e imagens)
+      const fileLinks = pendingPdfRefs.map(r => `[${r.name}](file_id:${r.id})`).join("\n");
+      if (content) content += "\n\n";
+      content += fileLinks;
     }
 
     if (!content) {
@@ -450,16 +249,25 @@ const ChatInputForm: React.FC<ChatInputFormProps> = ({
 
     console.log(`📤 Enviando conteúdo final: "${content}"`);
     await onSubmit(content);
+    
+    // 🔧 CORREÇÃO: Limpar tanto o input quanto o texto visível
     setInput("");
+    setVisibleText("");
     setPendingPdfRefs([]);
+    
+    // 🔧 CORREÇÃO: Limpar também o textarea diretamente
+    if (inputRef.current) {
+      inputRef.current.value = "";
+      inputRef.current.style.height = "auto";
+      inputRef.current.style.height = "100px"; // Reset para altura mínima
+    }
+    
     sendingRef.current = false;
     console.log(`✅ handleSend concluído`);
   }, [
     isLoading, 
     input,
     pendingPdfRefs, 
-    detectImageGenerationIntent, 
-    onGenerateImage, 
     onSubmit, 
     currentSessionId, 
     setInput
@@ -529,85 +337,56 @@ const ChatInputForm: React.FC<ChatInputFormProps> = ({
 
   // Verificar se deve exibir envio - memoizado
   const canSend = useMemo(() => {
-    return !isLoading && (visibleText.trim() || pendingPdfRefs.length > 0 || inputImages.length > 0);
-  }, [isLoading, visibleText, pendingPdfRefs.length, inputImages.length]);
+    return !isLoading && (visibleText.trim() || pendingPdfRefs.length > 0);
+  }, [isLoading, visibleText, pendingPdfRefs.length]);
 
-  // Função para remover imagem do input
-  const removeImageFromInput = useCallback((imageUrl: string) => {
-    setInput(prev => {
-      // Remover o bloco IMAGES_JSON específico que contém esta imagem
-      const imagesJsonRegex = /<!-- IMAGES_JSON (\[.*?\]) -->/g;
-      let newInput = prev;
-      
-      const matches = [...prev.matchAll(imagesJsonRegex)];
-      matches.forEach(match => {
-        try {
-          const imageData = JSON.parse(match[1]);
-          const filteredImages = imageData.filter((img: any) => img.url !== imageUrl);
-          
-          if (filteredImages.length === 0) {
-            // Se não há mais imagens, remover o bloco inteiro
-            newInput = newInput.replace(match[0], '').trim();
-          } else {
-            // Se ainda há imagens, atualizar o bloco
-            const newBlock = `<!-- IMAGES_JSON ${JSON.stringify(filteredImages)} -->`;
-            newInput = newInput.replace(match[0], newBlock);
-          }
-        } catch (e) {
-          console.error('Erro ao processar remoção de imagem:', e);
-        }
-      });
-      
-      return newInput;
-    });
-  }, [setInput]);
+
 
   return (
     <>
-      {/* Mostrar as imagens extraídas do input */}
-      {inputImages.length > 0 && (
-        <div className="flex flex-wrap gap-2 mb-2 px-4">
-          {inputImages.map((img, index) => (
-            <div key={`${img.url}-${index}`} className="relative group">
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <div className="relative">
-                    <img
-                      src={img.thumbnailUrl || img.url}
-                      alt={img.name}
-                      className="w-16 h-16 object-cover rounded-lg border-2 border-blue-200 shadow-sm"
-                      onError={(e) => {
-                        // Fallback para URL original se thumbnail falhar
-                        const target = e.target as HTMLImageElement;
-                        console.warn(`⚠️ Thumbnail falhou: ${target.src}, usando URL original: ${img.url}`);
-                        if (target.src !== img.url) {
-                          target.src = img.url;
-                        }
-                      }}
-                      onLoad={() => {
-                        console.log(`✅ Thumbnail carregada: ${img.thumbnailUrl || img.url}`);
-                      }}
-                    />
-                    {img.isReference && (
-                      <div className="absolute -top-1 -right-1 bg-blue-500 text-white text-xs px-1 rounded-full">
-                        Ref
-                      </div>
-                    )}
-                    <button
-                      onClick={() => removeImageFromInput(img.url)}
-                      className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs hover:bg-red-600 opacity-0 group-hover:opacity-100 transition-opacity"
-                    >
-                      ×
-                    </button>
-                  </div>
-                </TooltipTrigger>
-                <TooltipContent side="top">
-                  <p className="text-xs">{img.name}</p>
-                  {img.isReference && <p className="text-xs text-blue-300">Imagem referenciada</p>}
-                </TooltipContent>
-              </Tooltip>
+      {/* Mostrar imagem referenciada */}
+      {referencedImage && (
+        <div className="mb-3 px-4">
+          <div className="bg-gradient-to-r from-muted/20 to-accent/20 border border-border rounded-lg p-3">
+            <div className="flex items-start gap-3">
+              {/* Thumbnail da imagem */}
+              <div className="flex-shrink-0">
+                <img 
+                  src={referencedImage.url} 
+                  alt={referencedImage.prompt || "Imagem referenciada"}
+                  className="w-16 h-16 object-cover rounded-lg border border-border"
+                />
+              </div>
+              
+              {/* Informações da imagem */}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-1">
+                  <MessageSquare className="w-4 h-4 text-primary" />
+                  <span className="text-sm font-medium text-foreground">Imagem Referenciada</span>
+                  {referencedImage.responseId && (
+                    <span className="text-xs text-primary bg-accent px-2 py-0.5 rounded-full">
+                      ID: {referencedImage.responseId.slice(-8)}
+                    </span>
+                  )}
+                </div>
+                <p className="text-sm text-muted-foreground truncate">
+                  {referencedImage.prompt || "Imagem para análise"}
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Digite sua pergunta sobre esta imagem abaixo
+                </p>
+              </div>
+              
+              {/* Botão para remover referência */}
+              <button
+                onClick={onClearReferencedImage}
+                className="flex-shrink-0 p-1 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-full transition-colors"
+                title="Remover referência"
+              >
+                <X className="w-4 h-4" />
+              </button>
             </div>
-          ))}
+          </div>
         </div>
       )}
 
@@ -618,7 +397,7 @@ const ChatInputForm: React.FC<ChatInputFormProps> = ({
             <Tooltip key={r.id}>
               <TooltipTrigger asChild>
                 <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-sm ${
-                  r.isImage ? "bg-green-50 text-green-700" : "bg-blue-50 text-blue-700"
+                  r.isImage ? "bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300" : "bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300"
                 }`}>
                   {r.isImage ? (
                     <ImageIcon size={16} /> 
@@ -673,44 +452,26 @@ const ChatInputForm: React.FC<ChatInputFormProps> = ({
       )}
 
       {/* Main input bar */}
-      <div className="sticky bottom-0 border-t bg-white py-4">
+      <div className="sticky bottom-0 border-t border-border bg-background py-4">
         <div className="container mx-auto max-w-6xl px-4">
-          <div className="relative flex flex-col rounded-lg border bg-white shadow-sm overflow-visible">
+          <div className="relative flex flex-col rounded-lg border border-border bg-card shadow-sm overflow-visible">
             <div className="flex-grow relative">
               {/* Textarea */}
               <textarea
                 ref={inputRef}
-                className="w-full pt-[30px] pb-[70px] pl-[30px] pr-[30px] bg-transparent resize-none focus:outline-none min-h-[100px] max-h-[280px] overflow-auto rounded-t-lg"
+                className="w-full pt-[30px] pb-[70px] pl-[30px] pr-[30px] bg-transparent text-foreground placeholder:text-muted-foreground resize-none focus:outline-none min-h-[100px] max-h-[280px] overflow-auto rounded-t-lg"
                 placeholder="Digite sua mensagem..."
+                rows={1}
                 onPaste={e => {
-                  // Aguarda o paste padrão e atualiza o estado + altura do textarea
+                  // Não prevenir o comportamento padrão - deixar o React lidar com o paste
+                  // O onChange será chamado automaticamente após o paste
                   setTimeout(() => {
+                    // Apenas reajustar a altura após o paste
                     const el = inputRef.current;
-                    if (!el) return;
-                    const newValue = el.value;
-                    
-                    // Preservar blocos IMAGES_JSON existentes e adicionar o novo texto
-                    const imagesJsonRegex = /<!-- IMAGES_JSON \[.*?\] -->/g;
-                    const existingImages = [...input.matchAll(imagesJsonRegex)];
-                    const imageBlocks = existingImages.map(match => match[0]).join('\n\n');
-                    
-                    // Melhor lógica de concatenação para paste
-                    let finalValue;
-                    if (imageBlocks && newValue.trim()) {
-                      finalValue = `${imageBlocks}\n\n${newValue}`;
-                    } else if (imageBlocks) {
-                      finalValue = imageBlocks;
-                    } else {
-                      finalValue = newValue;
+                    if (el) {
+                      el.style.height = "auto";
+                      el.style.height = `${Math.min(Math.max(el.scrollHeight, 100), 280)}px`;
                     }
-                    
-                    // Só atualiza se estiver dentro do limite
-                    if (finalValue.length <= MAX_CHAR_LIMIT) {
-                      setInput(finalValue);
-                    }
-                    // Reajusta a altura para acomodar o conteúdo
-                    el.style.height = "auto";
-                    el.style.height = `${Math.min(Math.max(el.scrollHeight, 100), 280)}px`;
                   }, 0);
                 }}
                 value={visibleText}
@@ -723,36 +484,50 @@ const ChatInputForm: React.FC<ChatInputFormProps> = ({
                 onChange={e => {
                   const newText = e.target.value;
                   
-                  // Preservar blocos IMAGES_JSON existentes
-                  const imagesJsonRegex = /<!-- IMAGES_JSON \[.*?\] -->/g;
-                  const existingImages = [...input.matchAll(imagesJsonRegex)];
-                  const imageBlocks = existingImages.map(match => match[0]).join('\n\n');
-                  
-                  // Melhor lógica de concatenação
-                  let finalValue;
-                  if (imageBlocks && newText.trim()) {
-                    finalValue = `${imageBlocks}\n\n${newText}`;
-                  } else if (imageBlocks) {
-                    finalValue = imageBlocks;
-                  } else {
-                    finalValue = newText;
-                  }
-                  
-                  if (finalValue.length <= MAX_CHAR_LIMIT) {
-                    setInput(finalValue);
-                    e.target.style.height = "auto";
-                    e.target.style.height = `${Math.min(Math.max(e.target.scrollHeight, 100), 280)}px`;
+                  if (newText.length <= MAX_CHAR_LIMIT) {
+                    setInput(newText);
+                    
+                    // Ajustar altura do textarea
+                    setTimeout(() => {
+                      if (e.target) {
+                        e.target.style.height = "auto";
+                        e.target.style.height = `${Math.min(Math.max(e.target.scrollHeight, 100), 280)}px`;
+                      }
+                    }, 0);
                   }
                 }}
                 onKeyDown={e => {
-                  if (e.key === "Enter" && !e.shiftKey) {
-                    handleSend(e);
+                  if (e.key === "Enter") {
+                    if (e.shiftKey) {
+                      // Shift+Enter: inserir quebra de linha manualmente
+                      e.preventDefault();
+                      const textarea = e.target as HTMLTextAreaElement;
+                      const start = textarea.selectionStart;
+                      const end = textarea.selectionEnd;
+                      const currentValue = textarea.value;
+                      const newValue = currentValue.substring(0, start) + '\n' + currentValue.substring(end);
+                      
+                      if (newValue.length <= MAX_CHAR_LIMIT) {
+                        setInput(newValue);
+                        
+                        // Reposicionar cursor após a quebra de linha
+                        setTimeout(() => {
+                          textarea.selectionStart = textarea.selectionEnd = start + 1;
+                          textarea.style.height = "auto";
+                          textarea.style.height = `${Math.min(Math.max(textarea.scrollHeight, 100), 280)}px`;
+                        }, 0);
+                      }
+                    } else {
+                      // Enter simples: enviar mensagem
+                      e.preventDefault();
+                      handleSend(e);
+                    }
                   }
                 }}
               />
 
               {/* Overlay de botões */}
-              <div className="absolute bottom-2 left-4 right-4 flex items-center justify-between bg-white/80 backdrop-blur-sm p-2 rounded-lg border">
+              <div className="absolute bottom-2 left-4 right-4 flex items-center justify-between bg-card/80 backdrop-blur-sm p-2 rounded-lg border border-border">
                 {/* botões da esquerda */}
                 <div className="flex items-center space-x-2">
                   {/* CNIS toggle no overlay */}
@@ -760,8 +535,8 @@ const ChatInputForm: React.FC<ChatInputFormProps> = ({
                     type="button"
                     onClick={toggleCnis}
                     aria-pressed={cnisActive}
-                    className={`flex items-center px-3 py-1 rounded-full hover:bg-gray-200 ${
-                      cnisActive ? "bg-blue-100 text-blue-700" : "bg-transparent text-gray-600"
+                    className={`flex items-center px-3 py-1 rounded-full hover:bg-accent transition-colors ${
+                      cnisActive ? "bg-primary/20 text-primary" : "bg-transparent text-muted-foreground"
                     }`}
                   >
                     <FileTextIcon size={20} />
@@ -771,7 +546,7 @@ const ChatInputForm: React.FC<ChatInputFormProps> = ({
                   <button
                     type="button"
                     onClick={() => setShowUploadMenu(prev => !prev)}
-                    className="p-2 rounded-full hover:bg-gray-200"
+                    className="p-2 rounded-full hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
                   >
                     <Plus size={20} />
                   </button>
@@ -781,8 +556,8 @@ const ChatInputForm: React.FC<ChatInputFormProps> = ({
                     type="button"
                     onClick={toggleBuscar}
                     aria-pressed={buscarActive}
-                    className={`flex items-center px-3 py-1 rounded-full hover:bg-gray-200 ${
-                      buscarActive ? "bg-blue-100 text-blue-700" : "bg-transparent text-gray-600"
+                    className={`flex items-center px-3 py-1 rounded-full hover:bg-accent transition-colors ${
+                      buscarActive ? "bg-primary/20 text-primary" : "bg-transparent text-muted-foreground"
                     }`}
                   >
                     <Globe size={20} />
@@ -793,8 +568,8 @@ const ChatInputForm: React.FC<ChatInputFormProps> = ({
                     type="button"
                     onClick={toggleInvestigar}
                     aria-pressed={investigarActive}
-                    className={`flex items-center px-3 py-1 rounded-full hover:bg-gray-200 ${
-                      investigarActive ? "bg-blue-100 text-blue-700" : "bg-transparent text-gray-600"
+                    className={`flex items-center px-3 py-1 rounded-full hover:bg-accent transition-colors ${
+                      investigarActive ? "bg-primary/20 text-primary" : "bg-transparent text-muted-foreground"
                     }`}
                   >
                     <Search size={20} />
@@ -805,30 +580,42 @@ const ChatInputForm: React.FC<ChatInputFormProps> = ({
                     type="button"
                     onClick={() => { setGerarImagemActive(prev => !prev); onImageGenerate?.(); }}
                     aria-pressed={gerarImagemActive}
-                    className={`flex items-center px-3 py-1 rounded-full hover:bg-gray-200 ${
-                      gerarImagemActive ? "bg-blue-100 text-blue-700" : "bg-transparent text-gray-600"
+                    className={`flex items-center px-3 py-1 rounded-full hover:bg-accent transition-colors ${
+                      gerarImagemActive ? "bg-primary/20 text-primary" : "bg-transparent text-muted-foreground"
                     }`}
                   >
                     <ImageIcon size={20} />
                     <span className="ml-1 text-sm">Criar imagem</span>
                   </button>
                   {/* Menu adicional */}
-                  <button type="button" className="p-2 rounded-full hover:bg-gray-200">
+                  <button type="button" className="p-2 rounded-full hover:bg-accent text-muted-foreground hover:text-foreground transition-colors">
                     <MoreHorizontal size={20} />
                   </button>
                 </div>
 
                 {/* botões da direita */}
                 <div className="flex items-center space-x-2">
-                  <button onClick={onAudioCapture} disabled={isLoading} className="p-2 rounded-full hover:bg-gray-200"><Mic size={20} /></button>
-                  <button onClick={handleSend} disabled={!canSend} className="p-2 rounded-full bg-blue-600 text-white hover:bg-blue-700 disabled:bg-blue-300"><ArrowUp size={20} /></button>
+                  <button 
+                    onClick={onAudioCapture} 
+                    disabled={isLoading} 
+                    className="p-2 rounded-full hover:bg-accent text-muted-foreground hover:text-foreground disabled:text-muted-foreground/50 transition-colors"
+                  >
+                    <Mic size={20} />
+                  </button>
+                  <button 
+                    onClick={handleSend} 
+                    disabled={!canSend} 
+                    className="p-2 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 disabled:bg-muted disabled:text-muted-foreground transition-colors"
+                  >
+                    <ArrowUp size={20} />
+                  </button>
                 </div>
               </div>
             </div>
 
             {/* Upload menu */}
             {showUploadMenu && (
-              <div ref={uploadMenuRef} className="absolute bottom-20 left-4 bg-white border rounded-lg shadow-lg py-1 min-w-[220px] z-50">
+              <div ref={uploadMenuRef} className="absolute bottom-20 left-4 bg-popover border border-border rounded-lg shadow-lg py-1 min-w-[220px] z-50">
                 {uploadMenuItems.map(item => (
                   <button
                     key={item.key}
@@ -837,9 +624,9 @@ const ChatInputForm: React.FC<ChatInputFormProps> = ({
                       fileInputRef.current?.click();
                       setShowUploadMenu(false);
                     }}
-                    className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                    className="flex items-center w-full px-4 py-2 text-sm text-foreground hover:bg-accent transition-colors"
                   >
-                    <item.icon size={16} className="mr-2 text-gray-500" /> {item.label}
+                    <item.icon size={16} className="mr-2 text-muted-foreground" /> {item.label}
                   </button>
                 ))}
               </div>

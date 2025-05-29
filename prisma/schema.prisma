@@ -492,33 +492,51 @@ model WhatsAppTemplate {
 
 // Modelos para o ChatwitIA - armazenamento de chats de IA
 model ChatSession {
-  id          String        @id @default(cuid())
-  userId      String
-  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  title       String        @default("Nova conversa")
-  model       String        @default("chatgpt-4o-latest")
-  summary     String?       // Resumo gerado automaticamente da conversa
-  messages    ChatMessage[]
-  files       ChatFile[]    // Relação com arquivos
+  id             String        @id @default(cuid())
+  userId         String
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title          String        @default("Nova conversa")
+  model          String        @default("chatgpt-4o-latest")
+  summary        String?       // Resumo gerado automaticamente da conversa
+  lastResponseId String?       // ID da última resposta da OpenAI para multi-turn
+  messages       ChatMessage[]
+  files          ChatFile[]    // Relação com arquivos
   generatedImages GeneratedImage[] // Relação com imagens geradas
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
 
   @@index([userId])
+  @@index([createdAt])
+  @@index([lastResponseId])  // Índice para busca rápida por responseId
 }
 
 model ChatMessage {
-  id            String      @id @default(cuid())
-  sessionId     String
-  session       ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  role          String      // "system", "user", "assistant"
-  content       String      @db.Text
-  contentType   String      @default("text") // "text", "audio", "image"
-  audioData     String?     @db.Text // Base64 de audio, se aplicável
-  imageUrl      String?     // URL da imagem, se aplicável
-  createdAt     DateTime    @default(now())
+  id                 String      @id @default(cuid())
+  sessionId          String
+  session            ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  role               String      // "system", "user", "assistant"
+  content            String      @db.Text
+  contentType        String      @default("text") // "text", "audio", "image"
+  audioData          String?     @db.Text // Base64 de audio, se aplicável
+  imageUrl           String?     // URL da imagem, se aplicável
+  previousResponseId String?     // ID da resposta anterior para multi-turn conversations
+  responseId         String?     // ID desta resposta da OpenAI para referência futura
+  
+  // Novos campos para dados da Responses API
+  modelUsed          String?     // Modelo usado na resposta (ex: "gpt-4.1-2025-04-14")
+  inputTokens        Int?        // Tokens de entrada
+  outputTokens       Int?        // Tokens de saída
+  totalTokens        Int?        // Total de tokens
+  reasoningTokens    Int?        // Tokens de reasoning (para modelos o-series)
+  temperature        Float?      // Temperatura usada
+  topP               Float?      // Top-p usado
+  responseStatus     String?     // Status da resposta ("completed", "failed", etc.)
+  responseCreatedAt  DateTime?   // Timestamp da criação da resposta na OpenAI
+  
+  createdAt          DateTime    @default(now())
 
   @@index([sessionId])
+  @@index([responseId])
 }
 
 // Modelo para armazenar arquivos associados a sessões de chat
@@ -546,24 +564,29 @@ model ChatFile {
 
 // Modelo para armazenar imagens geradas por IA
 model GeneratedImage {
-  id            String       @id @default(cuid())
-  userId        String
-  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  sessionId     String?      // Opcional - associado a uma sessão de chat específica
-  session       ChatSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
-  prompt        String       @db.Text // Prompt original usado para gerar a imagem
-  revisedPrompt String?      @db.Text // Prompt revisado pela IA (se aplicável)
-  model         String       @default("gpt-image-1") // Modelo usado para gerar a imagem
-  imageUrl      String       // URL da imagem no MinIO
-  thumbnailUrl  String?      // URL da thumbnail no MinIO
-  mimeType      String       @default("image/png") // Tipo MIME da imagem
-  size          String?      // Tamanho da imagem (ex: 1024x1024)
-  quality       String?      // Qualidade da imagem (ex: auto, high)
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
+  id                 String   @id @default(cuid())
+  userId             String
+  sessionId          String?
+  prompt             String
+  revisedPrompt      String?
+  model              String
+  imageUrl           String
+  thumbnailUrl       String?
+  mimeType           String   @default("image/png")
+  size               String?
+  quality            String?
+  previousResponseId String?  // ID da resposta anterior usada para gerar esta imagem (multi-turn)
+  responseId         String?  // ID desta resposta da OpenAI para referência futura (multi-turn)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  user    User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  session ChatSession? @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([sessionId])
   @@index([createdAt])
+  @@index([responseId])         // Índice para busca rápida por responseId
+  @@index([previousResponseId]) // Índice para busca por cadeia de refinamentos
 }
 

@@ -1,4 +1,4 @@
-//revidado por min
+﻿//revidado por min
 
 import { NextResponse } from 'next/server';
 import OpenAI from 'openai';
@@ -25,84 +25,16 @@ const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
 
-// Função para lidar com a requisição para a API do OpenAI, agora suportando documentos
-const formatAndSendToOpenAI = async (messages: any[], modelToUse: string) => {
-  // Converter as mensagens para o formato esperado pela API do OpenAI
-  const formattedMessages = messages.map((message: any) => {
-    let content = message.content;
-    
-    // Se o conteúdo for um array, formatar conforme o tipo
-    if (Array.isArray(content)) {
-      const audioContent = content.find(item => item.type === 'audio' && item.audio_data);
-      const imageContent = content.find(item => item.type === 'image' && item.image_url);
-      const textContent = content.find(item => item.type === 'text' && item.text);
-      const documentContent = content.find(item => item.type === 'document' && item.file_content);
-      
-      if (audioContent) {
-        return {
-          role: message.role,
-          content: [
-            {
-              type: "audio",
-              audio_data: audioContent.audio_data
-            }
-          ]
-        };
-      } else if (imageContent) {
-        return {
-          role: message.role,
-          content: imageContent.image_url
-        };
-      } else if (documentContent) {
-        // Para documentos, usamos o texto do documento como mensagem
-        return {
-          role: message.role,
-          content: documentContent.text || `[Documento: ${documentContent.file_name}]`
-        };
-      } else if (textContent) {
-        return {
-          role: message.role,
-          content: textContent.text
-        };
-      }
-    }
-    
-    // Se for uma string, usar diretamente
-    return {
-      role: message.role,
-      content: content
-    };
-  });
-
-  // Construir a URL da API
-  const API_URL = "https://api.openai.com/v1/chat/completions";
-  
-  // Fazer a requisição para a API do OpenAI
-  return fetch(API_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-    },
-    body: JSON.stringify({
-      model: modelToUse,
-      messages: formattedMessages,
-      temperature: 0.7,
-      top_p: 1,
-      stream: false,
-    }),
-  });
-};
-
 export async function POST(req: Request) {
   try {
-    const { messages, model = 'gpt-4o-latest', sessionId, generateSummary = false, document, stream = false, fileIds = [], previousResponseId } = await req.json();
+    const { messages, model = 'gpt-4o-latest', sessionId, generateSummary = false, document, stream = false, fileIds = [], previousResponseId, webSearchActive = false } = await req.json();
 
     console.log(`Recebida requisição para o modelo: ${model}`);
     console.log(`Sessão ID: ${sessionId || 'nova sessão'}`);
     console.log(`Número de mensagens: ${messages?.length || 0}`);
     console.log(`Streaming habilitado: ${stream}`);
-    console.log(`Previous Response ID: ${previousResponseId || 'nenhum'}`);
+    console.log(`Web Search ativo: ${webSearchActive}`);
+    console.log(`Previous Response ID recebido: ${previousResponseId || 'nenhum'}`);
     if (fileIds.length > 0) {
       console.log(`Arquivos referenciados: ${fileIds.length} (${fileIds.join(', ')})`);
     }
@@ -112,6 +44,56 @@ export async function POST(req: Request) {
         { error: 'Mensagens inválidas' },
         { status: 400 }
       );
+    }
+
+    // 🔗 Determinar o responseId correto para usar
+    let finalPreviousResponseId = null;
+    if (sessionId) {
+      try {
+        console.log(`🔍 Buscando lastResponseId da sessão no banco: ${sessionId}`);
+        const session = await db.chatSession.findUnique({
+          where: { id: sessionId },
+          select: { lastResponseId: true }
+        });
+        
+        // 🔧 NOVA LÓGICA SIMPLIFICADA:
+        // - Se previousResponseId é fornecido E é diferente do lastResponseId da sessão,
+        //   é uma referência específica de imagem (via interface)
+        // - Caso contrário, usar lastResponseId da sessão normalmente
+        
+        if (previousResponseId && previousResponseId !== session?.lastResponseId) {
+          // Verificar se o previousResponseId fornecido existe no banco (validação)
+          const messageWithResponseId = await db.chatMessage.findFirst({
+            where: {
+              sessionId: sessionId,
+              responseId: previousResponseId
+            },
+            select: { responseId: true }
+          });
+          
+          if (messageWithResponseId) {
+            finalPreviousResponseId = previousResponseId;
+            console.log(`🖼️ ✅ Usando responseId específico para referência de imagem: ${finalPreviousResponseId}`);
+            console.log(`ℹ️ LastResponseId da sessão: ${session?.lastResponseId}, mas usando responseId da imagem referenciada: ${previousResponseId}`);
+          } else {
+            console.log(`⚠️ ResponseId fornecido não encontrado no banco: ${previousResponseId}, usando lastResponseId da sessão`);
+            finalPreviousResponseId = session?.lastResponseId || null;
+          }
+        } else {
+          // Usar lastResponseId da sessão normalmente
+          finalPreviousResponseId = session?.lastResponseId || null;
+          if (finalPreviousResponseId) {
+            console.log(`🔗 ✅ Usando lastResponseId da sessão: ${finalPreviousResponseId}`);
+          } else {
+            console.log(`🔗 ❌ Nenhum responseId encontrado (nova conversa)`);
+          }
+        }
+      } catch (error) {
+        console.error('❌ Erro ao buscar responseId:', error);
+        finalPreviousResponseId = null;
+      }
+    } else {
+      console.log(`🔗 ℹ️ Nenhuma sessão fornecida (nova conversa)`);
     }
 
     // Verifica se é um modelo Anthropic/Claude
@@ -127,6 +109,12 @@ export async function POST(req: Request) {
 
     // Se tiver conteúdo de áudio, usar o modelo de áudio automaticamente (somente para OpenAI)
     let modelToUse = hasAudioContent && !isClaudeModel ? 'gpt-4o-audio-preview' : model;
+    
+    // Se web search estiver ativo e o modelo for gpt-4.1-nano, trocar por gpt-4.1-mini
+    if (webSearchActive && (modelToUse === 'gpt-4.1-nano' || modelToUse === 'gpt-4.1-nano-latest')) {
+      console.log(`🔄 Web Search ativo: trocando modelo ${modelToUse} por gpt-4.1-mini (nano não suporta web search)`);
+      modelToUse = 'gpt-4.1-mini';
+    }
     
     // Para modelos da família GPT-4o ou modelos com sufixo -o, garantir que usamos a responses.create API
     // quando temos arquivos anexados
@@ -161,7 +149,7 @@ export async function POST(req: Request) {
       aiResponse = await handleAnthropicRequest(messages, modelToUse);
     } else {
       // Passar fileIds para o handler da OpenAI quando presentes
-      aiResponse = await handleOpenAIRequest(messages, modelToUse, sessionId, fileIds, previousResponseId);
+      aiResponse = await handleOpenAIRequest(messages, modelToUse, sessionId, fileIds, finalPreviousResponseId, webSearchActive);
     }
     
     // Se o streaming estiver habilitado, retorne diretamente a resposta
@@ -370,8 +358,8 @@ async function testImageUrl(url: string): Promise<boolean> {
   }
 }
 
-// Função para processar requisições para a API do OpenAI, agora suportando streaming
-async function handleOpenAIRequest(messages: Message[], model: string, sessionId?: string, fileIds: string[] = [], previousResponseId?: string) {
+// Função para processar requisições para a API do OpenAI, agora usando exclusivamente Responses API
+async function handleOpenAIRequest(messages: Message[], model: string, sessionId?: string, fileIds: string[] = [], previousResponseId?: string, webSearchActive: boolean = false) {
   try {
     // Verificar se é um modelo Claude (não deveria chegar aqui, mas por segurança)
     if (model.includes('claude')) {
@@ -408,12 +396,20 @@ async function handleOpenAIRequest(messages: Message[], model: string, sessionId
     if (model === 'gpt-4o-search-preview-latest') openaiModel = 'gpt-4o-search-preview-2025-03-11';
     if (model === 'gpt-4o-mini-search-preview-latest') openaiModel = 'gpt-4o-mini-search-preview-2025-03-11';
     
+    // Mapeamento especial para o4-mini-high (usa o4-mini com reasoning effort high)
+    let reasoningEffort: string | undefined;
+    if (model === 'o4-mini-high') {
+      openaiModel = 'o4-mini';
+      reasoningEffort = 'high';
+      console.log(`🧠 Mapeando ${model} para ${openaiModel} com reasoning effort: ${reasoningEffort}`);
+    }
+    
     // Mapeamento direto para O series usando fetch e busca ativa para garantir sempre usar a versão com data
     // Extrair tipo base do modelo (o1, o1-mini, o4-mini, etc.)
-    const isOModel = model.match(/^(o\d+)(-[a-z]+)?$/);
+    const isOModel = openaiModel.match(/^(o\d+)(-[a-z]+)?$/);
     if (isOModel) {
       try {
-        const baseModel = model.includes('-') ? model : `${model}`; // Se já tem sufixo como -mini, usar como está
+        const baseModel = openaiModel.includes('-') ? openaiModel : `${openaiModel}`; // Se já tem sufixo como -mini, usar como está
         
         // Tentar buscar a lista de modelos disponíveis diretamente
         const response = await fetch("https://api.openai.com/v1/models", {
@@ -458,7 +454,7 @@ async function handleOpenAIRequest(messages: Message[], model: string, sessionId
           }
         }
       } catch (error) {
-        console.error(`Erro ao buscar modelo dinâmico para ${model}:`, error);
+        console.error(`Erro ao buscar modelo dinâmico para ${openaiModel}:`, error);
         // Em caso de erro, continuar usando o modelo original
       }
     }
@@ -537,522 +533,559 @@ async function handleOpenAIRequest(messages: Message[], model: string, sessionId
       console.log(`✅ Modelo mapeado com sucesso: ${openaiModel} → ${modelForImageGeneration}`);
     }
     
-    // Verificar se o modelo é da família O
+    // Verificar se o modelo é da família O (reasoning models)
     const isOSeriesModel = openaiModel.startsWith('o') || model.startsWith('o');
     
-    console.log(`Enviando requisição para OpenAI, modelo original: ${model}, modelo mapeado: ${openaiModel}`);
+    // 🔍 Verificar compatibilidade entre modelo atual e previous_response_id
+    // Se temos um previous_response_id, verificar se há incompatibilidade entre reasoning/non-reasoning models
+    // Usar o previousResponseId que já foi validado e buscado do banco de dados
+    let compatiblePreviousResponseId = previousResponseId;
     
-    // Converter as mensagens para o formato esperado pela API OpenAI
-    const formattedMessages = messages.map(message => {
-      let content = message.content;
-      
-      // Se o conteúdo for um array, processar de acordo com o tipo
-      if (Array.isArray(content)) {
-        const audioContent = content.find(item => item.type === 'audio' && item.audio_data);
-        const imageContent = content.find(item => item.type === 'image' && item.image_url);
-        const textContent = content.find(item => item.type === 'text' && item.text);
+    if (compatiblePreviousResponseId && sessionId) {
+      try {
+        // Buscar a última mensagem do assistente para verificar qual modelo foi usado
+        const lastAssistantMessage = await db.chatMessage.findFirst({
+          where: {
+            sessionId: sessionId,
+            role: 'assistant',
+            responseId: compatiblePreviousResponseId
+          },
+          select: { modelUsed: true, responseId: true },
+          orderBy: { createdAt: 'desc' }
+        });
         
-        if (audioContent) {
-          return {
-            role: message.role,
-            content: [
-              {
-                type: "audio",
-                audio_data: audioContent.audio_data
-              }
-            ]
-          };
-        } else if (imageContent) {
-          return {
-            role: message.role,
-            content: imageContent.image_url
-          };
-        } else if (textContent) {
-          return {
-            role: message.role,
-            content: textContent.text
-          };
-        }
-      }
-      
-      // Se for string ou outro formato simples
-      return {
-        role: message.role,
-        content: content
-      };
-    }) as OpenAI.Chat.ChatCompletionMessageParam[];
-    
-    // Sempre usar Responses API para modelos compatíveis (mais moderna e robusta)
-    // Apenas ajustar as ferramentas conforme necessário
-    const hasImageUrls = messages.some(msg => 
-      typeof msg.content === 'string' && msg.content.includes('<!-- IMAGES_JSON')
-    );
-    
-    const shouldUseResponsesApi = 
-      openaiModel === 'gpt-4o' || 
-      openaiModel.includes('gpt-4o') || 
-      openaiModel.includes('-o') ||
-      openaiModel.startsWith('o') ||
-      supportsImageGeneration;
-       
-    console.log(`🔍 Análise de uso da API:`);
-    console.log(`   - Modelo: ${openaiModel}`);
-    console.log(`   - Suporta geração de imagem: ${supportsImageGeneration}`);
-    console.log(`   - Tem URLs de imagem: ${hasImageUrls}`);
-    console.log(`   - Tem arquivos: ${fileIds.length > 0}`);
-    console.log(`   - Usar Responses API: ${shouldUseResponsesApi}`);
-    
-    if (shouldUseResponsesApi) {
-      console.log(`Usando Responses API para modelo ${openaiModel} com suporte a geração de imagem`);
-      
-      // Usar o modelo mapeado para geração de imagem se disponível
-      const apiModel = supportsImageGeneration ? modelForImageGeneration : openaiModel;
-      console.log(`Modelo para API: ${apiModel} (original: ${openaiModel})`);
-      
-      // Extrair a última mensagem do usuário para usar como prompt
-      const lastUserMessage = [...messages].reverse().find(m => m.role === 'user');
-      let userContent = '';
-      let imageUrls: string[] = [];
-      
-      if (lastUserMessage) {
-        if (typeof lastUserMessage.content === 'string') {
-          // Extrair URLs de imagens se presentes no formato especial
-          const imageJsonMatch = lastUserMessage.content.match(/<!-- IMAGES_JSON (.*?) -->/);
+        if (lastAssistantMessage?.modelUsed) {
+          const previousModelWasReasoning = lastAssistantMessage.modelUsed.startsWith('o');
+          const currentModelIsReasoning = isOSeriesModel;
           
-          if (imageJsonMatch && imageJsonMatch[1]) {
-            try {
-              const imageData = JSON.parse(imageJsonMatch[1]);
-              imageUrls = imageData.map((img: any) => img.url);
-              // Remover o bloco de JSON das imagens do conteúdo
-              userContent = lastUserMessage.content.replace(/<!-- IMAGES_JSON .*? -->/g, '').trim();
-            } catch (e) {
-              console.error('Erro ao processar JSON de imagens:', e);
+          // 🔧 CORREÇÃO: Para multi-turn image generation, permitir transição entre modelos compatíveis
+          // Modelos que suportam image generation podem fazer multi-turn mesmo sendo diferentes
+          const imageCompatibleModels = [
+            'gpt-4o-2024-11-20', 'gpt-4o', 'gpt-4o-2024-05-13', 'gpt-4o-2024-08-06',
+            'gpt-4.1', 'gpt-4.1-2025-04-14', 'gpt-4.1-mini', 'gpt-4.1-mini-2025-04-14',
+            'gpt-4.1-nano', 'gpt-4.1-nano-2025-04-14', 'o3-mini', 'o3'
+          ];
+          
+          const previousModelSupportsImages = imageCompatibleModels.some(m => 
+            lastAssistantMessage.modelUsed?.includes(m.split('-')[0])
+          );
+          const currentModelSupportsImages = supportsImageGeneration;
+          
+          // Se ambos os modelos suportam geração de imagem, permitir multi-turn
+          if (previousModelSupportsImages && currentModelSupportsImages) {
+            console.log(`✅ Multi-turn image generation permitido entre modelos compatíveis`);
+          }
+          // Para modelos reasoning, verificar se são exatamente o mesmo modelo
+          else if (previousModelWasReasoning && currentModelIsReasoning) {
+            // Extrair o modelo base (ex: o4-mini, o3, o1) para comparação
+            const extractBaseModel = (modelName: string) => {
+              // Remove datas e sufixos para comparar apenas o tipo base
+              return modelName.replace(/-\d{4}-\d{2}-\d{2}$/, '').replace(/-latest$/, '');
+            };
+            
+            const previousBaseModel = extractBaseModel(lastAssistantMessage.modelUsed);
+            const currentBaseModel = extractBaseModel(openaiModel);
+            
+            if (previousBaseModel !== currentBaseModel) {
+              console.log(`⚠️ Incompatibilidade entre modelos reasoning: modelo anterior (${lastAssistantMessage.modelUsed} → ${previousBaseModel}) ≠ modelo atual (${openaiModel} → ${currentBaseModel})`);
+              console.log(`🔄 Removendo previous_response_id - reasoning items só funcionam com o mesmo modelo`);
+              compatiblePreviousResponseId = undefined;
+            } else {
+              console.log(`✅ Compatibilidade confirmada: mesmo modelo reasoning (${currentBaseModel})`);
             }
-          } else {
-            // Se não houver imagens, apenas remover referências de arquivos
-            userContent = lastUserMessage.content.replace(/\[.*?\]\(file_id:.*?\)/g, '').trim();
           }
-        } else if (Array.isArray(lastUserMessage.content)) {
-          const textItem = lastUserMessage.content.find(item => item.type === 'text');
-          if (textItem && textItem.text) {
-            userContent = textItem.text;
+          // Para modelos non-reasoning, verificar se ambos são non-reasoning
+          else if (!previousModelWasReasoning && !currentModelIsReasoning) {
+            console.log(`✅ Compatibilidade confirmada: ambos são modelos non-reasoning`);
+          }
+          // Se há incompatibilidade entre reasoning e non-reasoning models
+          else if (previousModelWasReasoning !== currentModelIsReasoning) {
+            console.log(`⚠️ Incompatibilidade detectada: modelo anterior (${lastAssistantMessage.modelUsed}) era reasoning: ${previousModelWasReasoning}, modelo atual (${openaiModel}) é reasoning: ${currentModelIsReasoning}`);
+            console.log(`🔄 Removendo previous_response_id para evitar erro de reasoning input items`);
+            compatiblePreviousResponseId = undefined;
           }
         }
+      } catch (error) {
+        console.error('❌ Erro ao verificar compatibilidade de modelos:', error);
+        // Em caso de erro, remover previous_response_id por segurança
+        compatiblePreviousResponseId = undefined;
       }
-      
-      // Se não tiver conteúdo, usar uma instrução genérica
-      const promptText = userContent || "Analise o conteúdo fornecido.";
-      
-      // Preparar o input para a Responses API
-      const inputContent: any[] = [
-        { type: "input_text", text: promptText }
-      ];
-      
-      // Adicionar cada arquivo como um item separado no content
-      fileIds.forEach(fileId => {
-        inputContent.push({ type: "input_file", file_id: fileId });
-      });
-      
-      // Adicionar URLs de imagem diretamente, se presentes
-      for (const imageUrl of imageUrls) {
-        console.log(`🖼️ Processando imagem URL: ${imageUrl.substring(0, 100)}...`);
+    }
+    
+    console.log(`🚀 Usando Responses API exclusivamente para modelo original: ${model}, modelo mapeado: ${openaiModel}`);
+    console.log(`📊 É modelo da série O (reasoning): ${isOSeriesModel}`);
+    
+    // Usar o modelo mapeado para geração de imagem se disponível
+    const apiModel = supportsImageGeneration ? modelForImageGeneration : openaiModel;
+    console.log(`Modelo para API: ${apiModel} (original: ${openaiModel})`);
+    
+    // Extrair a última mensagem do usuário para usar como prompt
+    const lastUserMessage = [...messages].reverse().find(m => m.role === 'user');
+    let userContent = '';
+    let imageUrls: string[] = [];
+    
+    if (lastUserMessage) {
+      if (typeof lastUserMessage.content === 'string') {
+        console.log('📝 Conteúdo da mensagem recebida:', lastUserMessage.content);
+        userContent = lastUserMessage.content.trim();
         
-        // Validar se a URL é válida
-        try {
-          const url = new URL(imageUrl);
-          if (!url.protocol.startsWith('http')) {
-            console.error(`❌ URL inválida (protocolo): ${imageUrl}`);
-            continue;
+        // 🖼️ CORREÇÃO: Só extrair URLs de imagem se NÃO há previousResponseId específico
+        // Se há previousResponseId, é referência via interface - não processar URLs
+        if (!compatiblePreviousResponseId) {
+          // Extrair URLs de imagem do markdown e remover do texto apenas para geração nova
+          const imageMarkdownRegex = /!\[.*?\]\((https?:\/\/[^\)]+)\)/g;
+          const imageMatches = [...userContent.matchAll(imageMarkdownRegex)];
+          
+          if (imageMatches.length > 0) {
+            imageUrls = imageMatches.map(match => match[1]);
+            // Remover as referências de imagem do texto
+            userContent = userContent.replace(imageMarkdownRegex, '').trim();
+            console.log(`🖼️ Extraídas ${imageUrls.length} imagens do texto:`, imageUrls.map(url => url.substring(0, 50) + '...'));
+            console.log(`📝 Texto limpo: "${userContent}"`);
           }
-          
-          // Verificar se é uma URL de imagem válida
-          const isValidImageUrl = imageUrl.match(/\.(jpg|jpeg|png|gif|webp)$/i) || 
-                                 imageUrl.includes('objstoreapi.witdev.com.br') ||
-                                 imageUrl.includes('objstore.witdev.com.br');
-          
-          if (!isValidImageUrl) {
-            console.warn(`⚠️ URL pode não ser uma imagem válida: ${imageUrl}`);
+        } else {
+          // Se há referência específica de imagem, remover URLs do texto mas não processar como input_image
+          const imageMarkdownRegex = /!\[.*?\]\((https?:\/\/[^\)]+)\)/g;
+          if (imageMarkdownRegex.test(userContent)) {
+            userContent = userContent.replace(imageMarkdownRegex, '').trim();
+            console.log(`🖼️ ✅ Referência específica de imagem detectada (responseId: ${compatiblePreviousResponseId})`);
+            console.log(`📝 Texto limpo (sem URLs): "${userContent}"`);
+            console.log(`🔗 Usando contexto da imagem via previous_response_id ao invés de input_image`);
           }
-          
-          // Testar se a URL é acessível
-          const isAccessible = await testImageUrl(imageUrl);
-          if (!isAccessible) {
-            console.error(`❌ Pulando URL inacessível: ${imageUrl}`);
-            continue;
+        }
+      } else if (Array.isArray(lastUserMessage.content)) {
+        // Handle array content
+        for (const contentItem of lastUserMessage.content) {
+          if (contentItem.type === 'text' && contentItem.text) {
+            userContent += contentItem.text + ' ';
+          } else if (contentItem.type === 'image' && contentItem.image_url) {
+            // Só adicionar como input_image se não há referência específica
+            if (!compatiblePreviousResponseId) {
+              imageUrls.push(contentItem.image_url);
+            }
           }
-          
-          inputContent.push({ 
-            type: "input_image", 
-            image_url: imageUrl,
+        }
+        userContent = userContent.trim();
+      }
+    }
+    
+    // Preparar conteúdo de entrada para a Responses API
+    const inputContent: any[] = [
+      { type: "input_text", text: userContent }
+    ];
+    
+    // Adicionar imagens extraídas como input_image APENAS se não há referência específica
+    if (imageUrls.length > 0) {
+      imageUrls.forEach((imageUrl, index) => {
+        inputContent.push({
+          type: "input_image",
+          image_url: {
+            url: imageUrl,
             detail: "high"
-          });
-          
-          console.log(`✅ URL de imagem adicionada com sucesso: ${imageUrl.substring(0, 50)}...`);
-        } catch (urlError) {
-          console.error(`❌ Erro ao processar URL da imagem: ${imageUrl}`, urlError);
+          }
+        });
+        console.log(`🖼️ Adicionada imagem ${index + 1} como input_image: ${imageUrl.substring(0, 50)}...`);
+      });
+    }
+    
+    // Adicionar cada arquivo como um item separado no content
+    fileIds.forEach(fileId => {
+      inputContent.push({ type: "input_file", file_id: fileId });
+    });
+    
+    // Preparar ferramentas para Responses API
+    const tools: any[] = [];
+    
+    // Adicionar ferramenta de pesquisa web se ativada
+    if (webSearchActive) {
+      tools.push({
+        type: "web_search_preview",
+        search_context_size: "medium",
+        user_location: {
+          type: "approximate",
+          country: "BR",
+          timezone: "America/Sao_Paulo"
         }
-      }
-      
-      // Preparar ferramentas - só incluir image_generation se NÃO houver imagens no input
-      const tools: any[] = [];
-      if (supportsImageGeneration && imageUrls.length === 0) {
-        // Só adicionar ferramenta de geração de imagem se não há imagens no input
-        tools.push({ 
-          type: "image_generation",
-          quality: "high",
-          size: "auto",
-          background: "auto",
-          partial_images: 2  // Receber 2 imagens parciais durante o streaming
-        });
-        console.log('🎨 Ferramenta de geração de imagem adicionada (sem imagens no input)');
-      } else if (imageUrls.length > 0) {
-        console.log('🖼️ Ferramenta de geração de imagem removida (há imagens no input)');
-      }
-          
-          // Configurar opções para a requisição
-          const requestOptions: any = {
-        model: apiModel,
-            input: [
-              {
-                role: "user",
-                content: inputContent
-              }
-            ],
-        stream: true,
-        store: true // Salvar para permitir referência futura
-      };
-      
-      // Usar previous_response_id se disponível (para multi-turn image generation)
-      if (previousResponseId) {
-        console.log(`🔗 Usando previous_response_id: ${previousResponseId} para multi-turn image generation`);
-        requestOptions.previous_response_id = previousResponseId;
-      }
-          
-          // Adicionar ferramentas se disponíveis
-          if (tools.length > 0) {
-            requestOptions.tools = tools;
-          }
-          
-      // Adicionar temperatura com valor adequado para cada tipo de modelo
-      if (apiModel.startsWith('o')) {
-            requestOptions.temperature = 1;
-          } else {
-            requestOptions.temperature = 0.7;
-          }
-          
-      // Create a manual streaming response using the Responses API
-      // instead of Chat Completions API to support image generation
-      const API_URL = "https://api.openai.com/v1/responses";
-
-      // Store the sessionId for database operations
-      console.log('Using session ID for database:', sessionId);
-
-      // Log do payload para debug
-      console.log('📤 Payload sendo enviado para OpenAI Responses API:');
-      console.log('🔧 Model:', apiModel);
-      console.log('📝 Input content items:', inputContent.length);
-      console.log('🛠️ Tools:', tools.length > 0 ? tools.map(t => t.type) : 'none');
-      
-      // Log detalhado de cada item do inputContent
-      inputContent.forEach((item, index) => {
-        console.log(`📋 Input item ${index}:`, {
-          type: item.type,
-          hasText: item.text ? `yes (${item.text.length} chars)` : 'no',
-          hasFileId: item.file_id ? `yes (${item.file_id})` : 'no',
-          hasImageUrl: item.image_url ? 'yes' : 'no',
-          imageUrl: item.image_url ? `${item.image_url.substring(0, 100)}...` : 'none',
-          detail: item.detail || 'none'
-        });
       });
-      
-      console.log('📊 Request options:', JSON.stringify(requestOptions, null, 2));
-
-      // Validação final do payload
-      if (!requestOptions.model) {
-        throw new Error('Modelo não especificado no payload');
-      }
-      
-      if (!requestOptions.input || !Array.isArray(requestOptions.input)) {
-        throw new Error('Input inválido no payload');
-      }
-      
-      if (requestOptions.input.length === 0) {
-        throw new Error('Input vazio no payload');
-      }
-      
-      // Verificar se há pelo menos um item de texto no input
-      const hasTextInput = inputContent.some(item => item.type === 'input_text' && item.text);
-      if (!hasTextInput) {
-        console.warn('⚠️ Nenhum input de texto encontrado, adicionando texto padrão');
-        inputContent.unshift({ type: "input_text", text: "Analise o conteúdo fornecido." });
-      }
-      
-      console.log('✅ Payload validado com sucesso');
-
-      const response = await fetch(API_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
-        },
-        body: JSON.stringify(requestOptions),
+      console.log('🔍 Ferramenta de pesquisa web adicionada (web_search_preview)');
+    }
+    
+    if (supportsImageGeneration) {
+      // Adicionar ferramenta de geração de imagem
+      tools.push({ 
+        type: "image_generation",
+        quality: "auto",
+        size: "auto",
+        background: "auto",
+        partial_images: 2
       });
+      console.log('🎨 Ferramenta de geração de imagem adicionada');
+    }
+        
+    // Configurar opções para a requisição da Responses API
+    const requestOptions: any = {
+      model: apiModel,
+      input: [
+        {
+          role: "user",
+          content: inputContent
+        }
+      ],
+      stream: true,
+      store: true,
+      parallel_tool_calls: true,
+      truncation: "disabled"
+    };
+    
+    // Usar previous_response_id se disponível (para multi-turn conversations)
+    if (compatiblePreviousResponseId) {
+      console.log(`🔗 Usando previous_response_id: ${compatiblePreviousResponseId} para multi-turn conversation`);
+      requestOptions.previous_response_id = compatiblePreviousResponseId;
+    }
+        
+    // Adicionar ferramentas se disponíveis
+    if (tools.length > 0) {
+      requestOptions.tools = tools;
+    }
+    
+    // Adicionar parâmetro reasoning para modelos da série O
+    if (isOSeriesModel) {
+      const effort = reasoningEffort || 'medium'; // Default para medium, mas pode ser high para o4-mini-high
+      requestOptions.reasoning = { effort };
+      console.log(`🧠 Adicionando reasoning effort: ${effort} para modelo da série O`);
+    }
+    
+    // Adicionar temperatura baseada no tipo de modelo
+    if (isOSeriesModel) {
+      requestOptions.temperature = 1;
+    } else {
+      requestOptions.temperature = 0.7;
+    }
+    
+    // Adicionar top_p
+    requestOptions.top_p = 1.0;
+    
+    // Adicionar max_output_tokens
+    requestOptions.max_output_tokens = 2000;
+    
+    // Usar a Responses API exclusivamente
+    const API_URL = "https://api.openai.com/v1/responses";
 
-      // Check if the fetch was successful
-      if (!response.ok) {
-        // Capturar detalhes do erro da OpenAI
-        let errorDetails = '';
-        let errorObject = null;
+    // Store the sessionId for database operations
+    console.log('Using session ID for database:', sessionId);
+
+    // Log do payload para debug
+    console.log('📤 Payload sendo enviado para OpenAI Responses API:');
+    console.log('🔧 Model:', apiModel);
+    console.log('📝 Input content items:', inputContent.length);
+    console.log('🛠️ Tools:', tools.length > 0 ? tools.map(t => t.type) : 'none');
+    
+    // Log detalhado de cada item do inputContent
+    inputContent.forEach((item, index) => {
+      console.log(`📋 Input item ${index}:`, {
+        type: item.type,
+        hasText: item.text ? `yes (${item.text.length} chars)` : 'no',
+        hasFileId: item.file_id ? `yes (${item.file_id})` : 'no',
+        hasImageUrl: item.image_url ? 'yes' : 'no',
+        imageUrl: item.image_url?.url ? `${item.image_url.url.substring(0, 100)}...` : 'none',
+        detail: item.image_url?.detail || 'none'
+      });
+    });
+    
+    console.log('📊 Request options:', JSON.stringify(requestOptions, null, 2));
+
+    // Validação final do payload
+    if (!requestOptions.model) {
+      throw new Error('Modelo não especificado no payload');
+    }
+    
+    if (!requestOptions.input || !Array.isArray(requestOptions.input)) {
+      throw new Error('Input inválido no payload');
+    }
+    
+    if (requestOptions.input.length === 0) {
+      throw new Error('Input vazio no payload');
+    }
+    
+    // Verificar se há pelo menos um item de texto no input
+    const hasTextInput = inputContent.some(item => item.type === 'input_text' && item.text);
+    if (!hasTextInput) {
+      console.warn('⚠️ Nenhum input de texto encontrado, adicionando texto padrão');
+      inputContent.unshift({ type: "input_text", text: "Analise o conteúdo fornecido." });
+    }
+    
+    console.log('✅ Payload validado com sucesso');
+
+    const response = await fetch(API_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
+      },
+      body: JSON.stringify(requestOptions),
+    });
+
+    // Check if the fetch was successful
+    if (!response.ok) {
+      // Capturar detalhes do erro da OpenAI
+      let errorDetails = '';
+      let errorObject = null;
+      
+      try {
+        const errorBody = await response.text();
+        errorDetails = errorBody;
+        
+        // Tentar fazer parse do JSON do erro
+        try {
+          errorObject = JSON.parse(errorBody);
+          console.error(`❌ OpenAI API Error ${response.status} - Parsed:`, errorObject);
+          
+          // Log específico para erro 400
+          if (response.status === 400) {
+            console.error('🔍 Detalhes do erro 400:');
+            console.error('📋 Error type:', errorObject?.error?.type);
+            console.error('📝 Error message:', errorObject?.error?.message);
+            console.error('🎯 Error code:', errorObject?.error?.code);
+            console.error('📊 Error param:', errorObject?.error?.param);
+            
+            // Log do payload que causou o erro
+            console.error('📤 Payload que causou o erro:');
+            console.error('🔧 Model:', apiModel);
+            console.error('📝 Input content items:', inputContent.length);
+            inputContent.forEach((item, index) => {
+              console.error(`📋 Item ${index}:`, {
+                type: item.type,
+                hasText: item.text ? 'yes' : 'no',
+                hasFileId: item.file_id ? 'yes' : 'no',
+                hasImageUrl: item.image_url ? 'yes' : 'no',
+                imageUrlLength: item.image_url?.url?.length || 0
+              });
+            });
+            console.error('🛠️ Tools:', tools.length > 0 ? tools.map(t => t.type) : 'none');
+          }
+        } catch (parseError) {
+          console.error(`❌ OpenAI API Error ${response.status} - Raw:`, errorDetails);
+        }
+      } catch (e) {
+        console.error(`❌ OpenAI API Error ${response.status}: Não foi possível ler o corpo da resposta`);
+      }
+      
+      throw new Error(`OpenAI API responded with status ${response.status}: ${errorDetails}`);
+    }
+
+    // Define a custom transformer class for Responses API events
+    class ChunkTransformer implements Transformer<Uint8Array, Uint8Array> {
+      private buffer: string = '';
+      private encoder = new TextEncoder();
+      private decoder = new TextDecoder();
+      private completeContent: string = '';
+      private responseId: string = '';
+      private imageResults: any[] = [];
+      private fullResponseData: any = null;
+
+      constructor(
+        private sessionIdForDB?: string,
+        private userPrompt?: string,
+        private modelName?: string,
+        private previousResponseId?: string
+      ) {}
+      
+      async transform(chunk: Uint8Array, controller: TransformStreamDefaultController<Uint8Array>) {
+        // Decode the received chunk
+        const text = this.decoder.decode(chunk);
         
         try {
-          const errorBody = await response.text();
-          errorDetails = errorBody;
+          // Add to buffer first before processing
+          this.buffer += text;
           
-          // Tentar fazer parse do JSON do erro
-          try {
-            errorObject = JSON.parse(errorBody);
-            console.error(`❌ OpenAI API Error ${response.status} - Parsed:`, errorObject);
-            
-            // Log específico para erro 400
-            if (response.status === 400) {
-              console.error('🔍 Detalhes do erro 400:');
-              console.error('📋 Error type:', errorObject?.error?.type);
-              console.error('📝 Error message:', errorObject?.error?.message);
-              console.error('🎯 Error code:', errorObject?.error?.code);
-              console.error('📊 Error param:', errorObject?.error?.param);
-              
-              // Log do payload que causou o erro
-              console.error('📤 Payload que causou o erro:');
-              console.error('🔧 Model:', apiModel);
-              console.error('📝 Input content items:', inputContent.length);
-              inputContent.forEach((item, index) => {
-                console.error(`📋 Item ${index}:`, {
-                  type: item.type,
-                  hasText: item.text ? 'yes' : 'no',
-                  hasFileId: item.file_id ? 'yes' : 'no',
-                  hasImageUrl: item.image_url ? 'yes' : 'no',
-                  imageUrlLength: item.image_url?.url?.length || 0
-                });
-              });
-              console.error('🛠️ Tools:', tools.length > 0 ? tools.map(t => t.type) : 'none');
+          // Split by lines and process each SSE event
+          const lines = this.buffer.split('\n');
+          // Keep the last line in the buffer if it's not complete
+          this.buffer = lines.pop() || '';
+                
+          const validLines = lines.filter(line => line.trim() !== '');
+          
+          for (const line of validLines) {
+            // Check if it's SSE event
+            if (line.startsWith('event: ')) {
+              // Skip event type lines, we'll handle them with data
+              continue;
             }
-          } catch (parseError) {
-            console.error(`❌ OpenAI API Error ${response.status} - Raw:`, errorDetails);
-          }
-        } catch (e) {
-          console.error(`❌ OpenAI API Error ${response.status}: Não foi possível ler o corpo da resposta`);
-        }
-        
-        throw new Error(`OpenAI API responded with status ${response.status}: ${errorDetails}`);
-      }
-
-      // Define a custom transformer class for Responses API events
-      class ChunkTransformer implements Transformer<Uint8Array, Uint8Array> {
-        private buffer: string = '';
-        private encoder = new TextEncoder();
-        private decoder = new TextDecoder();
-        private completeContent: string = '';
-        private responseId: string = '';
-        private imageResults: any[] = [];
-        
-        constructor(
-          private sessionIdForDB?: string,
-          private userPrompt?: string,
-          private modelName?: string
-        ) {}
-        
-        async transform(chunk: Uint8Array, controller: TransformStreamDefaultController<Uint8Array>) {
-          // Decode the received chunk
-          const text = this.decoder.decode(chunk);
-          
-          try {
-            // Add to buffer first before processing
-            this.buffer += text;
             
-            // Split by lines and process each SSE event
-            const lines = this.buffer.split('\n');
-            // Keep the last line in the buffer if it's not complete
-            this.buffer = lines.pop() || '';
-                  
-            const validLines = lines.filter(line => line.trim() !== '');
-            
-            for (const line of validLines) {
-              // Check if it's SSE event
-              if (line.startsWith('event: ')) {
-                // Skip event type lines, we'll handle them with data
+            if (line.startsWith('data: ')) {
+              const data = line.slice(5).trim();
+              
+              // Check if it's the [DONE] marker
+              if (data === '[DONE]') {
+                console.log('✅ Responses API stream complete');
+                console.log(`📊 Final content length: ${this.completeContent.length}`);
+                console.log(`🖼️ Images generated: ${this.imageResults.length}`);
+                console.log(`🆔 Response ID: ${this.responseId}`);
+                
+                // Send final done message with response ID and full response data
+                controller.enqueue(this.encoder.encode(JSON.stringify({
+                type: 'done',
+                response: {
+                    role: "assistant",
+                    content: this.completeContent,
+                    images: this.imageResults,
+                    responseId: this.responseId,
+                    responsesApiResponse: this.fullResponseData
+                  },
+                  response_id: this.responseId, // Important for multi-turn
+                  done: true
+                }) + '\n'));
                 continue;
               }
               
-              if (line.startsWith('data: ')) {
-                const data = line.slice(5).trim();
+              try {
+                // Parse the JSON event from Responses API
+                const eventData = JSON.parse(data);
                 
-                // Check if it's the [DONE] marker
-                if (data === '[DONE]') {
-                  console.log('✅ Responses API stream complete');
-                  console.log(`📊 Final content length: ${this.completeContent.length}`);
-                  console.log(`🖼️ Images generated: ${this.imageResults.length}`);
-                  console.log(`🆔 Response ID: ${this.responseId}`);
-                  
-                  // Send final done message with response ID for multi-turn
-                  controller.enqueue(this.encoder.encode(JSON.stringify({
-                  type: 'done',
-                  response: {
-                      role: "assistant",
-                      content: this.completeContent,
-                      images: this.imageResults
-                    },
-                    response_id: this.responseId, // Important for multi-turn
-                    done: true
-                  }) + '\n'));
-                  continue;
-                }
+                // Handle different event types from Responses API
+                switch (eventData.type) {
+                  case 'response.created':
+                    console.log('🚀 Response started, ID:', eventData.response?.id);
+                    this.responseId = eventData.response?.id || '';
+                    this.fullResponseData = eventData.response;
+                    break;
+                    
+                  case 'response.output_text.delta':
+                    // Text incremental
+                    const textDelta = eventData.delta || '';
+                    this.completeContent += textDelta;
+                    
+                    // Send the chunk to the client
+                    controller.enqueue(this.encoder.encode(JSON.stringify({
+                      type: 'chunk',
+                      content: textDelta,
+                      done: false
+                    }) + '\n'));
+                    break;
+                    
+                  case 'response.image_generation_call.started':
+                    console.log('🎨 Image generation started');
+                    
+                    // Send status to client
+                    controller.enqueue(this.encoder.encode(JSON.stringify({
+                      type: 'image_generation_started',
+                      message: 'Gerando imagem...'
+                    }) + '\n'));
+                    break;
+                    
+                  case 'response.image_generation_call.partial_image':
+                    console.log(`🖼️ Partial image received, index: ${eventData.partial_image_index}`);
+                    
+                    // Send partial image to client
+                    controller.enqueue(this.encoder.encode(JSON.stringify({
+                      type: 'partial_image',
+                      image_data: eventData.partial_image_b64 || '',
+                      index: eventData.partial_image_index || 0
+                    }) + '\n'));
+                    break;
+                    
+                  case 'response.image_generation_call.completed':
+                    console.log('✅ Image generation completed');
+                    // Image will be processed in response.completed
+                    break;
+                    
+                  case 'response.web_search_call.started':
+                    console.log('🔍 Web search started');
+                    
+                    // Send status to client
+                    controller.enqueue(this.encoder.encode(JSON.stringify({
+                      type: 'web_search_started',
+                      message: 'Pesquisando na web...'
+                    }) + '\n'));
+                    break;
+                    
+                  case 'response.web_search_call.completed':
+                    console.log('✅ Web search completed');
+                    
+                    // Send status to client
+                    controller.enqueue(this.encoder.encode(JSON.stringify({
+                      type: 'web_search_completed',
+                      message: 'Pesquisa web concluída'
+                    }) + '\n'));
+                    break;
+                    
+                  case 'response.completed':
+                    console.log('🏁 Response completed, processing final output');
+                    
+                    // Store the complete response data
+                    this.fullResponseData = eventData.response;
                 
-                try {
-                  // Parse the JSON event from Responses API
-                  const eventData = JSON.parse(data);
-                  
-                  // Handle different event types from Responses API
-                  switch (eventData.type) {
-                    case 'response.created':
-                      console.log('🚀 Response started, ID:', eventData.response?.id);
-                      this.responseId = eventData.response?.id || '';
-                      break;
-                      
-                    case 'response.output_text.delta':
-                      // Text incremental
-                      const textDelta = eventData.delta || '';
-                      this.completeContent += textDelta;
-                      
-                      // Send the chunk to the client
-                      controller.enqueue(this.encoder.encode(JSON.stringify({
-                        type: 'chunk',
-                        content: textDelta,
-                        done: false
-                      }) + '\n'));
-                      break;
-                      
-                    case 'response.image_generation_call.started':
-                      console.log('🎨 Image generation started');
-                      
-                      // Send status to client
-                      controller.enqueue(this.encoder.encode(JSON.stringify({
-                        type: 'image_generation_started',
-                        message: 'Gerando imagem...'
-                      }) + '\n'));
-                      break;
-                      
-                    case 'response.image_generation_call.partial_image':
-                      console.log(`🖼️ Partial image received, index: ${eventData.partial_image_index}`);
-                      
-                      // Send partial image to client
-                      controller.enqueue(this.encoder.encode(JSON.stringify({
-                        type: 'partial_image',
-                        image_data: eventData.partial_image_b64 || '',
-                        index: eventData.partial_image_index || 0
-                      }) + '\n'));
-                      break;
-                      
-                    case 'response.image_generation_call.completed':
-                      console.log('✅ Image generation completed');
-                      // Image will be processed in response.completed
-                      break;
-                      
-                    case 'response.completed':
-                      console.log('🏁 Response completed, processing final output');
-                
-                      // Process final output for images
-                      if (eventData.response?.output && Array.isArray(eventData.response.output)) {
-                        for (const output of eventData.response.output) {
-                          if (output.type === 'image_generation_call') {
-                            console.log('🖼️ Processing generated image');
+                    // Process final output for images
+                    if (eventData.response?.output && Array.isArray(eventData.response.output)) {
+                      for (const output of eventData.response.output) {
+                        if (output.type === 'image_generation_call') {
+                          console.log('🖼️ Processing generated image');
+                          
+                          // Save image to MinIO and database
+                          try {
+                            const session = await auth();
                             
-                            // Save image to MinIO and database
-                            try {
-                              const session = await auth();
+                            if (session?.user?.id && output.result) {
+                              // Convert base64 to buffer
+                              const base64Data = output.result.replace(/^data:image\/\w+;base64,/, '');
+                              const imageBuffer = Buffer.from(base64Data, 'base64');
                               
-                              if (session?.user?.id && output.result) {
-                                // Convert base64 to buffer
-                                const base64Data = output.result.replace(/^data:image\/\w+;base64,/, '');
-                                const imageBuffer = Buffer.from(base64Data, 'base64');
-                                
-                                // Upload to MinIO
-                                const uploadResult = await uploadToMinIO(
-                                  imageBuffer,
-                                  `generated-image-${Date.now()}.png`,
-                                  'image/png',
-                                  true // Generate thumbnail
-                                );
-                                
-                                const imageUrl = uploadResult.url;
-                                const thumbnailUrl = uploadResult.thumbnail_url || '';
-                                
-                                console.log(`💾 Image saved to MinIO: ${imageUrl}`);
-                                
-                                // Save to database
-                                const savedImage = await db.generatedImage.create({
-                                  data: {
-                                    userId: session.user.id,
-                                    sessionId: this.sessionIdForDB || null,
-                                    prompt: this.userPrompt || 'Imagem gerada',
-                                    revisedPrompt: output.revised_prompt || null,
-                                    model: this.modelName || '',
-                                    imageUrl: imageUrl,
-                                    thumbnailUrl: thumbnailUrl,
-                                    mimeType: uploadResult.mime_type,
-                                    createdAt: new Date()
-                                  }
-                                });
-                                
-                                console.log(`💾 Image saved to database: ${savedImage.id}`);
-                                
-                                // Store image result for final response
-                                const imageResult = {
-                                  id: output.id,
-                                  result: output.result,
-                                  revised_prompt: output.revised_prompt,
-                                  url: imageUrl,
-                                  image_url: imageUrl,
-                                  thumbnail_url: thumbnailUrl
-                                };
-                                
-                                this.imageResults.push(imageResult);
-                        
-                                // Send image generated event immediately
-                                controller.enqueue(this.encoder.encode(JSON.stringify({
-                                  type: 'image_generated',
-                                  image_data: output.result,
-                                  image_url: imageUrl,
-                                  thumbnail_url: thumbnailUrl,
-                                  revised_prompt: output.revised_prompt,
-                                  image_id: output.id
-                                }) + '\n'));
-                                
-              } else {
-                                console.log('⚠️ Could not save image: user not authenticated or empty result');
-                                
-                                // Still send the event with available data
-                                const imageResult = {
-                                  id: output.id,
-                                  result: output.result,
-                                  revised_prompt: output.revised_prompt,
-                                  url: '',
-                                  image_url: '',
-                                  thumbnail_url: ''
-                                };
-                                
-                                this.imageResults.push(imageResult);
-                                
-                                controller.enqueue(this.encoder.encode(JSON.stringify({
-                                  type: 'image_generated',
-                                  image_data: output.result || '',
-                                  image_url: '',
-                                  thumbnail_url: '',
-                                  revised_prompt: output.revised_prompt,
-                                  image_id: output.id
-                                }) + '\n'));
-                              }
-                            } catch (saveError) {
-                              console.error('❌ Error saving image to MinIO:', saveError);
+                              // Upload to MinIO
+                              const uploadResult = await uploadToMinIO(
+                                imageBuffer,
+                                `generated-image-${Date.now()}.png`,
+                                'image/png',
+                                true // Generate thumbnail
+                              );
+                              
+                              const imageUrl = uploadResult.url;
+                              const thumbnailUrl = uploadResult.thumbnail_url || '';
+                              
+                              console.log(`💾 Image saved to MinIO: ${imageUrl}`);
+                              
+                              // Save to database
+                              const savedImage = await db.generatedImage.create({
+                                data: {
+                                  userId: session.user.id,
+                                  sessionId: this.sessionIdForDB || null,
+                                  prompt: this.userPrompt || 'Imagem gerada',
+                                  revisedPrompt: output.revised_prompt || null,
+                                  model: this.modelName || '',
+                                  imageUrl: imageUrl,
+                                  thumbnailUrl: thumbnailUrl,
+                                  mimeType: uploadResult.mime_type,
+                                  previousResponseId: this.previousResponseId || null,
+                                  responseId: this.responseId || null,
+                                  createdAt: new Date()
+                                }
+                              });
+                              
+                              console.log(`💾 Image saved to database: ${savedImage.id}`);
+                              
+                              // Store image result for final response
+                              const imageResult = {
+                                id: output.id,
+                                result: output.result,
+                                revised_prompt: output.revised_prompt,
+                                url: imageUrl,
+                                image_url: imageUrl,
+                                thumbnail_url: thumbnailUrl
+                              };
+                              
+                              this.imageResults.push(imageResult);
+                      
+                              // Send image generated event immediately
+                              controller.enqueue(this.encoder.encode(JSON.stringify({
+                                type: 'image_generated',
+                                image_data: output.result,
+                                image_url: imageUrl,
+                                thumbnail_url: thumbnailUrl,
+                                revised_prompt: output.revised_prompt,
+                                image_id: output.id
+                              }) + '\n'));
+                              
+                } else {
+                              console.log('⚠️ Could not save image: user not authenticated or empty result');
                               
                               // Still send the event with available data
                               const imageResult = {
@@ -1075,194 +1108,155 @@ async function handleOpenAIRequest(messages: Message[], model: string, sessionId
                                 image_id: output.id
                               }) + '\n'));
                             }
+                          } catch (saveError) {
+                            console.error('❌ Error saving image to MinIO:', saveError);
+                            
+                            // Still send the event with available data
+                            const imageResult = {
+                              id: output.id,
+                              result: output.result,
+                              revised_prompt: output.revised_prompt,
+                              url: '',
+                              image_url: '',
+                              thumbnail_url: ''
+                            };
+                            
+                            this.imageResults.push(imageResult);
+                            
+                            controller.enqueue(this.encoder.encode(JSON.stringify({
+                              type: 'image_generated',
+                              image_data: output.result || '',
+                              image_url: '',
+                              thumbnail_url: '',
+                              revised_prompt: output.revised_prompt,
+                              image_id: output.id
+                            }) + '\n'));
                           }
                         }
                       }
-                      
-                      // IMPORTANTE: Salvar mensagem do assistente no banco também aqui (Responses API)
-                      if (this.sessionIdForDB) {
-                        try {
-                          let contentToSave = this.completeContent;
+                    }
+                    
+                    // IMPORTANTE: Salvar mensagem do assistente no banco também aqui (Responses API)
+                    if (this.sessionIdForDB) {
+                      try {
+                        let contentToSave = this.completeContent;
+                        
+                        // Se temos imagens, adicionar elas como markdown ao conteúdo
+                        if (this.imageResults.length > 0) {
+                          // Buscar as imagens salvas no banco para obter as URLs corretas
+                          const session = await auth();
                           
-                          // Se temos imagens, adicionar elas como markdown ao conteúdo
-                          if (this.imageResults.length > 0) {
-                            // Buscar as imagens salvas no banco para obter as URLs corretas
-                            const session = await auth();
+                          if (session?.user?.id) {
+                            const savedImages = await db.generatedImage.findMany({
+                              where: {
+                                userId: session.user.id,
+                                sessionId: this.sessionIdForDB
+                              },
+                              orderBy: {
+                                createdAt: 'desc'
+                              },
+                              take: this.imageResults.length
+                            });
                             
-                            if (session?.user?.id) {
-                              const savedImages = await db.generatedImage.findMany({
-                                where: {
-                                  userId: session.user.id,
-                                  sessionId: this.sessionIdForDB
-                                },
-                                orderBy: {
-                                  createdAt: 'desc'
-                                },
-                                take: this.imageResults.length
-                              });
-                              
-                              // Usar as URLs das imagens salvas
-                              savedImages.forEach((img, index) => {
-                                const imageMarkdown = `![Imagem gerada](${img.imageUrl})`;
-                              
+                            // Usar as URLs das imagens salvas
+                            savedImages.forEach((img, index) => {
+                              const imageMarkdown = `![Imagem gerada](${img.imageUrl})`;
+                            
+                              if (contentToSave) {
+                                contentToSave += `\n\n${imageMarkdown}`;
+                              } else {
+                                contentToSave = imageMarkdown;
+                              }
+                            });
+                          } else {
+                            // Fallback: usar as URLs dos resultados (se disponíveis)
+                            this.imageResults.forEach((img, index) => {
+                              const imageUrl = img.url || img.image_url || '';
+                              if (imageUrl) {
+                                const imageMarkdown = `![Imagem gerada](${imageUrl})`;
+                        
                                 if (contentToSave) {
                                   contentToSave += `\n\n${imageMarkdown}`;
                                 } else {
                                   contentToSave = imageMarkdown;
                                 }
-                              });
-                            } else {
-                              // Fallback: usar as URLs dos resultados (se disponíveis)
-                              this.imageResults.forEach((img, index) => {
-                                const imageUrl = img.url || img.image_url || '';
-                                if (imageUrl) {
-                                  const imageMarkdown = `![Imagem gerada](${imageUrl})`;
-                        
-                                  if (contentToSave) {
-                                    contentToSave += `\n\n${imageMarkdown}`;
-                                  } else {
-                                    contentToSave = imageMarkdown;
-                                  }
-                                }
-                              });
-                            }
+                              }
+                            });
                           }
-                          
-                          await saveMessageToDatabase(this.sessionIdForDB, {
-                            role: 'assistant',
-                            content: contentToSave,
-                            contentType: 'text'
-                          });
-                          
-                          console.log('✅ Assistant message saved to database [COMPLETED]');
-                        } catch (dbError) {
-                          console.error('❌ Error saving message to database [COMPLETED]:', dbError);
                         }
+                        
+                        // Salvar mensagem com dados completos da Responses API
+                        await saveMessageToDatabase(this.sessionIdForDB, {
+                          role: 'assistant',
+                          content: contentToSave,
+                          contentType: 'text',
+                          responseId: this.responseId,
+                          responsesApiResponse: this.fullResponseData,
+                          usage: this.fullResponseData?.usage
+                        });
+
+                        // 🔗 Atualizar lastResponseId na sessão
+                        if (this.sessionIdForDB && this.responseId) {
+                          try {
+                            await db.chatSession.update({
+                              where: { id: this.sessionIdForDB },
+                              data: { lastResponseId: this.responseId }
+                            });
+                            console.log(`🔗 LastResponseId atualizado na sessão: ${this.responseId}`);
+                          } catch (error) {
+                            console.error('Erro ao atualizar lastResponseId na sessão:', error);
+                          }
+                        }
+                        
+                        console.log('✅ Assistant message saved to database [COMPLETED]');
+                      } catch (dbError) {
+                        console.error('❌ Error saving message to database [COMPLETED]:', dbError);
                       }
-                      
-                      break;
-                      
-                    case 'response.failed':
-                      console.error('❌ Response failed:', eventData.response?.error);
-                      controller.enqueue(this.encoder.encode(JSON.stringify({
-                        type: 'error',
-                        error: eventData.response?.error?.message || 'Response failed'
-                      }) + '\n'));
-                      break;
-                      
-                    default:
-                      console.log(`ℹ️ Unhandled event type: ${eventData.type}`);
-                  }
+                    }
                     
-                } catch (parseErr: any) {
-                  // Log the error but don't crash the stream
-                  console.error('❌ Error parsing Responses API event:', parseErr.message);
-                  console.log('🔍 Problematic data:', data.substring(0, 100) + (data.length > 100 ? '...' : ''));
+                    break;
+                    
+                  case 'response.failed':
+                    console.error('❌ Response failed:', eventData.response?.error);
+                    controller.enqueue(this.encoder.encode(JSON.stringify({
+                      type: 'error',
+                      error: eventData.response?.error?.message || 'Response failed'
+                    }) + '\n'));
+                    break;
+                    
+                  default:
+                    console.log(`ℹ️ Unhandled event type: ${eventData.type}`);
+                }
                   
-                  // If the error is about unterminated JSON, keep in buffer for next chunk
-                  if (parseErr.message.includes('Unterminated string') || 
-                      parseErr.message.includes('Unexpected end of JSON')) {
-                    // Put the data back in the buffer to combine with the next chunk
-                    this.buffer = 'data: ' + data + '\n' + this.buffer;
-                    console.log('📝 Added incomplete JSON back to buffer for next chunk');
-                    continue;
-                  }
+              } catch (parseErr: any) {
+                // Log the error but don't crash the stream
+                console.error('❌ Error parsing Responses API event:', parseErr.message);
+                console.log('🔍 Problematic data:', data.substring(0, 100) + (data.length > 100 ? '...' : ''));
+                
+                // If the error is about unterminated JSON, keep in buffer for next chunk
+                if (parseErr.message.includes('Unterminated string') || 
+                    parseErr.message.includes('Unexpected end of JSON')) {
+                  // Put the data back in the buffer to combine with the next chunk
+                  this.buffer = 'data: ' + data + '\n' + this.buffer;
+                  console.log('📝 Added incomplete JSON back to buffer for next chunk');
+                  continue;
                 }
               }
             }
-          } catch (outerError) {
-            // Catch any errors in the outer processing to prevent the stream from breaking
-            console.error('❌ Error processing chunk:', outerError);
-            // Continue processing - don't break the stream
           }
+        } catch (outerError) {
+          // Catch any errors in the outer processing to prevent the stream from breaking
+          console.error('❌ Error processing chunk:', outerError);
+          // Continue processing - don't break the stream
         }
       }
-
-      // Create our transformer instance
-      const transformer = new ChunkTransformer(sessionId, userContent, apiModel);
-      const transformStream = new TransformStream(transformer);
-
-      // Return the transformed stream
-      return new NextResponse(response.body?.pipeThrough(transformStream), {
-        headers: {
-          'Content-Type': 'text/event-stream',
-          'Cache-Control': 'no-cache',
-          'Connection': 'keep-alive',
-        },
-      });
-    }
-    
-    // Usar parâmetros específicos para modelos da família O (chat completions)
-    const requestOptions = {
-      model: openaiModel,
-      messages: formattedMessages,
-      temperature: isOSeriesModel ? 1 : 0.7,
-      top_p: 1,
-      frequency_penalty: 0,
-      presence_penalty: 0,
-      stream: true,
-    } as any;
-    
-    // Usar max_completion_tokens para modelos da família O e max_tokens para outros modelos
-    if (isOSeriesModel) {
-      requestOptions.max_completion_tokens = 2000;
-    } else {
-      requestOptions.max_tokens = 2000;
-    }
-    
-    // Use Chat Completions API for models that don't support Responses API
-    const API_URL = "https://api.openai.com/v1/chat/completions";
-
-    const response = await fetch(API_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
-      },
-      body: JSON.stringify(requestOptions),
-    });
-
-    // Check if the fetch was successful
-    if (!response.ok) {
-      throw new Error(`OpenAI API responded with status ${response.status}`);
     }
 
-    // For Chat Completions API, use a simple transform stream
-    const encoder = new TextEncoder();
-    const transformStream = new TransformStream({
-      async transform(chunk, controller) {
-        const text = new TextDecoder().decode(chunk);
-        
-        // Process SSE chunks
-        const lines = text.split('\n');
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const data = line.slice(6);
-            if (data === '[DONE]') {
-              controller.enqueue(encoder.encode(JSON.stringify({
-                type: 'done',
-                done: true
-              }) + '\n'));
-            } else {
-              try {
-                const parsed = JSON.parse(data);
-                const content = parsed.choices?.[0]?.delta?.content || '';
-                if (content) {
-                  controller.enqueue(encoder.encode(JSON.stringify({
-                    type: 'chunk',
-                    content: content,
-                    done: false
-                  }) + '\n'));
-                }
-              } catch (e) {
-                // Ignore parse errors
-              }
-            }
-          }
-        }
-      }
-    });
+    // Create our transformer instance
+    const transformer = new ChunkTransformer(sessionId, userContent, apiModel, compatiblePreviousResponseId);
+    const transformStream = new TransformStream(transformer);
 
+    // Return the transformed stream
     return new NextResponse(response.body?.pipeThrough(transformStream), {
       headers: {
         'Content-Type': 'text/event-stream',
@@ -1405,13 +1399,31 @@ async function handleAnthropicRequest(messages: Message[], model: string) {
 }
 
 // Helper function to save a message to the database
-async function saveMessageToDatabase(sessionId: string, message: { role: string, content: string, contentType: string }) {
+async function saveMessageToDatabase(
+  sessionId: string, 
+  message: { 
+    role: string, 
+    content: string, 
+    contentType: string,
+    previousResponseId?: string,
+    responseId?: string,
+    imageUrl?: string,
+    audioData?: string,
+    responsesApiResponse?: any,
+    usage?: {
+      input_tokens?: number;
+      output_tokens?: number;
+      total_tokens?: number;
+      reasoning_tokens?: number;
+    }
+  }
+) {
   try {
     const session = await auth();
     
     if (!session?.user?.id) {
       console.error('Cannot save message: No authenticated user');
-      return;
+      return null;
     }
     
     // Verify that the chat session belongs to the user
@@ -1424,16 +1436,33 @@ async function saveMessageToDatabase(sessionId: string, message: { role: string,
     
     if (!chatSession) {
       console.error('Cannot save message: Chat session not found or does not belong to user');
-      return;
+      return null;
     }
     
+    // Extrair dados da Responses API se disponível
+    const responsesData = message.responsesApiResponse;
+    
     // Save the message to the database
-    await db.chatMessage.create({
+    const savedMessage = await db.chatMessage.create({
       data: {
         sessionId,
         role: message.role,
         content: message.content,
-        contentType: message.contentType
+        contentType: message.contentType,
+        previousResponseId: message.previousResponseId,
+        responseId: message.responseId,
+        imageUrl: message.imageUrl,
+        audioData: message.audioData,
+        // Novos campos da Responses API
+        modelUsed: responsesData?.model,
+        inputTokens: message.usage?.input_tokens,
+        outputTokens: message.usage?.output_tokens,
+        totalTokens: message.usage?.total_tokens,
+        reasoningTokens: message.usage?.reasoning_tokens,
+        temperature: responsesData?.temperature,
+        topP: responsesData?.top_p,
+        responseStatus: responsesData?.status,
+        responseCreatedAt: responsesData?.created_at ? new Date(responsesData.created_at * 1000) : undefined
       }
     });
     
@@ -1443,9 +1472,14 @@ async function saveMessageToDatabase(sessionId: string, message: { role: string,
       data: { updatedAt: new Date() }
     });
     
-    console.log(`Message saved to database for session ${sessionId}`);
+    console.log(`Message saved to database for session ${sessionId} with responseId: ${message.responseId || 'none'}`);
+    if (message.responsesApiResponse) {
+      console.log(`📊 Responses API data saved: model=${responsesData?.model}, tokens=${message.usage?.total_tokens}, status=${responsesData?.status}`);
+    }
+    return savedMessage;
   } catch (error) {
     console.error('Error saving message to database:', error);
+    return null;
   }
 }
 

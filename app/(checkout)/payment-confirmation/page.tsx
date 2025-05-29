@@ -68,32 +68,37 @@ export default function PaymentConfirmationPage() {
 
   if (status === "complete") {
     return (
-      <div className="text-center space-y-4">
-        <h1 className="text-3xl font-bold">Assinatura Confirmada!</h1>
-        <p>
-          Obrigado por se juntar à comunidade ChatWit, que mais cresce no Brasil.
-        </p>
-        <p>
-          Um email de confirmação foi enviado para{" "}
-          <span className="font-medium">{customerEmail}</span>.
-        </p>
-        <Button onClick={() => {
-          if (accounts.length > 0) {
-            const mainAccount = accounts.find(acc => acc.isMain) || accounts[0];
-            router.push(`/${mainAccount.providerAccountId}/dashboard`);
-          } else {
-            router.push("/registro/redesocial");
-          }
-        }}>
-          Ir para o Meu Painel
-        </Button>
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+        <div className="max-w-md w-full bg-card border rounded-lg p-8 text-center space-y-4">
+          <h1 className="text-3xl font-bold text-foreground">Assinatura Confirmada!</h1>
+          <p className="text-muted-foreground">
+            Obrigado por se juntar à comunidade ChatWit, que mais cresce no Brasil.
+          </p>
+          <p className="text-muted-foreground">
+            Um email de confirmação foi enviado para{" "}
+            <span className="font-medium text-foreground">{customerEmail}</span>.
+          </p>
+          <Button onClick={() => {
+            if (accounts.length > 0) {
+              const mainAccount = accounts.find(acc => acc.isMain) || accounts[0];
+              router.push(`/${mainAccount.providerAccountId}/dashboard`);
+            } else {
+              router.push("/registro/redesocial");
+            }
+          }}>
+            Ir para o Meu Painel
+          </Button>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="text-center">
-      <p>Carregando...</p>
+    <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="text-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+        <p className="text-muted-foreground">Carregando...</p>
+      </div>
     </div>
   );
 }

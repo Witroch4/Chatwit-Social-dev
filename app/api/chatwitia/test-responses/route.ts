@@ -28,9 +28,8 @@ export async function POST(req: Request) {
     if (imageUrl) {
       testPayload.input[0].content.push({
         type: "input_image",
-        image_url: imageUrl,
-        detail: "high"
-      });
+        image_url: imageUrl
+      } as any);
     }
     
     console.log('📤 Payload de teste:', JSON.stringify(testPayload, null, 2));

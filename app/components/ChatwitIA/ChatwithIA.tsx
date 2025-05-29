@@ -70,7 +70,9 @@ export default function ChatwitIA({
     editImage,
     createImageVariation,
     isFileLoading,
-    currentSessionId
+    currentSessionId,
+    lastResponseId,
+    setLastResponseId
   } = useChatwitIA(chatId, modelId);
 
   const [input, setInput] = useState("");
@@ -79,17 +81,57 @@ export default function ChatwitIA({
   const [showScrollButton, setShowScrollButton] = useState(false);
   const [unreadMessages, setUnreadMessages] = useState(0);
   const [cnisAnalysisActive, setCnisAnalysisActive] = useState(false);
+  const [webSearchActive, setWebSearchActive] = useState(false);
+  
+  // Estado para imagem referenciada
+  const [referencedImage, setReferencedImage] = useState<{
+    url: string;
+    prompt?: string;
+    responseId?: string;
+  } | null>(null);
 
   /* ----- submit ----- */
   const handleSubmit = useCallback(
     async (content: string) => {
-      if (!content.trim() || isLoading) return;
+      if (!content.trim() && !referencedImage) return;
+      if (isLoading) return;
+      
+      // Determinar o modelo a usar - trocar gpt-4.1-nano por gpt-4.1-mini se web search estiver ativo
+      let effectiveModelId = modelId;
+      if (webSearchActive && (modelId === 'gpt-4.1-nano' || modelId === 'gpt-4.1-nano-latest')) {
+        effectiveModelId = 'gpt-4.1-mini';
+        console.log(`🔄 Trocando modelo de ${modelId} para ${effectiveModelId} devido ao web search ativo`);
+      }
+      
+      // Construir conteúdo final incluindo imagem referenciada se houver
+      let finalContent = content;
+      
+      // Se há uma imagem referenciada, incluir no conteúdo
+      if (referencedImage) {
+        const imageMarkdown = `![${referencedImage.prompt || 'Imagem referenciada'}](${referencedImage.url})`;
+        finalContent = finalContent ? `${imageMarkdown}\n\n${finalContent}` : imageMarkdown;
+        console.log(`🖼️ Incluindo imagem referenciada na mensagem: ${referencedImage.url.substring(0, 50)}...`);
+      }
+      
+      // Adicionar informação sobre web search no conteúdo se ativado
+      if (webSearchActive) {
+        // Adicionar um marcador especial no conteúdo para indicar que web search está ativo
+        finalContent = `[WEB_SEARCH_ACTIVE] ${finalContent}`;
+      }
+      
       // Always pass the modelId to ensure it's used
-      await sendMessage(content, systemPrompt, modelId);
+      await sendMessage(finalContent, systemPrompt, effectiveModelId);
       setInput("");
+      
+      // Limpar imagem referenciada após enviar
+      if (referencedImage) {
+        setReferencedImage(null);
+        console.log('🗑️ Imagem referenciada removida após envio da mensagem');
+      }
+      
       inputRef.current?.focus();
     },
-    [isLoading, sendMessage, systemPrompt, modelId]
+    [isLoading, sendMessage, systemPrompt, modelId, webSearchActive, referencedImage]
   );
 
   // Manter handleSubmitRef atualizado
@@ -222,6 +264,20 @@ export default function ChatwitIA({
     console.log("ChatwitIA: CNIS Analysis mode set to:", isActive);
   };
 
+  /* ----- Web search toggle ----- */
+  const handleToggleWebSearch = (isActive: boolean) => {
+    setWebSearchActive(isActive);
+    console.log("ChatwitIA: Web Search mode set to:", isActive);
+    
+    if (isActive) {
+      // Se o modelo atual é gpt-4.1-nano, avisar que será trocado para gpt-4.1-mini
+      if (modelId === 'gpt-4.1-nano' || modelId === 'gpt-4.1-nano-latest') {
+        console.log("⚠️ Modelo gpt-4.1-nano não suporta web search, será usado gpt-4.1-mini automaticamente");
+        toast.info("Modelo alterado para gpt-4.1-mini (web search não suportado no nano)");
+      }
+    }
+  };
+
   /* ----- título automático ----- */
   useEffect(() => {
     if (messages.length > 0 && chatId && onTitleChange) {
@@ -257,45 +313,80 @@ export default function ChatwitIA({
     console.log(`🖼️ Referenciando imagem: ${imageUrl.substring(0, 50)}... com prompt: "${prompt}"`);
     
     try {
-      // Salvar a imagem no banco de dados para referência futura
-      const response = await fetch('/api/chatwitia/images/save', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          imageData: imageUrl, // Para URLs, enviar a URL diretamente
-          prompt: prompt || 'Imagem referenciada pelo usuário',
-          sessionId: chatId,
-          model: 'user-reference'
-        }),
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        console.log(`✅ Imagem referenciada salva no banco: ${result.image?.id}`);
-        
-        // Usar thumbnailUrl se disponível, senão usar a URL original
-        const displayUrl = result.image?.thumbnailUrl || imageUrl;
-        const originalUrl = imageUrl;
-        
-        // Adicionar a imagem ao input usando um formato que renderize a thumbnail
-        const imageMarkdown = `<!-- IMAGES_JSON [{"url": "${originalUrl}", "thumbnailUrl": "${displayUrl}", "name": "${prompt || 'Imagem referenciada'}", "isReference": true}] -->`;
-        setInput(prev => prev ? `${prev}\n\n${imageMarkdown}` : imageMarkdown);
-        
-        // Focar no input para o usuário digitar a pergunta
-        inputRef.current?.focus();
-        
-        toast.success('Imagem referenciada! Digite sua pergunta sobre ela.');
+      // 🔧 CORREÇÃO: Buscar o responseId da imagem no banco de dados
+      console.log(`🔍 Buscando responseId da imagem no banco...`);
+      
+      const searchResponse = await fetch(`/api/chatwitia/images/search?imageUrl=${encodeURIComponent(imageUrl)}&sessionId=${chatId}`);
+      
+      let imageResponseId = null;
+      if (searchResponse.ok) {
+        const searchResult = await searchResponse.json();
+        if (searchResult.image?.responseId) {
+          imageResponseId = searchResult.image.responseId;
+          console.log(`🔗 ResponseId da imagem encontrado: ${imageResponseId}`);
+        } else {
+          console.log(`⚠️ Imagem encontrada no banco mas sem responseId: ${searchResult.image?.id}`);
+        }
       } else {
-        console.error('Erro ao salvar imagem referenciada:', response.status);
-        toast.error('Erro ao referenciar imagem');
+        console.log(`⚠️ Imagem não encontrada no banco, será salva como nova referência`);
       }
+      
+      // Se não encontrou a imagem ou responseId, salvar como nova referência
+      if (!imageResponseId) {
+        const saveResponse = await fetch('/api/chatwitia/images/save', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            imageData: imageUrl,
+            prompt: prompt || 'Imagem referenciada pelo usuário',
+            sessionId: chatId,
+            model: 'user-reference'
+          }),
+        });
+
+        if (saveResponse.ok) {
+          const saveResult = await saveResponse.json();
+          console.log(`✅ Imagem referenciada salva no banco: ${saveResult.image?.id}`);
+        }
+      }
+      
+      // 🔧 NOVA LÓGICA: Definir a imagem referenciada no estado
+      setReferencedImage({
+        url: imageUrl,
+        prompt: prompt || 'Imagem referenciada',
+        responseId: imageResponseId || undefined
+      });
+      
+      // 🔧 CORREÇÃO: Definir o responseId para usar na próxima mensagem
+      if (imageResponseId) {
+        // Usar o responseId da imagem como previousResponseId para a próxima mensagem
+        console.log(`🔗 Definindo responseId da imagem (${imageResponseId}) para próxima mensagem`);
+        
+        // Atualizar o lastResponseId no hook para que a próxima mensagem use este ID
+        if (typeof setLastResponseId === 'function') {
+          setLastResponseId(imageResponseId);
+          console.log(`✅ LastResponseId atualizado para responseId da imagem: ${imageResponseId}`);
+        }
+      }
+      
+      // Limpar o input e focar para o usuário digitar a pergunta
+      setInput('');
+      inputRef.current?.focus();
+      
+      toast.success('Imagem referenciada! Digite sua pergunta sobre ela.');
     } catch (error: any) {
       console.error('Erro ao referenciar imagem:', error);
       toast.error(`Erro ao referenciar imagem: ${error.message || 'Erro desconhecido'}`);
     }
-  }, [chatId, setInput]);
+  }, [chatId, setLastResponseId]);
+
+  // Função para limpar imagem referenciada
+  const handleClearReferencedImage = useCallback(() => {
+    setReferencedImage(null);
+    console.log('🗑️ Imagem referenciada removida');
+  }, []);
 
   // Função para lidar com geração de imagem
   const handleGenerateImage = useCallback(async (prompt: string) => {
@@ -436,8 +527,10 @@ export default function ChatwitIA({
         currentSessionId={chatId || undefined}
         isCnisAnalysisActive={cnisAnalysisActive}
         onToggleCnisAnalysis={handleToggleCnisAnalysis}
-        onSearchToggle={(isActive) => console.log('Search toggle:', isActive)}
+        onSearchToggle={handleToggleWebSearch}
         onInvestigateToggle={(isActive) => console.log('Investigate toggle:', isActive)}
+        referencedImage={referencedImage}
+        onClearReferencedImage={handleClearReferencedImage}
       />
     </div>
   );

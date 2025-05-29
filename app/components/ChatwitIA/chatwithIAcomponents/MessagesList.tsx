@@ -50,8 +50,8 @@ const MessagesList = React.memo(function MessagesList({
   // Conteúdo vazio memoizado
   const emptyContent = useMemo(() => (
     <div className="h-full flex flex-col items-center justify-center px-4 text-center">
-      <h1 className="text-4xl font-bold mb-8">ChatwitIA</h1>
-      <p className="text-gray-500">Envie uma mensagem para começar.</p>
+      <h1 className="text-4xl font-bold mb-8 text-foreground">ChatwitIA</h1>
+      <p className="text-muted-foreground">Envie uma mensagem para começar.</p>
     </div>
   ), []);
 
@@ -62,22 +62,25 @@ const MessagesList = React.memo(function MessagesList({
       ref={containerRef}
       className="flex-1 overflow-y-auto p-4 space-y-5"
     >
-      <div className="max-w-3xl mx-auto w-full pt-8 px-4">
+      <div className="max-w-4xl mx-auto w-full pt-8 px-4">
         {messages.map((m, i) => {
           if (!m || m.role === "system") return null;
           const isUser = m.role === "user";
           const pdf = typeof m.content === "string" && m.content.match(/\[.*?\]\(file_id:.*?\)/);
           return (
-            <div key={i} className={`mb-6 flex ${isUser ? "justify-end" : "justify-center"}`}>
+            <div key={i} className={`mb-6 flex ${isUser ? "justify-end" : "justify-start"}`}>
               <AnimatedMessage isAssistant={!isUser}>
-                <div className={`max-w-[80%] ${isUser ? "bg-gray-50 rounded-lg px-4 py-3" : ""}`}>
+                <div className={`
+                  w-full max-w-[85%] min-w-[200px]
+                  ${isUser ? "bg-muted/50 rounded-lg px-4 py-3" : ""}
+                `}>
                   {typeof m.content === "string" ? (
                     isUser ? (
-                      <div>
+                      <div className="w-full">
                         {pdf && (
-                          <div className="flex items-center gap-2 p-2 bg-blue-50 border border-blue-200 rounded-md mb-2">
+                          <div className="flex items-center gap-2 p-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-md mb-2">
                             <FileIcon size={16} className="text-blue-500" />
-                            <span className="text-xs text-blue-700">Arquivo PDF anexado</span>
+                            <span className="text-xs text-blue-700 dark:text-blue-300">Arquivo PDF anexado</span>
                           </div>
                         )}
                         <MessageContent 
@@ -87,11 +90,13 @@ const MessagesList = React.memo(function MessagesList({
                         />
                       </div>
                     ) : (
-                      <MessageContent 
-                        content={m.content} 
-                        isStreaming={isLoading && i === messages.length - 1 && m.role === 'assistant'} 
-                        onImageReference={onImageReference}
-                      />
+                      <div className="w-full">
+                        <MessageContent 
+                          content={m.content} 
+                          isStreaming={isLoading && i === messages.length - 1 && m.role === 'assistant'} 
+                          onImageReference={onImageReference}
+                        />
+                      </div>
                     )
                   ) : (
                     <p className="text-red-500">Formato de conteúdo não suportado</p>
@@ -104,19 +109,19 @@ const MessagesList = React.memo(function MessagesList({
 
         {/* Mostrar animação de carregamento apenas se estiver carregando E não tiver resposta em progresso */}
         {isLoading && !hasResponseInProgress && (
-          <div className="mb-6 flex justify-center">
-            <div className="loading-message bg-blue-50 border border-blue-100 rounded-lg px-5 py-3 flex items-center gap-3">
+          <div className="mb-6 flex justify-start">
+            <div className="loading-message bg-muted/30 border border-border rounded-lg px-5 py-3 flex items-center gap-3">
               <div className="loading-dots flex space-x-1">
-                <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-                <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
-                <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: '600ms' }}></div>
+                <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '600ms' }}></div>
               </div>
-              <span className="text-blue-700 font-medium text-sm">Processando sua solicitação</span>
+              <span className="text-foreground font-medium text-sm">Processando sua solicitação</span>
             </div>
           </div>
         )}
         {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 p-3 rounded-lg mb-6">
+          <div className="bg-destructive/10 border border-destructive/20 text-destructive p-3 rounded-lg mb-6">
             <p className="font-semibold">Erro:</p>
             <p>{error}</p>
           </div>

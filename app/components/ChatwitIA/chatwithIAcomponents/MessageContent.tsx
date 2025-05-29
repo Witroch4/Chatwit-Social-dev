@@ -184,31 +184,31 @@ const GeneratedImage: React.FC<{
         
         {isLoading && (
           <div 
-            className="absolute inset-0 flex items-center justify-center bg-gray-100 transition-opacity duration-300 rounded-lg"
+            className="absolute inset-0 flex items-center justify-center bg-muted/50 transition-opacity duration-300 rounded-lg"
             style={{ 
               aspectRatio: naturalAspectRatio,
               maxWidth: '100%'
             }}
           >
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
           </div>
         )}
         
         {/* Overlay de progresso para imagens em geração */}
         {(isProgress || isPreloading) && !isLoading && (
-          <div className="absolute inset-0 bg-gradient-to-br from-transparent via-transparent to-blue-100/20 transition-opacity duration-300 rounded-lg"></div>
+          <div className="absolute inset-0 bg-gradient-to-br from-transparent via-transparent to-primary/10 transition-opacity duration-300 rounded-lg"></div>
         )}
         
         {/* Badge de progresso */}
         {isProgress && !isLoading && (
-          <div className="absolute bottom-2 right-2 bg-blue-500 text-white px-2 py-1 rounded text-xs animate-pulse">
+          <div className="absolute bottom-2 right-2 bg-primary text-primary-foreground px-2 py-1 rounded text-xs animate-pulse">
             Progresso...
           </div>
         )}
         
         {/* Badge de carregamento da imagem final */}
         {isPreloading && !isLoading && (
-          <div className="absolute bottom-2 right-2 bg-green-500 text-white px-2 py-1 rounded text-xs animate-pulse">
+          <div className="absolute bottom-2 right-2 bg-green-600 dark:bg-green-500 text-white px-2 py-1 rounded text-xs animate-pulse">
             Finalizando...
           </div>
         )}
@@ -217,13 +217,13 @@ const GeneratedImage: React.FC<{
         {!isProgress && !isPreloading && (
           <div className="absolute inset-0 bg-black/0 hover:bg-black/10 transition-all duration-200 rounded-lg opacity-0 hover:opacity-100 flex items-center justify-center">
             {/* Botões centralizados */}
-            <div className="flex gap-2 bg-white/90 backdrop-blur-sm rounded-lg p-2 shadow-lg transform scale-90 hover:scale-100 transition-transform duration-200">
+            <div className="flex gap-2 bg-background/90 backdrop-blur-sm rounded-lg p-2 shadow-lg transform scale-90 hover:scale-100 transition-transform duration-200 border border-border">
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
                     size="sm"
                     variant="secondary"
-                    className="h-10 w-10 p-0 bg-white/80 hover:bg-white border border-gray-200 hover:border-blue-300 hover:shadow-md transition-all duration-200"
+                    className="h-10 w-10 p-0"
                     onClick={(e) => {
                       e.stopPropagation();
                       setIsExpanded(!isExpanded);
@@ -242,13 +242,13 @@ const GeneratedImage: React.FC<{
                   <Button
                     size="sm"
                     variant="secondary"
-                    className="h-10 w-10 p-0 bg-white/80 hover:bg-blue-50 border border-gray-200 hover:border-blue-300 hover:shadow-md transition-all duration-200"
+                    className="h-10 w-10 p-0 hover:bg-primary/20 hover:text-primary"
                     onClick={(e) => {
                       e.stopPropagation();
                       handleReference();
                     }}
                   >
-                    <MessageSquare className="h-4 w-4 hover:text-blue-600" />
+                    <MessageSquare className="h-4 w-4" />
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>
@@ -261,13 +261,13 @@ const GeneratedImage: React.FC<{
                   <Button
                     size="sm"
                     variant="secondary"
-                    className="h-10 w-10 p-0 bg-white/80 hover:bg-green-50 border border-gray-200 hover:border-green-300 hover:shadow-md transition-all duration-200"
+                    className="h-10 w-10 p-0 hover:bg-green-100 dark:hover:bg-green-900/20 hover:text-green-600 dark:hover:text-green-400"
                     onClick={(e) => {
                       e.stopPropagation();
                       handleCopyUrl();
                     }}
                   >
-                    <Copy className="h-4 w-4 hover:text-green-600" />
+                    <Copy className="h-4 w-4" />
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>
@@ -280,13 +280,13 @@ const GeneratedImage: React.FC<{
                   <Button
                     size="sm"
                     variant="secondary"
-                    className="h-10 w-10 p-0 bg-white/80 hover:bg-purple-50 border border-gray-200 hover:border-purple-300 hover:shadow-md transition-all duration-200"
+                    className="h-10 w-10 p-0 hover:bg-purple-100 dark:hover:bg-purple-900/20 hover:text-purple-600 dark:hover:text-purple-400"
                     onClick={(e) => {
                       e.stopPropagation();
                       handleDownload();
                     }}
                   >
-                    <Download className="h-4 w-4 hover:text-purple-600" />
+                    <Download className="h-4 w-4" />
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>
@@ -337,71 +337,12 @@ export default React.memo(function MessageContent({ content, isStreaming = false
     // Regex para detectar imagens markdown ![alt](url)
     const imageRegex = /!\[([^\]]*)\]\((https?:\/\/[^\s)]+|data:image\/[^;]+;base64,[A-Za-z0-9+/=]+)\)/g;
     
-    // Regex para detectar formato <!-- IMAGES_JSON [{"url":"..."}] -->
-    const imagesJsonRegex = /<!-- IMAGES_JSON (\[.*?\]) -->/g;
-    
     const parts: ContentPart[] = [];
     let processedContent = content;
     let lastIndex = 0;
 
     // Log apenas se houver mudança no conteúdo
-    const hasImages = content.includes('![') || content.includes('<!-- IMAGES_JSON');
-    
-    // Primeiro, processar formato <!-- IMAGES_JSON -->
-    let jsonMatch;
-    let jsonMatchCount = 0;
-    while ((jsonMatch = imagesJsonRegex.exec(content)) !== null) {
-      jsonMatchCount++;
-      console.log(`🎯 MessageContent - found IMAGES_JSON match ${jsonMatchCount}:`, jsonMatch[1]);
-      
-      try {
-        const imageData = JSON.parse(jsonMatch[1]);
-        console.log('📊 MessageContent - Parsed image data:', imageData);
-        
-        // Adicionar texto antes das imagens
-        if (jsonMatch.index > lastIndex) {
-          const textBefore = content.slice(lastIndex, jsonMatch.index).trim();
-          if (textBefore) {
-            parts.push({
-              type: 'text',
-              content: textBefore
-            });
-          }
-        }
-        
-        // Adicionar cada imagem do JSON
-        imageData.forEach((img: any, imgIndex: number) => {
-          if (img.url) {
-            console.log(`🖼️ MessageContent - Adding image ${imgIndex}:`, img.url);
-            
-            // CORREÇÃO: Sempre usar URL original para garantir que a imagem carregue
-            // A thumbnail será usada apenas no ChatInputForm para preview
-            const displayUrl = img.url; // Sempre usar URL original
-            
-            console.log(`🔍 MessageContent - Using URL: ${displayUrl} (thumbnail: ${img.thumbnailUrl || 'none'})`);
-            
-            parts.push({
-              type: 'image',
-              alt: img.name || 'Imagem enviada',
-              src: displayUrl,
-              prompt: img.name || 'Imagem enviada pelo usuário',
-              isProgress: false
-            });
-          }
-        });
-        
-        lastIndex = jsonMatch.index + jsonMatch[0].length;
-        
-        // Remover o bloco JSON do conteúdo processado
-        processedContent = processedContent.replace(jsonMatch[0], '');
-      } catch (e) {
-        console.error('❌ Erro ao processar IMAGES_JSON:', e);
-      }
-    }
-    
-    // Resetar regex para processar markdown normal no conteúdo restante
-    imageRegex.lastIndex = 0;
-    lastIndex = 0;
+    const hasImages = content.includes('![');
     
     // Processar imagens markdown no conteúdo restante
     let match;
@@ -458,17 +399,22 @@ export default React.memo(function MessageContent({ content, isStreaming = false
 
   const proseClass = useMemo(() => 
     "prose prose-slate dark:prose-invert max-w-none break-words " +
+    "w-full min-w-0 overflow-wrap-anywhere " +
     (isStreaming ? "stream-content" : "stream-complete")
   , [isStreaming]);
 
   const processed = content.replace(/\[(.+?)\]\(file_id:(.+?)\)/g, "**[ARQUIVO: $1]**");
 
   return (
-    <div className={proseClass}>
+    <div className={`${proseClass} w-full min-w-0`} style={{ 
+      wordBreak: 'break-word',
+      overflowWrap: 'anywhere',
+      whiteSpace: 'pre-wrap'
+    }}>
       {hasFileReference && (
-        <div className="flex items-center gap-2 p-2 bg-blue-50 border border-blue-200 rounded-md mb-3">
+        <div className="flex items-center gap-2 p-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-md mb-3">
           <FileIcon size={18} className="text-blue-500" />
-          <span className="text-sm text-blue-700">
+          <span className="text-sm text-blue-700 dark:text-blue-300">
             Arquivo PDF anexado à mensagem
           </span>
         </div>
@@ -506,54 +452,59 @@ export default React.memo(function MessageContent({ content, isStreaming = false
           const processedText = textContent.replace(/\[(.+?)\]\(file_id:(.+?)\)/g, "**[ARQUIVO: $1]**");
 
           return (
-      <ReactMarkdown
-              key={index}
-        // --------- plugins ----------
-        remarkPlugins={[remarkGfm, remarkMath]}
-        rehypePlugins={[rehypeRaw, rehypeSanitize, rehypeKatex]}
-        // --------- custom renderers ----------
-        components={{
-          code: ({ node, inline, className, children, ...props }: any) => {
-            const match = /language-(\w+)/.exec(className || "");
-            const language = match ? match[1] : "";
+            <div key={index} className="w-full min-w-0" style={{ 
+              wordBreak: 'break-word',
+              overflowWrap: 'anywhere',
+              whiteSpace: 'pre-wrap'
+            }}>
+              <ReactMarkdown
+                // --------- plugins ----------
+                remarkPlugins={[remarkGfm, remarkMath]}
+                rehypePlugins={[rehypeRaw, rehypeSanitize, rehypeKatex]}
+                // --------- custom renderers ----------
+                components={{
+                  code: ({ node, inline, className, children, ...props }: any) => {
+                    const match = /language-(\w+)/.exec(className || "");
+                    const language = match ? match[1] : "";
 
-            // Bloco ```math``` vira KaTeX automaticamente (remark-math lida)
-            if (!inline && language !== "math") {
-              return (
-                <div className="not-prose">
-                  <CodeBlock
-                    language={language}
-                    value={String(children).replace(/\n$/, "")}
-                  />
-                </div>
-              );
-            }
+                    // Bloco ```math``` vira KaTeX automaticamente (remark-math lida)
+                    if (!inline && language !== "math") {
+                      return (
+                        <div className="not-prose">
+                          <CodeBlock
+                            language={language}
+                            value={String(children).replace(/\n$/, "")}
+                          />
+                        </div>
+                      );
+                    }
 
-            if (inline) {
-              return (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <code
-                      className="bg-gray-100 px-1 py-0.5 rounded-md font-mono text-sm text-gray-800"
-                      {...props}
-                    >
-                      {children}
-                    </code>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p className="text-xs">Trecho de código inline</p>
-                  </TooltipContent>
-                </Tooltip>
-              );
-            }
+                    if (inline) {
+                      return (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <code
+                              className="bg-muted px-1 py-0.5 rounded-md font-mono text-sm text-foreground"
+                              {...props}
+                            >
+                              {children}
+                            </code>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p className="text-xs">Trecho de código inline</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      );
+                    }
 
-            // language==="math" já foi convertido, então cai aqui
-            return <code {...props}>{children}</code>;
-          }
-        }}
-      >
-              {processedText}
-      </ReactMarkdown>
+                    // language==="math" já foi convertido, então cai aqui
+                    return <code {...props}>{children}</code>;
+                  }
+                }}
+              >
+                {processedText}
+              </ReactMarkdown>
+            </div>
           );
         }
         return null;

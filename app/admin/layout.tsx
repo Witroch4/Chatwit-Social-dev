@@ -3,10 +3,16 @@
 import React, { useEffect, useState } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter, usePathname } from 'next/navigation';
-import { Loader2, Bell, Users, LayoutDashboard, ShieldAlert, MessageSquare, Headphones, HelpCircle } from 'lucide-react';
+import { Loader2, Bell, Users, LayoutDashboard, ShieldAlert, MessageSquare, Headphones, HelpCircle, User } from 'lucide-react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import LoginBadge from '@/components/auth/login-badge';
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+} from '@/components/ui/dropdown-menu';
 
 interface AdminLayoutProps {
   children: React.ReactNode;
@@ -152,6 +158,26 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
           <AdminNavLink href="/admin/templates" icon={<HelpCircle className="h-5 w-5 mr-3" />}>
             Templates WhatsApp
           </AdminNavLink>
+          
+          {/* Botão Minha Conta */}
+          <div className="px-6 py-3">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <div
+                  className={cn(
+                    "flex items-center text-sm font-medium transition-colors cursor-pointer w-full",
+                    "text-muted-foreground hover:text-foreground hover:bg-accent px-0 py-0 rounded"
+                  )}
+                >
+                  <User className="h-5 w-5 mr-3" />
+                  Minha Conta
+                </div>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent side="right" className="w-64">
+                <LoginBadge user={session?.user} />
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </nav>
       </aside>
 

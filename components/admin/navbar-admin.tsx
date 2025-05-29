@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { useEffect, useState } from "react";
 import { NotificationDropdown } from "@/components/notifications/notification-dropdown";
 import { ThemeToggle } from "@/components/theme-toggle";
+import LoginBadge from "@/components/auth/login-badge";
 
 const NavbarAdmin = () => {
   const { data: session } = useSession();
@@ -75,36 +76,7 @@ const NavbarAdmin = () => {
                 </Avatar>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <div className="flex items-center justify-start gap-2 p-2">
-                  <div className="flex flex-col space-y-1 leading-none">
-                    {session.user.name && <p className="font-medium">{session.user.name}</p>}
-                    {session.user.email && (
-                      <p className="w-[200px] truncate text-sm text-muted-foreground">
-                        {session.user.email}
-                      </p>
-                    )}
-                  </div>
-                </div>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem asChild>
-                  <Link href="/perfil">
-                    <User className="mr-2 h-4 w-4" />
-                    <span>Perfil</span>
-                  </Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <Link href="/configuracoes">
-                    <Settings className="mr-2 h-4 w-4" />
-                    <span>Configurações</span>
-                  </Link>
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onClick={() => signOut({ callbackUrl: '/' })}
-                >
-                  <LogOut className="mr-2 h-4 w-4" />
-                  <span>Sair</span>
-                </DropdownMenuItem>
+                <LoginBadge user={session.user} />
               </DropdownMenuContent>
             </DropdownMenu>
           )}

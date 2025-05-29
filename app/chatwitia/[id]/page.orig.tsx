@@ -32,7 +32,7 @@ const defaultMainModels = [
   { id: "o4-mini", name: "o4-mini", description: "Mais rápido em reflexão avançada" },
   { id: "claude-3-7-sonnet-20250219", name: "Claude 3.7 Sonnet", description: "Modelo Claude da Anthropic para tarefas avançadas" },
   { id: "gpt-4.1", name: "GPT-4.1", description: "Ótimo para escrita e explorar ideias", beta: true, experimental: true },
-  { id: "gpt-4o-tasks", name: "GPT-4o com tarefas agendadas", description: "Peça ao ChatGPT para dar um retorno mais tarde", beta: true },
+  { id: "gpttasks-4o-", name: "GPT-4o com tarefas agendadas", description: "Peça ao ChatGPT para dar um retorno mais tarde", beta: true },
 ];
 
 // Modelos adicionais - serão substituídos pelos modelos da API

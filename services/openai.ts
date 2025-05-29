@@ -115,7 +115,7 @@ class ServerOpenAIService implements IOpenAIService {
   
   async createChatCompletion(messages: any[], options: ChatOptions = {}) {
     const defaultOptions: ChatOptions = {
-      model: 'gpt-3.5-turbo',
+      model: 'gpt-4o-latest',
       temperature: 0.7,
       max_tokens: 1000,
       top_p: 1,
@@ -141,127 +141,106 @@ class ServerOpenAIService implements IOpenAIService {
             // Limpar a referência do arquivo e manter apenas o texto da pergunta
             const cleanedContent = message.content.replace(/\[.*?\]\(file_id:.*?\)/g, '').trim();
             
-            // Se o modelo suporta o formato de responses.create e temos file_id
-            if ((mergedOptions.model === 'gpt-4o' || 
-                mergedOptions.model?.includes('gpt-4o') || 
-                mergedOptions.model?.includes('-o')) && 
-                fileIdReferences.length > 0) {
-              
-              console.log(`Detectadas ${fileIdReferences.length} referências de arquivos. Usando responses.create API.`);
-              
-              // Usar a API responses.create que é mais adequada para arquivos
-              return this.handleFileReferencesWithResponsesAPI(
-                fileIdReferences, 
-                cleanedContent || "Analise o conteúdo deste arquivo.", 
-                mergedOptions
-              );
-            }
-            
-            // Retornar apenas o conteúdo limpo se não for usar responses.create
             return { ...message, content: cleanedContent };
           }
         }
         return message;
       });
 
-      // Se detectamos arquivos e estamos usando um modelo compatível com responses.create
-      if (fileIdReferences.length > 0 && 
-         (mergedOptions.model === 'gpt-4o' || 
-          mergedOptions.model?.includes('gpt-4o') || 
-          mergedOptions.model?.includes('-o'))) {
-        
-        // A função handleFileReferencesWithResponsesAPI já foi chamada e retornou a resposta
-        return cleanedMessages[cleanedMessages.length - 1];
+            console.log(`🚀 Usando Responses API exclusivamente para modelo: ${mergedOptions.model}`);
+      
+      // Verificar se é modelo da série O para adicionar reasoning
+      const isOSeriesModel = mergedOptions.model!.startsWith('o');
+      
+      // Mapeamento especial para o4-mini-high
+      let actualModel: string = mergedOptions.model!;
+      let reasoningEffort: string | undefined;
+      if (mergedOptions.model === 'o4-mini-high' as any) {
+        actualModel = 'o4-mini';
+        reasoningEffort = 'high';
+        console.log(`🧠 Mapeando ${mergedOptions.model} para ${actualModel} com reasoning effort: ${reasoningEffort}`);
       }
       
-      // Caso contrário, seguir com o fluxo normal do chat.completions
-      const formattedMessages = cleanedMessages.map(message => {
-        let content = message.content;
-        
-        // Se o conteúdo for um array, processar de acordo com o tipo
-        if (Array.isArray(content)) {
-          const audioContent = content.find(item => item.type === 'audio' && item.audio_data);
-          const imageContent = content.find(item => item.type === 'image' && item.image_url);
-          const textContent = content.find(item => item.type === 'text' && item.text);
-          
-          if (audioContent) {
-            return {
-              role: message.role,
-              content: [{ type: "audio", audio_data: audioContent.audio_data }]
-            };
-          } else if (imageContent) {
-            return {
-              role: message.role,
-              content: imageContent.image_url
-            };
-          } else if (textContent) {
-            return {
-              role: message.role,
-              content: textContent.text
-            };
+      // Converter mensagens para o formato da Responses API
+      const lastUserMessage = [...cleanedMessages].reverse().find(m => m.role === 'user');
+      let userContent = '';
+      
+      if (lastUserMessage) {
+        if (typeof lastUserMessage.content === 'string') {
+          userContent = lastUserMessage.content;
+        } else if (Array.isArray(lastUserMessage.content)) {
+          const textItem = lastUserMessage.content.find((item: any) => item.type === 'text');
+          if (textItem && textItem.text) {
+            userContent = textItem.text;
+          }
           }
         }
         
-        // Se for string ou outro formato simples
-        return {
-          role: message.role,
-          content: content
-        };
-      }) as OpenAI.Chat.ChatCompletionMessageParam[];
+      // Se não tiver conteúdo, usar uma instrução genérica
+      const promptText = userContent || "Analise o conteúdo fornecido.";
       
-      const response = await this.client.chat.completions.create({
-        model: mergedOptions.model!,
-        messages: formattedMessages,
-        temperature: mergedOptions.temperature,
-        max_tokens: mergedOptions.max_tokens,
-        top_p: mergedOptions.top_p,
-        frequency_penalty: mergedOptions.frequency_penalty,
-        presence_penalty: mergedOptions.presence_penalty,
-        stream: mergedOptions.stream,
-      });
-      
-      return response;
-    } catch (error) {
-      console.error('Erro ao criar chat completion:', error);
-      throw error;
-    }
-  }
-  
-  /**
-   * Método auxiliar para processar referências de arquivos usando a API responses.create
-   */
-  private async handleFileReferencesWithResponsesAPI(
-    fileIds: string[],
-    question: string,
-    options: ChatOptions
-  ) {
-    try {
-      console.log(`Usando responses.create para processar ${fileIds.length} arquivos com a pergunta: "${question}"`);
-      
-      // Preparar o conteúdo com os file_ids
-      const content = [
-        { type: "input_text", text: question }
+      // Preparar o input para a Responses API
+      const inputContent: any[] = [
+        { type: "input_text", text: promptText }
       ];
       
       // Adicionar cada arquivo como um item separado no content
-      fileIds.forEach(fileId => {
-        content.push({ type: "input_file", file_id: fileId } as any);
+      fileIdReferences.forEach(fileId => {
+        inputContent.push({ type: "input_file", file_id: fileId });
       });
       
-      // Chamar a API responses.create
-      const response = await this.client.responses.create({
-        model: options.model!,
+      // Processar mensagens com conteúdo complexo (imagens, etc.)
+      cleanedMessages.forEach((message: any) => {
+        if (Array.isArray(message.content)) {
+          (message.content as any[]).forEach((item: any) => {
+            if (item.type === 'image' && item.image_url) {
+              inputContent.push({
+                type: "input_image",
+                image_url: item.image_url,
+                detail: "high"
+              });
+            }
+          });
+        }
+      });
+      
+      // Configurar opções para a requisição da Responses API
+      const requestOptions: any = {
+        model: actualModel,
         input: [
           {
             role: "user",
-            content
+            content: inputContent
           }
         ],
-        temperature: options.temperature,
-        max_tokens: options.max_tokens,
-      } as any);
+        stream: false,
+        store: true,
+        parallel_tool_calls: true,
+        truncation: "disabled",
+        temperature: mergedOptions.temperature,
+        top_p: mergedOptions.top_p,
+        max_output_tokens: mergedOptions.max_tokens
+      };
       
-      // Simular a resposta no formato que seria retornado por chat.completions
+      // Adicionar parâmetro reasoning para modelos da série O
+      if (isOSeriesModel) {
+        const effort = reasoningEffort || 'medium';
+        requestOptions.reasoning = { effort };
+        console.log(`🧠 Adicionando reasoning effort: ${effort} para modelo da série O`);
+      }
+      
+      console.log('📤 Enviando requisição para Responses API:', {
+        model: requestOptions.model,
+        inputItems: inputContent.length,
+        hasFiles: fileIdReferences.length > 0
+      });
+      
+      // Usar a Responses API
+      const response = await this.client.responses.create(requestOptions as any);
+      
+      console.log('✅ Resposta recebida da Responses API');
+      
+      // Simular a resposta no formato que seria retornado por chat.completions para compatibilidade
       return {
         choices: [
           {
@@ -270,10 +249,19 @@ class ServerOpenAIService implements IOpenAIService {
               content: response.output_text || ""
             }
           }
-        ]
+        ],
+        // Incluir dados adicionais da Responses API
+        responsesApiData: {
+          id: response.id,
+          model: response.model,
+          usage: response.usage,
+          created_at: response.created_at,
+          status: response.status,
+          output: response.output
+        }
       };
     } catch (error) {
-      console.error('Erro ao processar arquivos com responses.create:', error);
+      console.error('Erro ao criar chat completion com Responses API:', error);
       throw error;
     }
   }

@@ -14,10 +14,128 @@ export type MessageContent = string | Array<{
   file_content?: string;
 }>;
 
+// Novo tipo para armazenar todos os parâmetros da Responses API
+export type ResponsesAPIParams = {
+  input: string | Array<{
+    role: 'user' | 'assistant' | 'system';
+    content: string | Array<{
+      type: 'input_text' | 'input_image' | 'input_file' | 'output_text';
+      text?: string;
+      image_url?: string;
+      file_id?: string;
+      detail?: 'low' | 'high' | 'auto';
+    }>;
+  }>;
+  model: string;
+  background?: boolean | null;
+  include?: Array<string> | null;
+  instructions?: string | null;
+  max_output_tokens?: number | null;
+  metadata?: Record<string, string>;
+  parallel_tool_calls?: boolean | null;
+  previous_response_id?: string | null;
+  reasoning?: {
+    effort?: 'low' | 'medium' | 'high' | null;
+  } | null;
+  service_tier?: 'auto' | 'default' | 'flex' | null;
+  store?: boolean | null;
+  stream?: boolean | null;
+  temperature?: number | null;
+  text?: {
+    format?: {
+      type: 'text' | 'json_object' | 'json_schema';
+      json_schema?: any;
+    };
+  };
+  tool_choice?: string | object;
+  tools?: Array<{
+    type: 'web_search' | 'file_search' | 'computer_use' | 'image_generation' | 'function';
+    function?: any;
+    quality?: 'low' | 'standard' | 'high' | 'auto';
+    size?: string | 'auto';
+    background?: 'auto' | 'transparent' | 'opaque';
+    partial_images?: number;
+  }>;
+  top_p?: number | null;
+  truncation?: 'auto' | 'disabled' | null;
+  user?: string;
+};
+
+// Novo tipo para armazenar a resposta completa da Responses API
+export type ResponsesAPIResponse = {
+  id: string;
+  object: 'response';
+  created_at: number;
+  status: 'in_progress' | 'completed' | 'failed' | 'cancelled';
+  error?: any | null;
+  incomplete_details?: any | null;
+  instructions?: string | null;
+  max_output_tokens?: number | null;
+  model: string;
+  output: Array<{
+    type: 'message' | 'image_generation_call' | 'function_call' | 'web_search_call' | 'file_search_call' | 'computer_call';
+    id?: string;
+    status?: 'in_progress' | 'completed' | 'failed';
+    role?: 'assistant';
+    content?: Array<{
+      type: 'output_text' | 'image_generation_call' | 'function_call';
+      text?: string;
+      annotations?: Array<any>;
+      result?: string;
+      revised_prompt?: string;
+    }>;
+    result?: string;
+    revised_prompt?: string;
+  }>;
+  parallel_tool_calls: boolean;
+  previous_response_id?: string | null;
+  reasoning?: {
+    effort?: 'low' | 'medium' | 'high' | null;
+    summary?: string | null;
+  };
+  store: boolean;
+  temperature: number;
+  text?: {
+    format: {
+      type: 'text' | 'json_object' | 'json_schema';
+      json_schema?: any;
+    };
+  };
+  tool_choice: string | object;
+  tools: Array<any>;
+  top_p: number;
+  truncation: 'auto' | 'disabled';
+  usage?: {
+    input_tokens: number;
+    input_tokens_details?: {
+      cached_tokens: number;
+    };
+    output_tokens: number;
+    output_tokens_details?: {
+      reasoning_tokens: number;
+    };
+    total_tokens: number;
+  };
+  user?: string | null;
+  metadata?: Record<string, string>;
+  output_text?: string; // Helper field
+};
+
 export type Message = {
   role: 'system' | 'user' | 'assistant';
   content: MessageContent;
   summary?: string;  // Campo para armazenar um resumo/título da conversa
+  // Novos campos para armazenar dados da Responses API
+  responseId?: string;
+  previousResponseId?: string;
+  responsesApiParams?: ResponsesAPIParams;
+  responsesApiResponse?: ResponsesAPIResponse;
+  usage?: {
+    input_tokens?: number;
+    output_tokens?: number;
+    total_tokens?: number;
+    reasoning_tokens?: number;
+  };
 };
 
 type ChatSessionResponse = {
@@ -31,6 +149,8 @@ type ChatSessionResponse = {
     contentType: string;
     audioData?: string;
     imageUrl?: string;
+    previousResponseId?: string;
+    responseId?: string;
   }[];
 };
 
@@ -70,11 +190,22 @@ export function useChatwitIA(chatId?: string | null, initialModel = 'chatgpt-4o-
   /** Prevent duplicate message sends */
   const isProcessingRef = useRef(false);
   const messagesRef = useRef(messages);
+  
+  // Estado para multi-turn image generation
+  const [lastResponseId, setLastResponseId] = useState<string | null>(null);
+  
+  // Ref para lastResponseId para garantir valor atualizado imediatamente
+  const lastResponseIdRef = useRef<string | null>(null);
 
   // Atualiza a referência quando as mensagens mudam
   useEffect(() => {
     messagesRef.current = messages;
   }, [messages]);
+  
+  // Sincronizar lastResponseId state com ref
+  useEffect(() => {
+    lastResponseIdRef.current = lastResponseId;
+  }, [lastResponseId]);
 
   // Atualizar o modelo quando initialModel mudar
   useEffect(() => {
@@ -114,6 +245,47 @@ export function useChatwitIA(chatId?: string | null, initialModel = 'chatgpt-4o-
       setCurrentSessionId(null);
     }
   }, [chatId, authSession?.user]); // 🔧 OTIMIZAÇÃO: Remover dependências desnecessárias
+
+  // Função para buscar o último responseId de uma sessão
+  const fetchLastResponseId = async (sessionId: string) => {
+    try {
+      // 🔧 CORREÇÃO: Buscar diretamente da sessão que tem o lastResponseId atualizado
+      const sessionResponse = await fetch(`/api/chatwitia/sessions/${sessionId}`);
+      if (sessionResponse.ok) {
+        const sessionData = await sessionResponse.json();
+        
+        if (sessionData.lastResponseId) {
+          setLastResponseId(sessionData.lastResponseId);
+          console.log(`🔗 Último responseId carregado da sessão: ${sessionData.lastResponseId}`);
+          return sessionData.lastResponseId;
+        }
+      }
+      
+      // Fallback: buscar das mensagens se não tiver na sessão
+      const messagesResponse = await fetch(`/api/chatwitia/sessions/${sessionId}/messages`);
+      if (messagesResponse.ok) {
+        const messages = await messagesResponse.json();
+        
+        // Buscar a última mensagem do assistente que tem responseId (ordenar por data)
+        const assistantMessages = messages
+          .filter((msg: any) => msg.role === 'assistant' && msg.responseId)
+          .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        
+        if (assistantMessages.length > 0) {
+          const lastResponseId = assistantMessages[0].responseId;
+          setLastResponseId(lastResponseId);
+          console.log(`🔗 Último responseId carregado das mensagens: ${lastResponseId}`);
+          return lastResponseId;
+        }
+      }
+      
+      console.log(`🔗 ❌ Nenhum responseId encontrado para sessão ${sessionId}`);
+      return null;
+    } catch (error) {
+      console.error('Erro ao buscar último responseId:', error);
+      return null;
+    }
+  };
 
   // Carregar chat do banco de dados
   const loadChatFromDB = async (id: string) => {
@@ -182,6 +354,10 @@ export function useChatwitIA(chatId?: string | null, initialModel = 'chatgpt-4o-
         setMessages(convertedMessages);
         setModel(sessionData.model);
         setCurrentSessionId(id);
+        
+        // Buscar o último responseId para permitir multi-turn
+        const fetchedResponseId = await fetchLastResponseId(id);
+        console.log(`🔗 ResponseId carregado para sessão ${id}: ${fetchedResponseId}`);
       } else {
         console.log(`✅ Mensagens já estão sincronizadas, mantendo estado atual`);
         // Apenas atualizar o modelo e sessionId se necessário
@@ -190,6 +366,14 @@ export function useChatwitIA(chatId?: string | null, initialModel = 'chatgpt-4o-
         }
         if (currentSessionId !== id) {
           setCurrentSessionId(id);
+        }
+        
+        // Buscar o último responseId se ainda não temos
+        if (!lastResponseId) {
+          const fetchedResponseId = await fetchLastResponseId(id);
+          console.log(`🔗 ResponseId carregado (sync) para sessão ${id}: ${fetchedResponseId}`);
+        } else {
+          console.log(`🔗 ResponseId já existe em memória: ${lastResponseId}`);
         }
       }
     } catch (err) {
@@ -231,7 +415,9 @@ export function useChatwitIA(chatId?: string | null, initialModel = 'chatgpt-4o-
   const saveChatMessageToDB = async (
     sessionId: string, 
     message: Message | undefined,
-    contentType: 'text' | 'audio' | 'image' | 'document' = 'text'
+    contentType: 'text' | 'audio' | 'image' | 'document' = 'text',
+    previousResponseId?: string,
+    responseId?: string
   ) => {
     if (!authSession?.user || !message) return;
     
@@ -254,16 +440,21 @@ export function useChatwitIA(chatId?: string | null, initialModel = 'chatgpt-4o-
         }
       }
       
-      await axios.post(`/api/chatwitia/sessions/${sessionId}/messages`, {
+      const response = await axios.post(`/api/chatwitia/sessions/${sessionId}/messages`, {
         role: message.role,
         content: content,
         contentType,
         audioData,
-        imageUrl
+        imageUrl,
+        previousResponseId,
+        responseId
       });
+      
+      return response.data;
     } catch (err) {
       console.error('Erro ao salvar mensagem no banco:', err);
       // Não exibir erro na interface para não interromper a experiência do usuário
+      return null;
     }
   };
 
@@ -272,6 +463,14 @@ export function useChatwitIA(chatId?: string | null, initialModel = 'chatgpt-4o-
     
     // Validar entrada
     if (!content?.trim()) return;
+    
+    // Detectar se web search está ativo através do marcador
+    const webSearchActive = content.startsWith('[WEB_SEARCH_ACTIVE]');
+    let cleanContent = content;
+    if (webSearchActive) {
+      cleanContent = content.replace('[WEB_SEARCH_ACTIVE] ', '');
+      console.log('🔍 Web Search detectado como ativo através do marcador');
+    }
     
     setIsLoading(true);
     
@@ -282,29 +481,37 @@ export function useChatwitIA(chatId?: string | null, initialModel = 'chatgpt-4o-
       // Adicionar mensagem do usuário ao estado
       const userMessage: Message = {
         role: 'user',
-        content
+        content: cleanContent
       };
       
-      // Detectar se é refinamento de imagem e temos um response ID anterior
-      const isRefinement = isImageRefinementPrompt(content);
-      const shouldUseMultiTurn = isRefinement && 
-                               lastResponseId && 
-                               messages.length > 0 && 
-                               messages[messages.length - 1].role === 'assistant';
+      // 🔧 NOVA LÓGICA: Usar lastResponseId para referência de imagem específica
+      let previousResponseIdToSend = undefined;
       
-      if (shouldUseMultiTurn) {
-        console.log(`🔗 Detectado refinamento de imagem, usando multi-turn com response ID: ${lastResponseId}`);
+      // Se há lastResponseId definido (via referência de imagem), usá-lo
+      if (lastResponseId) {
+        previousResponseIdToSend = lastResponseId;
+        console.log(`🖼️ ✅ Enviando previousResponseId da imagem referenciada: ${previousResponseIdToSend}`);
+        
+        // Limpar após usar para não afetar próximas mensagens
+        setLastResponseId(null);
       }
       
       setMessages(prev => [...prev, userMessage]);
       
-      // Salvar a mensagem do usuário no banco de dados
-      if (currentSessionId) {
-        try {
-          await saveChatMessageToDB(currentSessionId, userMessage);
-        } catch (saveError) {
-          console.error('Erro ao salvar mensagem do usuário:', saveError);
-        }
+      // Prepare payload
+      const payload: any = {
+        messages: [...messages, userMessage],
+        model: modelToUse,
+        sessionId: currentSessionId,
+        stream: true,
+        previousResponseId: previousResponseIdToSend,
+        systemPrompt
+      };
+      
+      // Adicionar previousResponseId se for refinamento
+      if (webSearchActive) {
+        console.log('🔍 Web Search ativado - adicionando ferramenta web_search_preview');
+        payload.webSearchActive = true;
       }
       
       // 🔧 CORREÇÃO: Adicionar apenas UMA mensagem do assistente para streaming
@@ -315,28 +522,24 @@ export function useChatwitIA(chatId?: string | null, initialModel = 'chatgpt-4o-
       
       setMessages(prev => [...prev, assistantPlaceholder]);
       
-      // Preparar payload
-      const payload: any = {
-        messages: [...messages, userMessage],
-        model: modelToUse,
-        stream: true,
-        sessionId: currentSessionId,
-        systemPrompt
-      };
-      
-      // Adicionar previousResponseId se for refinamento
-      if (shouldUseMultiTurn) {
-        payload.previousResponseId = lastResponseId;
+      // Salvar a mensagem do usuário no banco de dados
+      if (currentSessionId) {
+        try {
+          // Enviar previousResponseId específico se há referência de imagem
+          await saveChatMessageToDB(currentSessionId, userMessage, 'text', previousResponseIdToSend);
+        } catch (saveError) {
+          console.error('Erro ao salvar mensagem do usuário:', saveError);
+        }
       }
       
       // For visualizing what we're sending to the API for debugging
       console.log('Sending messages to API:', payload);
 
       // If the content contains file references, we need to include them in the API request
-      if (typeof content === 'string') {
+      if (typeof cleanContent === 'string') {
         // Try to extract file IDs from the content
         const fileIdRegex = /file_id:([a-zA-Z0-9_-]+)/g;
-        const matches = [...content.matchAll(fileIdRegex)];
+        const matches = [...cleanContent.matchAll(fileIdRegex)];
         
         const fileIds = matches.map(match => match[1]);
         
@@ -344,6 +547,15 @@ export function useChatwitIA(chatId?: string | null, initialModel = 'chatgpt-4o-
         if (fileIds.length > 0) {
           payload.fileIds = fileIds;
           console.log(`Found ${fileIds.length} file references in message:`, fileIds);
+        }
+        
+        // Detect image URLs for analysis (MinIO URLs or data URLs)
+        const imageUrls = extractImageUrlsFromMessage(cleanContent);
+        if (imageUrls.length > 0) {
+          console.log(`🖼️ Detectadas ${imageUrls.length} imagens para análise no prompt`);
+          // Add image data to the message content in the appropriate format
+          const imageData = imageUrls.map((url: string) => ({ url }));
+          payload.imageAnalysis = imageData;
         }
       }
       
@@ -406,23 +618,31 @@ export function useChatwitIA(chatId?: string | null, initialModel = 'chatgpt-4o-
               }
               
               // Add completed images to the message content if any
-              // PRIORIZAR SEMPRE image_data (base64) sobre image_url (MinIO)
+              // PRIORIZAR URLs do MinIO sobre base64 para evitar "piscar" da imagem
               if (images.length > 0) {
                 const imageContent = images.map(img => {
-                  // 🔧 CORREÇÃO: Priorizar image_data (base64) para evitar "piscar" da imagem
+                  // 🔧 CORREÇÃO: Priorizar image_url (MinIO) sobre image_data (base64)
                   let imageUrl;
-                  if (img.image_data && img.image_data.startsWith('data:image/')) {
-                    // Se temos dados base64 completos, usar eles
+                  if (img.image_url) {
+                    // Se temos URL do MinIO, usar ela (melhor performance e não "pisca")
+                    imageUrl = img.image_url;
+                    console.log('🔗 Usando image_url (MinIO) - sem piscar');
+                  } else if (img.thumbnail_url) {
+                    // Se não temos URL principal mas temos thumbnail do MinIO, usar ela
+                    imageUrl = img.thumbnail_url;
+                    console.log('🔗 Usando thumbnail_url (MinIO) - sem piscar');
+                  } else if (img.image_data && img.image_data.startsWith('data:image/')) {
+                    // Fallback: Se temos dados base64 completos, usar eles
                     imageUrl = img.image_data;
-                    console.log('🎨 Usando image_data (base64) completo');
+                    console.log('🎨 Fallback para image_data (base64) completo');
                   } else if (img.image_data && !img.image_data.startsWith('data:image/')) {
-                    // Se temos dados base64 sem prefixo, adicionar prefixo
+                    // Fallback: Se temos dados base64 sem prefixo, adicionar prefixo
                     imageUrl = `data:image/png;base64,${img.image_data}`;
-                    console.log('🎨 Usando image_data (base64) com prefixo adicionado');
+                    console.log('🎨 Fallback para image_data (base64) com prefixo adicionado');
                   } else {
-                    // Fallback para URL do MinIO apenas se não temos base64
-                    imageUrl = img.image_url || img.thumbnail_url;
-                    console.log('🔗 Fallback para image_url (MinIO)');
+                    // Último fallback: se não temos nada, usar uma imagem placeholder ou erro
+                    console.log('❌ Nenhuma fonte de imagem disponível');
+                    imageUrl = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZjBmMGYwIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzk5OTk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPkVycm8gYW8gY2FycmVnYXIgaW1hZ2VtPC90ZXh0Pjwvc3ZnPg=='; // SVG placeholder
                   }
                   
                   return `\n\n![Imagem gerada](${imageUrl})`;
@@ -489,15 +709,15 @@ export function useChatwitIA(chatId?: string | null, initialModel = 'chatgpt-4o-
             const lastIndex = updatedMessages.length - 1;
             if (lastIndex >= 0 && updatedMessages[lastIndex].role === 'assistant') {
               const currentContent = updatedMessages[lastIndex].content as string;
-              const hasFinalImages = currentContent && currentContent.includes('![Imagem gerada](data:image/png;base64,');
               const hasMinIOImages = currentContent && currentContent.includes('![Imagem gerada](https://');
+              const hasBase64Images = currentContent && currentContent.includes('![Imagem gerada](data:image/png;base64,');
               
               console.log(`🔍 Stream done - Análise final:`);
-              console.log(`   - Tem imagens base64: ${hasFinalImages}`);
               console.log(`   - Tem imagens MinIO: ${hasMinIOImages}`);
+              console.log(`   - Tem imagens base64: ${hasBase64Images}`);
               console.log(`   - Conteúdo atual: ${currentContent.substring(0, 150)}...`);
               
-              if (hasFinalImages || hasMinIOImages) {
+              if (hasMinIOImages || hasBase64Images) {
                 console.log('✅ Mensagem já contém imagens finais, mantendo conteúdo atual');
                 // Não sobrescrever - manter o conteúdo atual que já tem as imagens
               } else {
@@ -653,7 +873,28 @@ export function useChatwitIA(chatId?: string | null, initialModel = 'chatgpt-4o-
               // Capturar response_id para multi-turn image generation
               if (data.response_id) {
                 console.log(`💾 Salvando response ID para multi-turn: ${data.response_id}`);
+                console.log(`🔄 LastResponseId anterior: ${lastResponseId}`);
+                console.log(`🔄 LastResponseId ref anterior: ${lastResponseIdRef.current}`);
+                
+                // 🔧 CORREÇÃO CRÍTICA: Atualizar IMEDIATAMENTE o lastResponseId
+                // Usar uma ref para garantir que a próxima mensagem tenha o ID correto
+                lastResponseIdRef.current = data.response_id;
                 setLastResponseId(data.response_id);
+                console.log(`✅ LastResponseId atualizado IMEDIATAMENTE (ref: ${lastResponseIdRef.current}, state: ${data.response_id})`);
+                
+                // 🔧 CORREÇÃO: Atualizar também o lastResponseId na sessão imediatamente
+                if (currentSessionId) {
+                  try {
+                    await fetch(`/api/chatwitia/sessions/${currentSessionId}`, {
+                      method: 'PATCH',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ lastResponseId: data.response_id })
+                    });
+                    console.log(`🔗 LastResponseId sincronizado na sessão: ${data.response_id}`);
+                  } catch (syncError) {
+                    console.error('Erro ao sincronizar lastResponseId na sessão:', syncError);
+                  }
+                }
               }
               
               // Final content - should already be accumulated
@@ -665,7 +906,7 @@ export function useChatwitIA(chatId?: string | null, initialModel = 'chatgpt-4o-
                 const lastMessage = newMessages[newMessages.length - 1];
                 
                 if (lastMessage && lastMessage.role === 'assistant') {
-                  // Se a mensagem atual já contém imagens FINAIS (URLs), preservar SEMPRE
+                  // Se a mensagem atual já contém imagens FINAIS (URLs do MinIO), preservar SEMPRE
                   const currentContent = lastMessage.content as string;
                   const hasFinalImages = currentContent && currentContent.includes('![Imagem gerada](https://');
                   const hasPartialImages = currentContent && currentContent.includes('![Gerando imagem...](data:image/png;base64');
@@ -1377,23 +1618,34 @@ export function useChatwitIA(chatId?: string | null, initialModel = 'chatgpt-4o-
     }
   };
   
-  // Estado para multi-turn image generation
-  const [lastResponseId, setLastResponseId] = useState<string | null>(null);
-  
-  // Função para detectar se a mensagem é um refinamento de imagem
-  const isImageRefinementPrompt = (message: string): boolean => {
-    const refinementKeywords = [
-      'agora', 'mais realista', 'realista', 'mais realistca', 'torne', 'faça',
-      'modifique', 'mude', 'altere', 'transforme', 'ajuste',
-      'melhor qualidade', 'alta resolução', 'maior resolução',
-      'mais detalhes', 'mais cores', 'colorido', 'preto e branco',
-      'estilo', 'cartoon', 'anime', 'fotográfico', 'pintura',
-      'background diferente', 'fundo diferente', 'sem fundo',
-      'maior', 'menor', 'rotacione', 'vire', 'inverta'
+  // Função para extrair URLs de imagens de uma mensagem
+  const extractImageUrlsFromMessage = (message: string): string[] => {
+    const imageUrls: string[] = [];
+    
+    // Regex para detectar URLs de imagens (data URLs, MinIO URLs, etc.)
+    const imageUrlRegexes = [
+      // Data URLs
+      /data:image\/[^;]+;base64,[A-Za-z0-9+/=]+/g,
+      // MinIO URLs
+      /https?:\/\/[^\/]+\/[^\/]+\/[^\/\s]+\.(jpg|jpeg|png|gif|webp)/gi,
+      // URLs de imagem em markdown
+      /!\[.*?\]\((https?:\/\/[^)]+\.(jpg|jpeg|png|gif|webp))\)/gi,
+      // URLs diretas de imagem
+      /https?:\/\/[^\s]+\.(jpg|jpeg|png|gif|webp)/gi
     ];
     
-    const lowerMessage = message.toLowerCase();
-    return refinementKeywords.some(keyword => lowerMessage.includes(keyword));
+    imageUrlRegexes.forEach(regex => {
+      const matches = message.matchAll(regex);
+      for (const match of matches) {
+        // Para markdown, usar o grupo capturado (URL dentro dos parênteses)
+        const url = match[1] || match[0];
+        if (url && !imageUrls.includes(url)) {
+          imageUrls.push(url);
+        }
+      }
+    });
+    
+    return imageUrls;
   };
 
   return {
@@ -1425,6 +1677,9 @@ export function useChatwitIA(chatId?: string | null, initialModel = 'chatgpt-4o-
     checkOpenApiConnection,
     checkApiConnection,
     testUpload,
-    lastResponseId
+    lastResponseId,
+    setLastResponseId, // 🔧 CORREÇÃO: Expor setLastResponseId para permitir atualização manual
+    // Debug utilities
+    extractImageUrlsFromMessage
   };
 } 

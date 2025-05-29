@@ -23,7 +23,7 @@ export default function ChatHeader({
       'o4-mini': 'o4-mini',
       'claude-3-7-sonnet-20250219': 'Claude 3.7 Sonnet',
       'gpt-4.1': 'GPT-4.1',
-      'gpt-4o-tasks': 'GPT-4o Tasks',
+      'o4-mini-high': 'o4-mini High',
       'gpt-4.1-latest': 'GPT-4.1',
       'gpt-4.1-nano-2025-04-14': 'GPT-4.1 Nano',
       'gpt-4.1-mini-2025-04-14': 'GPT-4.1 Mini',

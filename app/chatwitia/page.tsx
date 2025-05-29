@@ -8,6 +8,7 @@ import { ArrowLeft, MessageSquare, Plus, ChevronDown, User2, X, ChevronRight, Mo
 import ChatwitIA from '@/app/components/ChatwitIA/ChatwithIA';
 import ChatInputForm from '@/app/components/ChatInputForm';
 import ImageGalleryModal from '@/app/components/ImageGallery';
+import ChatSidebar from '@/components/chatwitia/ChatSidebar';
 
 interface ChatHistory {
   id: string;
@@ -24,7 +25,7 @@ const defaultMainModels = [
   { id: "o4-mini", name: "o4-mini", description: "Mais rápido em reflexão avançada" },
   { id: "gpt-4.1-nano", name: "GPT-4.1 nano", description: "Fastest, most cost-effective GPT-4.1 model" },
   { id: "gpt-4.1", name: "GPT-4.1", description: "Ótimo para escrita e explorar ideias", beta: true, experimental: true },
-  { id: "gpt-4o-tasks", name: "GPT-4o com tarefas agendadas", description: "Peça ao ChatGPT para dar um retorno mais tarde", beta: true },
+  { id: "o4-mini-high", name: "o4-mini High", description: "Reflexão avançada com maior esforço de raciocínio", beta: true },
 ];
 
 // Modelos adicionais - serão substituídos pelos modelos da API
@@ -38,23 +39,11 @@ const defaultAdditionalModels = [
 export default function ChatPage() {
   const router = useRouter();
   
-  const [chatHistories, setChatHistories] = useState<ChatHistory[]>([]);
-  const [groupedChats, setGroupedChats] = useState<{[key: string]: ChatHistory[]}>({});
-  const [isLoadingChats, setIsLoadingChats] = useState(true);
   const [selectedModel, setSelectedModel] = useState('chatgpt-4o-latest');
   const [selectedModelName, setSelectedModelName] = useState('ChatGPT 4o');
   const [showModelDropdown, setShowModelDropdown] = useState(false);
   const [showMoreModels, setShowMoreModels] = useState(false);
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
-  const [collapsedGroups, setCollapsedGroups] = useState<{[key: string]: boolean}>({});
-  const [activeContextMenu, setActiveContextMenu] = useState<string | null>(null);
-  const [renameModalVisible, setRenameModalVisible] = useState(false);
-  const [chatToRename, setChatToRename] = useState<ChatHistory | null>(null);
-  const [newChatTitle, setNewChatTitle] = useState('');
-  const [confirmDeleteVisible, setConfirmDeleteVisible] = useState(false);
-  const [chatToDelete, setChatToDelete] = useState<string | null>(null);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filteredGroups, setFilteredGroups] = useState<{[key: string]: ChatHistory[]}>({});
   const [mainModels, setMainModels] = useState(defaultMainModels);
   const [additionalModels, setAdditionalModels] = useState(defaultAdditionalModels);
   const [apiModels, setApiModels] = useState<any>({});
@@ -66,17 +55,11 @@ export default function ChatPage() {
   // Estado para controlar a galeria de imagens
   const [showImageGallery, setShowImageGallery] = useState(false);
   
-  const contextMenuRef = useRef<HTMLDivElement>(null);
   const modelDropdownRef = useRef<HTMLDivElement>(null);
   
   // Close dropdowns when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      // Fechar o context menu quando clicar fora
-      if (contextMenuRef.current && !contextMenuRef.current.contains(event.target as Node)) {
-        setActiveContextMenu(null);
-      }
-      
       // Fechar os dropdowns de modelos quando clicar fora
       const targetElement = event.target as Element;
       
@@ -93,119 +76,6 @@ export default function ChatPage() {
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, []);
-
-  // Format dates helper
-  const formatDate = (date: Date) => {
-    const now = new Date();
-    
-    // Resetar horas, minutos, segundos para comparar apenas as datas
-    const dateWithoutTime = new Date(date);
-    dateWithoutTime.setHours(0, 0, 0, 0);
-    
-    const nowWithoutTime = new Date(now);
-    nowWithoutTime.setHours(0, 0, 0, 0);
-    
-    // Calcular a diferença em dias
-    const diffTime = nowWithoutTime.getTime() - dateWithoutTime.getTime();
-    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-    
-    if (diffDays === 0) return 'Hoje';
-    if (diffDays === 1) return 'Ontem';
-    if (diffDays < 7) return `${diffDays} dias atrás`;
-    return date.toLocaleDateString('pt-BR');
-  };
-
-  // Helper to determine which date group a chat belongs to
-  const getDateGroup = (date: Date): string => {
-    const now = new Date();
-    
-    // Resetar horas, minutos, segundos para comparar apenas as datas
-    const dateWithoutTime = new Date(date);
-    dateWithoutTime.setHours(0, 0, 0, 0);
-    
-    const nowWithoutTime = new Date(now);
-    nowWithoutTime.setHours(0, 0, 0, 0);
-    
-    // Calcular a diferença em dias
-    const diffTime = nowWithoutTime.getTime() - dateWithoutTime.getTime();
-    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-    
-    if (diffDays === 0) return 'Hoje';
-    if (diffDays === 1) return 'Ontem';
-    if (diffDays < 7) return 'Últimos 7 dias';
-    if (diffDays < 30) return 'Últimos 30 dias';
-    
-    // Return month name in Portuguese
-    const months = [
-      'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-      'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
-    ];
-    return months[date.getMonth()];
-  };
-
-  // Order of date groups for display
-  const groupOrder = [
-    'Hoje', 
-    'Ontem', 
-    'Últimos 7 dias', 
-    'Últimos 30 dias', 
-    'Dezembro', 'Novembro', 'Outubro', 'Setembro', 'Agosto', 
-    'Julho', 'Junho', 'Maio', 'Abril', 'Março', 'Fevereiro', 'Janeiro'
-  ];
-  
-  // Load chat histories
-  const loadChatHistories = async () => {
-    try {
-      setIsLoadingChats(true);
-      const response = await fetch('/api/chatwitia/sessions');
-      if (response.ok) {
-        const data = await response.json();
-        
-        // Format the data with date groups
-        const histories: ChatHistory[] = data.map((session: any) => {
-          const createdAt = new Date(session.createdAt);
-          return {
-            id: session.id,
-            title: session.title || `Conversa de ${formatDate(createdAt)}`,
-            date: formatDate(createdAt),
-            createdAt: createdAt,
-            dateGroup: getDateGroup(createdAt)
-          };
-        });
-        
-        // Sort by most recent creation date first
-        histories.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
-        setChatHistories(histories);
-        
-        // Group chats by date category
-        const groups: {[key: string]: ChatHistory[]} = {};
-        histories.forEach(chat => {
-          if (!groups[chat.dateGroup]) {
-            groups[chat.dateGroup] = [];
-          }
-          groups[chat.dateGroup].push(chat);
-        });
-        
-        setGroupedChats(groups);
-        setFilteredGroups(groups);
-        
-        // Initialize collapsed state for groups (all expanded by default)
-        const collapsed: {[key: string]: boolean} = {};
-        Object.keys(groups).forEach(group => {
-          collapsed[group] = false;
-        });
-        setCollapsedGroups(collapsed);
-      }
-    } catch (error) {
-      console.error("Error fetching chat histories:", error);
-    } finally {
-      setIsLoadingChats(false);
-    }
-  };
-
-  useEffect(() => {
-    loadChatHistories();
   }, []);
 
   const createNewChat = async () => {
@@ -236,8 +106,6 @@ export default function ChatPage() {
         
         if (response.ok) {
           const newChat = await response.json();
-          // Recarregar o histórico de chats
-          await loadChatHistories();
           router.push(`/chatwitia/${newChat.id}`);
         }
       } catch (error) {
@@ -254,148 +122,6 @@ export default function ChatPage() {
     setActiveCategory(null);
   };
   
-  // Filtrar chats com base no termo de pesquisa
-  useEffect(() => {
-    if (!searchTerm.trim()) {
-      // Se não há termo de pesquisa, use os grupos originais
-      setFilteredGroups(groupedChats);
-      return;
-    }
-    
-    // Filtrar os chats com base no termo de pesquisa (case insensitive)
-    const terms = searchTerm.toLowerCase().split(/\s+/).filter(Boolean);
-    const filteredHistories = chatHistories.filter(chat => {
-      const title = chat.title.toLowerCase();
-      // Um chat corresponde se TODOS os termos de pesquisa estão presentes no título
-      return terms.every(term => title.includes(term));
-    });
-    
-    // Reagrupar os chats filtrados
-    const newGroups: {[key: string]: ChatHistory[]} = {};
-    filteredHistories.forEach(chat => {
-      if (!newGroups[chat.dateGroup]) {
-        newGroups[chat.dateGroup] = [];
-      }
-      newGroups[chat.dateGroup].push(chat);
-    });
-    
-    setFilteredGroups(newGroups);
-  }, [searchTerm, chatHistories, groupedChats]);
-  
-  const toggleGroupCollapse = (group: string) => {
-    setCollapsedGroups(prev => ({
-      ...prev,
-      [group]: !prev[group]
-    }));
-  };
-
-  // Context menu handlers
-  const handleContextMenu = (event: React.MouseEvent, chatId: string) => {
-    event.preventDefault();
-    event.stopPropagation();
-    setActiveContextMenu(chatId);
-  };
-  
-  const handleOpenRenameModal = (chat: ChatHistory) => {
-    setChatToRename(chat);
-    setNewChatTitle(chat.title);
-    setRenameModalVisible(true);
-    setActiveContextMenu(null);
-  };
-  
-  const handleRenameChat = async () => {
-    if (!chatToRename || !newChatTitle.trim()) return;
-    
-    try {
-      const response = await fetch(`/api/chatwitia/sessions/${chatToRename.id}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ title: newChatTitle })
-      });
-      
-      if (response.ok) {
-        // Update local state
-        setChatHistories(prev => 
-          prev.map(chat => 
-            chat.id === chatToRename.id ? {...chat, title: newChatTitle} : chat
-          )
-        );
-        
-        // Update grouped chats
-        setGroupedChats(prev => {
-          const newGroups = {...prev};
-          Object.keys(newGroups).forEach(group => {
-            newGroups[group] = newGroups[group].map(chat => 
-              chat.id === chatToRename.id ? {...chat, title: newChatTitle} : chat
-            );
-          });
-          return newGroups;
-        });
-      }
-    } catch (error) {
-      console.error("Error renaming chat:", error);
-    } finally {
-      setRenameModalVisible(false);
-      setChatToRename(null);
-    }
-  };
-  
-  const handleDeleteConfirmation = (chatId: string) => {
-    setChatToDelete(chatId);
-    setConfirmDeleteVisible(true);
-    setActiveContextMenu(null);
-  };
-  
-  const handleDeleteChat = async () => {
-    if (!chatToDelete) return;
-    
-    try {
-      const response = await fetch(`/api/chatwitia/sessions/${chatToDelete}`, {
-        method: 'DELETE'
-      });
-      
-      if (response.ok) {
-        // Update local state by removing the deleted chat
-        setChatHistories(prev => prev.filter(chat => chat.id !== chatToDelete));
-        
-        // Update grouped chats
-        setGroupedChats(prev => {
-          const newGroups = {...prev};
-          Object.keys(newGroups).forEach(group => {
-            newGroups[group] = newGroups[group].filter(chat => chat.id !== chatToDelete);
-          });
-          return newGroups;
-        });
-      }
-    } catch (error) {
-      console.error("Error deleting chat:", error);
-    } finally {
-      setConfirmDeleteVisible(false);
-      setChatToDelete(null);
-    }
-  };
-  
-  const handleShareChat = (chatId: string) => {
-    // For now, just copy the URL to clipboard
-    const url = `${window.location.origin}/chatwitia/${chatId}`;
-    navigator.clipboard.writeText(url)
-      .then(() => {
-        alert('Link copiado para a área de transferência!');
-      })
-      .catch(err => {
-        console.error('Erro ao copiar:', err);
-      });
-    setActiveContextMenu(null);
-  };
-  
-  const handleArchiveChat = (chatId: string) => {
-    // Placeholder for archive functionality
-    alert('Funcionalidade de arquivamento será implementada em breve.');
-    setActiveContextMenu(null);
-  };
-
   // Organizing modelos adicionais por categoria
   const getModelsByCategory = () => {
     const categories: {[key: string]: Array<{
@@ -628,213 +354,38 @@ export default function ChatPage() {
   }, [handleInitialMessage]);
 
   return (
-    <div className="flex h-screen">
+    <div className="flex h-screen bg-background">
       {/* Sidebar with chat history */}
-      <div className="w-64 bg-gray-50 border-r h-full flex flex-col">
-        {/* New Chat Button */}
-        <div className="p-3 space-y-2">
-          <button 
-            onClick={createNewChat}
-            className="w-full flex items-center justify-center gap-2 p-3 bg-white border rounded-md hover:bg-gray-50 transition-colors"
-          >
-            <Plus size={16} />
-            <span>Nova conversa</span>
-          </button>
-          
-          {/* Gallery Button */}
-          <button 
-            onClick={() => setShowImageGallery(true)}
-            className="w-full flex items-center justify-center gap-2 p-3 bg-white border rounded-md hover:bg-gray-50 transition-colors"
-          >
-            <ImageIcon size={16} />
-            <span>Galeria</span>
-          </button>
-        </div>
-        
-        {/* Search Box */}
-        <div className="px-3 pb-3">
-          <div className="relative">
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Pesquisar conversas..."
-              className="w-full p-2 pl-8 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              className="h-4 w-4 absolute left-2.5 top-1/2 transform -translate-y-1/2 text-gray-400"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-              />
-            </svg>
-            {searchTerm && (
-              <button
-                onClick={() => setSearchTerm('')}
-                className="absolute right-2.5 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-              >
-                <X size={14} />
-              </button>
-            )}
-          </div>
-        </div>
-        
-        {/* Chat History List - Grouped by date */}
-        <div className="flex-1 overflow-y-auto p-2">
-          {isLoadingChats ? (
-            <div className="flex justify-center items-center h-16">
-              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500"></div>
-            </div>
-          ) : Object.keys(filteredGroups).length === 0 ? (
-            <div className="text-center py-8 px-4">
-              <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-              </div>
-              <h3 className="text-sm font-medium text-gray-700 mb-2">
-                {searchTerm ? 'Nenhuma conversa encontrada' : 'Nenhuma conversa disponível'}
-              </h3>
-              <p className="text-xs text-gray-500">
-                {searchTerm 
-                  ? `Não encontramos resultados para "${searchTerm}". Tente um termo diferente.` 
-                  : 'Comece uma nova conversa para começar a usar o ChatwitIA.'}
-              </p>
-            </div>
-          ) : (
-            // Display groups in specific order
-            groupOrder.map(group => {
-              // Skip groups that don't have any chats
-              if (!filteredGroups[group] || filteredGroups[group].length === 0) return null;
-              
-              return (
-                <div key={group} className="mb-2">
-                  <button 
-                    onClick={() => toggleGroupCollapse(group)}
-                    className="flex items-center justify-between w-full text-left text-xs font-medium text-gray-500 hover:text-gray-700 py-1 px-2"
-                  >
-                    <span>{group}</span>
-                    <ChevronRight 
-                      size={14} 
-                      className={`transition-transform ${collapsedGroups[group] ? '' : 'rotate-90'}`} 
-                    />
-                  </button>
-                  
-                  {!collapsedGroups[group] && (
-                    <div className="space-y-1 mt-1">
-                      {filteredGroups[group].map(chat => (
-                        <div key={chat.id} className="relative group">
-                          <Link
-                            href={`/chatwitia/${chat.id}`}
-                            className={`w-full text-left p-3 rounded-md hover:bg-gray-100 transition-colors flex items-start gap-2`}
-                            onClick={() => setActiveContextMenu(null)}
-                          >
-                            <MessageSquare size={16} className="mt-1 shrink-0" />
-                            <div className="overflow-hidden flex-1">
-                              <div className="truncate text-sm font-medium">{chat.title}</div>
-                            </div>
-                          </Link>
-                          
-                          {/* Context menu button */}
-          <button 
-                            className="absolute right-2 top-1/2 transform -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleContextMenu(e, chat.id);
-                            }}
-                          >
-                            <MoreVertical size={16} />
-                          </button>
-                          
-                          {/* Context menu */}
-                          {activeContextMenu === chat.id && (
-                            <div 
-                              ref={contextMenuRef}
-                              className="absolute right-0 top-10 z-50 w-44 bg-white rounded-md shadow-lg border overflow-hidden"
-                            >
-                              <div className="py-1">
-                                <button
-                                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
-                                  onClick={() => handleShareChat(chat.id)}
-                                >
-                                  <Share size={16} />
-                                  <span>Compartilhar</span>
-                                </button>
-                                <button
-                                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
-                                  onClick={() => handleOpenRenameModal(chat)}
-                                >
-                                  <Edit size={16} />
-                                  <span>Renomear</span>
-                                </button>
-                                <button
-                                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
-                                  onClick={() => handleArchiveChat(chat.id)}
-                                >
-                                  <Archive size={16} />
-                                  <span>Arquivar</span>
-                                </button>
-                                <button
-                                  className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
-                                  onClick={() => handleDeleteConfirmation(chat.id)}
-                                >
-                                  <Trash2 size={16} />
-                                  <span>Excluir</span>
-                                </button>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              );
-            })
-          )}
-        </div>
-        
-        {/* User Info Section */}
-        <div className="p-3 border-t">
-          <button className="w-full flex items-center gap-2 p-2 hover:bg-gray-100 rounded-md">
-            <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center">
-              <User2 size={18} />
-            </div>
-            <span className="text-sm">Minha Conta</span>
-          </button>
-        </div>
-      </div>
+      <ChatSidebar 
+        currentChatId={undefined}
+        onCreateNewChat={createNewChat}
+        onOpenGallery={() => setShowImageGallery(true)}
+        selectedModel={selectedModel}
+      />
       
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col h-full">
         {/* Header with model selector */}
-        <div className="border-b flex items-center justify-between p-2">
+        <div className="border-b border-border flex items-center justify-between p-2">
           <div className="flex items-center">
             <div className="relative inline-block" data-model-dropdown="true">
               <button
                 onClick={() => setShowModelDropdown(!showModelDropdown)}
-                className="flex items-center gap-2 px-3 py-2 bg-white border rounded-md hover:bg-gray-50 transition-colors"
+                className="flex items-center gap-2 px-3 py-2 bg-card border border-border rounded-md hover:bg-accent transition-colors"
                 data-model-dropdown="true"
               >
-                <span>{selectedModelName}</span>
-                <ChevronDown size={16} />
+                <span className="text-foreground">{selectedModelName}</span>
+                <ChevronDown size={16} className="text-muted-foreground" />
               </button>
               
               {showModelDropdown && (
                 <div 
                   ref={modelDropdownRef}
-                  className="absolute left-0 mt-1 w-80 bg-white border rounded-md shadow-lg z-50"
+                  className="absolute left-0 mt-1 w-80 bg-popover border border-border rounded-md shadow-lg z-50"
                   data-model-dropdown="true"
                 >
-                  <div className="p-3 border-b">
-                    <h3 className="font-medium text-sm mb-1">Modelo</h3>
+                  <div className="p-3 border-b border-border">
+                    <h3 className="font-medium text-sm mb-1 text-foreground">Modelo</h3>
                   </div>
                   
                   <div className="p-2" data-model-dropdown="true">
@@ -845,54 +396,54 @@ export default function ChatPage() {
                         onClick={() => {
                           handleModelSelect(model.id, model.name);
                         }}
-                        className={`w-full text-left flex items-start p-2 rounded-md hover:bg-gray-50 ${
-                          selectedModel === model.id ? 'bg-blue-50' : ''
+                        className={`w-full text-left flex items-start p-2 rounded-md hover:bg-accent ${
+                          selectedModel === model.id ? 'bg-accent' : ''
                         }`}
                         data-model-dropdown="true"
                       >
                         <div className="flex-1">
                           <div className="flex items-center">
-                            <span className="font-medium text-sm">{model.name}</span>
+                            <span className="font-medium text-sm text-foreground">{model.name}</span>
                             {model.beta && (
-                              <span className="ml-2 text-xs px-1.5 py-0.5 bg-amber-100 text-amber-800 rounded-full">
+                              <span className="ml-2 text-xs px-1.5 py-0.5 bg-amber-100 dark:bg-amber-900 text-amber-800 dark:text-amber-200 rounded-full">
                                 BETA
                               </span>
                             )}
                             {model.experimental && (
-                              <span className="ml-2 text-xs px-1.5 py-0.5 bg-purple-100 text-purple-800 rounded-full">
+                              <span className="ml-2 text-xs px-1.5 py-0.5 bg-purple-100 dark:bg-purple-900 text-purple-800 dark:text-purple-200 rounded-full">
                                 PRÉVIA EXPERIMENTAL
                               </span>
                             )}
                             {selectedModel === model.id && (
-                              <svg className="w-4 h-4 ml-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                              <svg className="w-4 h-4 ml-2 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
                               </svg>
                             )}
                           </div>
-                          <p className="text-xs text-gray-500 mt-0.5">{model.description}</p>
+                          <p className="text-xs text-muted-foreground mt-0.5">{model.description}</p>
                         </div>
                       </button>
                     ))}
                     
                     {/* Seção "Mais Modelos" */}
-                    <div className="mt-2 border-t pt-2 relative" data-model-dropdown="true">
+                    <div className="mt-2 border-t border-border pt-2 relative" data-model-dropdown="true">
                       <div 
-                        className="w-full text-left p-2 rounded-md hover:bg-gray-50 cursor-pointer"
+                        className="w-full text-left p-2 rounded-md hover:bg-accent cursor-pointer"
                         onClick={() => setShowMoreModels(!showMoreModels)}
                         data-model-dropdown="true"
                       >
                         <div className="flex items-center justify-between">
-                          <span className="font-medium text-sm">Mais Modelos</span>
+                          <span className="font-medium text-sm text-foreground">Mais Modelos</span>
                           <ChevronRight 
                             size={16} 
-                            className={`transition-transform ${showMoreModels ? 'rotate-90' : ''}`} 
+                            className={`transition-transform text-muted-foreground ${showMoreModels ? 'rotate-90' : ''}`} 
                           />
                         </div>
                       </div>
                       
                       {showMoreModels && (
                         <div 
-                          className="absolute left-full top-0 ml-1 w-80 bg-white border rounded-md shadow-lg z-50"
+                          className="absolute left-full top-0 ml-1 w-80 bg-popover border border-border rounded-md shadow-lg z-50"
                           data-more-models="true"
                         >
                           <div className="p-2 max-h-96 overflow-y-auto" data-more-models="true">
@@ -900,15 +451,15 @@ export default function ChatPage() {
                             {Object.entries(getModelsByCategory()).map(([category, models]) => (
                               <div key={category} className="mb-2" data-more-models="true">
                                 <div 
-                                  className="font-medium text-sm p-2 border-b cursor-pointer"
+                                  className="font-medium text-sm p-2 border-b border-border cursor-pointer"
                                   onClick={() => setActiveCategory(activeCategory === category ? null : category)}
                                   data-more-models="true"
                                 >
                                   <div className="flex items-center justify-between">
-                                    <span>{category}</span>
+                                    <span className="text-foreground">{category}</span>
                                     <ChevronRight 
                                       size={14} 
-                                      className={`transition-transform ${activeCategory === category ? 'rotate-90' : ''}`} 
+                                      className={`transition-transform text-muted-foreground ${activeCategory === category ? 'rotate-90' : ''}`} 
                                     />
                                   </div>
                                 </div>
@@ -923,21 +474,21 @@ export default function ChatPage() {
                                           setShowMoreModels(false);
                                           setActiveCategory(null);
                                         }}
-                                        className={`w-full text-left flex items-start p-2 rounded-md hover:bg-gray-50 ${
-                                          selectedModel === model.id ? 'bg-blue-50' : ''
+                                        className={`w-full text-left flex items-start p-2 rounded-md hover:bg-accent ${
+                                          selectedModel === model.id ? 'bg-accent' : ''
                                         }`}
                                         data-more-models="true"
                                       >
                                         <div className="flex-1">
                                           <div className="flex items-center">
-                                            <span className="font-medium text-sm">{model.name}</span>
+                                            <span className="font-medium text-sm text-foreground">{model.name}</span>
                                             {selectedModel === model.id && (
-                                              <svg className="w-4 h-4 ml-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                              <svg className="w-4 h-4 ml-2 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
                                               </svg>
                                             )}
                                           </div>
-                                          <p className="text-xs text-gray-500 mt-0.5">{model.description}</p>
+                                          <p className="text-xs text-muted-foreground mt-0.5">{model.description}</p>
                                         </div>
                                       </button>
                                     ))}
@@ -957,7 +508,7 @@ export default function ChatPage() {
           
           {/* Title display in header */}
           <div className="flex-1 text-center overflow-hidden px-4">
-            <h1 className="text-sm font-medium truncate">ChatwitIA</h1>
+            <h1 className="text-sm font-medium truncate text-foreground">ChatwitIA</h1>
           </div>
           
           <div className="w-8"></div> {/* Spacer for balance */}
@@ -968,42 +519,42 @@ export default function ChatPage() {
           <div className="flex flex-col h-full">
             <div className="flex-1 overflow-y-auto pb-32">
               <div className="h-full flex flex-col items-center justify-center px-4">
-                <h1 className="text-4xl font-bold mb-8">ChatwitIA</h1>
+                <h1 className="text-4xl font-bold mb-8 text-foreground">ChatwitIA</h1>
                 
                 <div className="max-w-2xl">
-                  <h2 className="text-2xl font-medium text-center mb-5">Por onde começamos?</h2>
+                  <h2 className="text-2xl font-medium text-center mb-5 text-foreground">Por onde começamos?</h2>
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-8">
                     <button 
-                      className="bg-gray-50 p-4 rounded-lg border hover:bg-gray-100 transition-colors text-left"
+                      className="bg-muted/50 p-4 rounded-lg border border-border hover:bg-accent transition-colors text-left"
                       onClick={() => handleInitialMessage("Explique como o GPT-4 funciona para um desenvolvedor")}
                     >
-                      <div className="font-medium mb-1">Explique como o GPT-4 funciona</div>
-                      <div className="text-sm text-gray-600">Para um desenvolvedor que quer entender a tecnologia</div>
+                      <div className="font-medium mb-1 text-foreground">Explique como o GPT-4 funciona</div>
+                      <div className="text-sm text-muted-foreground">Para um desenvolvedor que quer entender a tecnologia</div>
                     </button>
                     
                     <button 
-                      className="bg-gray-50 p-4 rounded-lg border hover:bg-gray-100 transition-colors text-left"
+                      className="bg-muted/50 p-4 rounded-lg border border-border hover:bg-accent transition-colors text-left"
                       onClick={() => handleInitialMessage("Crie um plano de estudo para aprender React e Next.js em 8 semanas")}
                     >
-                      <div className="font-medium mb-1">Crie um plano de estudo</div>
-                      <div className="text-sm text-gray-600">Para aprender React e Next.js em 8 semanas</div>
+                      <div className="font-medium mb-1 text-foreground">Crie um plano de estudo</div>
+                      <div className="text-sm text-muted-foreground">Para aprender React e Next.js em 8 semanas</div>
                     </button>
                     
                     <button 
-                      className="bg-gray-50 p-4 rounded-lg border hover:bg-gray-100 transition-colors text-left"
+                      className="bg-muted/50 p-4 rounded-lg border border-border hover:bg-accent transition-colors text-left"
                       onClick={() => handleInitialMessage("Escreva uma API REST em Node.js para um sistema de agendamento")}
                     >
-                      <div className="font-medium mb-1">Escreva uma API REST</div>
-                      <div className="text-sm text-gray-600">Em Node.js para um sistema de agendamento</div>
+                      <div className="font-medium mb-1 text-foreground">Escreva uma API REST</div>
+                      <div className="text-sm text-muted-foreground">Em Node.js para um sistema de agendamento</div>
                     </button>
                     
                     <button 
-                      className="bg-gray-50 p-4 rounded-lg border hover:bg-gray-100 transition-colors text-left"
+                      className="bg-muted/50 p-4 rounded-lg border border-border hover:bg-accent transition-colors text-left"
                       onClick={() => handleInitialMessage("Gere um código para analisar e visualizar dados em Python com matplotlib")}
                     >
-                      <div className="font-medium mb-1">Gere um código para análise de dados</div>
-                      <div className="text-sm text-gray-600">Em Python com matplotlib</div>
+                      <div className="font-medium mb-1 text-foreground">Gere um código para análise de dados</div>
+                      <div className="text-sm text-muted-foreground">Em Python com matplotlib</div>
                     </button>
                   </div>
                 </div>
@@ -1038,62 +589,6 @@ export default function ChatPage() {
           </div>
         </div>
       </div>
-      
-      {/* Rename Modal */}
-      {renameModalVisible && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md">
-            <h3 className="text-lg font-medium mb-4">Renomear conversa</h3>
-            <input
-              type="text"
-              value={newChatTitle}
-              onChange={(e) => setNewChatTitle(e.target.value)}
-              className="w-full p-2 border rounded-md mb-4"
-              placeholder="Digite um novo título"
-              autoFocus
-            />
-            <div className="flex justify-end gap-2">
-              <button
-                onClick={() => setRenameModalVisible(false)}
-                className="px-4 py-2 text-gray-600 hover:text-gray-800"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleRenameChat}
-                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-                disabled={!newChatTitle.trim()}
-              >
-                Salvar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-      
-      {/* Confirm Delete Modal */}
-      {confirmDeleteVisible && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md">
-            <h3 className="text-lg font-medium mb-2">Excluir conversa</h3>
-            <p className="text-gray-600 mb-4">Esta ação não pode ser desfeita. Deseja continuar?</p>
-            <div className="flex justify-end gap-2">
-              <button
-                onClick={() => setConfirmDeleteVisible(false)}
-                className="px-4 py-2 text-gray-600 hover:text-gray-800"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleDeleteChat}
-                className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
-              >
-                Excluir
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
       
       {/* Image Gallery Modal */}
       <ImageGalleryModal 
