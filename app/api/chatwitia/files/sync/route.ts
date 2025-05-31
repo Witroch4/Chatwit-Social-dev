@@ -61,23 +61,45 @@ export async function POST(req: NextRequest) {
 
   /* 3. Obter informações do arquivo */
   if (body.fileId) {
-    // Busca no banco de dados pelo ID
+    // Primeiro tentar buscar no ChatFile
     chatFile = await db.chatFile.findUnique({ where: { id: body.fileId } });
     
-    if (!chatFile)
-      return NextResponse.json({ error: 'Arquivo não encontrado' }, { status: 404 });
+    // Se não encontrar no ChatFile e parece ser uma imagem, buscar no GeneratedImage
+    let generatedImage;
+    if (!chatFile) {
+      generatedImage = await db.generatedImage.findUnique({ where: { id: body.fileId } });
+      
+      if (!generatedImage) {
+        return NextResponse.json({ error: 'Arquivo não encontrado' }, { status: 404 });
+      }
 
-    if (!chatFile.storageUrl)
-      return NextResponse.json({ error: 'Arquivo sem URL de armazenamento' }, { status: 400 });
+      if (!generatedImage.imageUrl) {
+        return NextResponse.json({ error: 'Imagem sem URL de armazenamento' }, { status: 400 });
+      }
 
-    if (chatFile.openaiFileId?.startsWith('file-'))
-      return NextResponse.json({ success: true, openaiFileId: chatFile.openaiFileId });
-    
-    storageUrl = chatFile.storageUrl;
-    filename = chatFile.filename;
-    fileType = chatFile.fileType;
-    initialPurpose = chatFile.purpose || 'user_data';
-    sessionId = chatFile.sessionId;
+      // Se já tem openaiFileId, retornar
+      if (generatedImage.openaiFileId?.startsWith('file-')) {
+        return NextResponse.json({ success: true, openaiFileId: generatedImage.openaiFileId });
+      }
+      
+      storageUrl = generatedImage.imageUrl;
+      filename = `image-${generatedImage.id}.${generatedImage.mimeType.split('/')[1] || 'png'}`;
+      fileType = generatedImage.mimeType;
+      initialPurpose = 'vision'; // Imagens sempre usam vision
+      sessionId = generatedImage.sessionId;
+    } else {
+      if (!chatFile.storageUrl)
+        return NextResponse.json({ error: 'Arquivo sem URL de armazenamento' }, { status: 400 });
+
+      if (chatFile.openaiFileId?.startsWith('file-'))
+        return NextResponse.json({ success: true, openaiFileId: chatFile.openaiFileId });
+      
+      storageUrl = chatFile.storageUrl;
+      filename = chatFile.filename;
+      fileType = chatFile.fileType;
+      initialPurpose = chatFile.purpose || 'user_data';
+      sessionId = chatFile.sessionId;
+    }
   } else if (body.storageUrl) {
     // Usar informações diretas da requisição
     storageUrl = body.storageUrl;
@@ -85,10 +107,19 @@ export async function POST(req: NextRequest) {
     fileType = body.fileType || 'application/pdf';
     initialPurpose = body.purpose || 'user_data';
     
-    // Verificar se já existe no banco por storageUrl
+    // Verificar se já existe no banco por storageUrl (primeiro ChatFile, depois GeneratedImage)
     chatFile = await db.chatFile.findFirst({ where: { storageUrl: body.storageUrl } });
     
-    if (chatFile) {
+    let generatedImage;
+    if (!chatFile) {
+      generatedImage = await db.generatedImage.findFirst({ where: { imageUrl: body.storageUrl } });
+      
+      if (generatedImage) {
+        if (generatedImage.openaiFileId?.startsWith('file-'))
+          return NextResponse.json({ success: true, openaiFileId: generatedImage.openaiFileId });
+        sessionId = generatedImage.sessionId;
+      }
+    } else {
       if (chatFile.openaiFileId?.startsWith('file-'))
         return NextResponse.json({ success: true, openaiFileId: chatFile.openaiFileId });
       sessionId = chatFile.sessionId;
@@ -139,53 +170,72 @@ export async function POST(req: NextRequest) {
 
   /* 7. Atualiza ou cria registro no banco */
   if (chatFile) {
-    // Atualiza registro existente
+    // Atualiza registro existente no ChatFile
     await db.chatFile.update({
       where: { id: chatFile.id },
       data: { openaiFileId: openaiFile.id, status: 'synced', syncedAt: new Date() },
     });
-  } else if (body.storageUrl) {
-    // Verifica se temos uma sessão ou precisamos criar uma
-    if (!sessionId) {
-      // Busca a sessão mais recente do usuário ou cria uma nova
-      const existingSession = await db.chatSession.findFirst({
-        where: { userId: session.user.id },
-        orderBy: { createdAt: 'desc' }
+  } else {
+    // Verificar se existe um GeneratedImage para atualizar
+    const generatedImage = await db.generatedImage.findFirst({
+      where: {
+        OR: [
+          { id: body.fileId || '' },
+          { imageUrl: body.storageUrl || '' }
+        ]
+      }
+    });
+
+    if (generatedImage) {
+      // Atualizar o GeneratedImage com o openaiFileId
+      await db.generatedImage.update({
+        where: { id: generatedImage.id },
+        data: { openaiFileId: openaiFile.id },
       });
+      console.log(`Atualizado GeneratedImage ${generatedImage.id} com openaiFileId: ${openaiFile.id}`);
+    } else if (body.storageUrl) {
+      // Criar novo registro ChatFile para arquivos que não são imagens
+      // Verifica se temos uma sessão ou precisamos criar uma
+      if (!sessionId) {
+        // Busca a sessão mais recente do usuário ou cria uma nova
+        const existingSession = await db.chatSession.findFirst({
+          where: { userId: session.user.id },
+          orderBy: { createdAt: 'desc' }
+        });
+        
+        if (existingSession) {
+          sessionId = existingSession.id;
+        } else {
+          // Criar uma nova sessão para o usuário
+          const newSession = await db.chatSession.create({
+            data: {
+              userId: session.user.id,
+              title: `Sessão com ${filename}`,
+            }
+          });
+          sessionId = newSession.id;
+        }
+      }
       
-      if (existingSession) {
-        sessionId = existingSession.id;
-      } else {
-        // Criar uma nova sessão para o usuário
-        const newSession = await db.chatSession.create({
+      // Cria novo registro para arquivos enviados sem sessionId
+      try {
+        chatFile = await db.chatFile.create({
           data: {
-            userId: session.user.id,
-            title: `Sessão com ${filename}`,
+            sessionId: sessionId,
+            filename,
+            fileType,
+            purpose: purpose as string,
+            storageUrl,
+            openaiFileId: openaiFile.id,
+            status: 'synced',
+            syncedAt: new Date(),
           }
         });
-        sessionId = newSession.id;
+        console.log(`Criado novo registro de arquivo no banco para upload: ${chatFile.id}, sessão: ${sessionId}`);
+      } catch (dbError) {
+        console.error('Erro ao criar registro no banco:', dbError);
+        // Continuar mesmo se falhar o banco - já temos o arquivo na OpenAI
       }
-    }
-    
-    // Cria novo registro para arquivos enviados sem sessionId
-    try {
-      chatFile = await db.chatFile.create({
-        data: {
-          id: randomUUID().substring(0, 8),
-          sessionId: sessionId,
-          filename,
-          fileType,
-          purpose: purpose as string,
-          storageUrl,
-          openaiFileId: openaiFile.id,
-          status: 'synced',
-          syncedAt: new Date(),
-        }
-      });
-      console.log(`Criado novo registro de arquivo no banco para upload: ${chatFile.id}, sessão: ${sessionId}`);
-    } catch (dbError) {
-      console.error('Erro ao criar registro no banco:', dbError);
-      // Continuar mesmo se falhar o banco - já temos o arquivo na OpenAI
     }
   }
 

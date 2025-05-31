@@ -623,36 +623,69 @@ async function handleOpenAIRequest(messages: Message[], model: string, sessionId
     const lastUserMessage = [...messages].reverse().find(m => m.role === 'user');
     let userContent = '';
     let imageUrls: string[] = [];
+    let extractedFileIds: string[] = [];
+    let hasDirectImageUrls = false; // Flag para URLs diretas (que removem image_generation)
     
     if (lastUserMessage) {
       if (typeof lastUserMessage.content === 'string') {
         console.log('📝 Conteúdo da mensagem recebida:', lastUserMessage.content);
         userContent = lastUserMessage.content.trim();
         
-        // 🖼️ CORREÇÃO: Só extrair URLs de imagem se NÃO há previousResponseId específico
-        // Se há previousResponseId, é referência via interface - não processar URLs
-        if (!compatiblePreviousResponseId) {
-          // Extrair URLs de imagem do markdown e remover do texto apenas para geração nova
-          const imageMarkdownRegex = /!\[.*?\]\((https?:\/\/[^\)]+)\)/g;
-          const imageMatches = [...userContent.matchAll(imageMarkdownRegex)];
+        // 🖼️ CORREÇÃO: Separar claramente URLs de imagem de file IDs
+        // 🔧 NOVA LÓGICA: Sempre extrair URLs diretas, independente de previous_response_id
+        
+        // Extrair URLs de imagem do markdown (tipo "Imagem para análise")
+        const imageMarkdownRegex = /!\[.*?\]\((https?:\/\/[^\)]+)\)/g;
+        const imageMatches = [...userContent.matchAll(imageMarkdownRegex)];
+        
+        if (imageMatches.length > 0) {
+          imageUrls = imageMatches.map(match => match[1]);
+          hasDirectImageUrls = true; // URLs diretas removem image_generation tool
+          // Remover as referências de imagem do texto
+          userContent = userContent.replace(imageMarkdownRegex, '').trim();
+          console.log(`🖼️ Extraídas ${imageUrls.length} URLs de imagem diretas (remove image_generation):`, imageUrls.map(url => url.substring(0, 50) + '...'));
           
-          if (imageMatches.length > 0) {
-            imageUrls = imageMatches.map(match => match[1]);
-            // Remover as referências de imagem do texto
-            userContent = userContent.replace(imageMarkdownRegex, '').trim();
-            console.log(`🖼️ Extraídas ${imageUrls.length} imagens do texto:`, imageUrls.map(url => url.substring(0, 50) + '...'));
-            console.log(`📝 Texto limpo: "${userContent}"`);
-          }
-        } else {
-          // Se há referência específica de imagem, remover URLs do texto mas não processar como input_image
-          const imageMarkdownRegex = /!\[.*?\]\((https?:\/\/[^\)]+)\)/g;
-          if (imageMarkdownRegex.test(userContent)) {
-            userContent = userContent.replace(imageMarkdownRegex, '').trim();
-            console.log(`🖼️ ✅ Referência específica de imagem detectada (responseId: ${compatiblePreviousResponseId})`);
-            console.log(`📝 Texto limpo (sem URLs): "${userContent}"`);
-            console.log(`🔗 Usando contexto da imagem via previous_response_id ao invés de input_image`);
+          // 🚨 CORREÇÃO CRÍTICA: Limpar previous_response_id quando há URLs diretas
+          if (compatiblePreviousResponseId) {
+            console.log(`🔧 LIMPANDO previous_response_id (${compatiblePreviousResponseId}) - usando URL direta ao invés de contexto`);
+            compatiblePreviousResponseId = undefined;
           }
         }
+        
+        // Extrair file IDs válidos (que começam com 'file-') - tipo "Imagens" via Files API
+        const fileIdRegex = /\[.*?\]\(file_id:(file-[^)]+)\)/g;
+        const fileIdMatches = [...userContent.matchAll(fileIdRegex)];
+        
+        if (fileIdMatches.length > 0) {
+          extractedFileIds = fileIdMatches.map(match => match[1]);
+          // Remover as referências de arquivo do texto
+          userContent = userContent.replace(fileIdRegex, '').trim();
+          console.log(`📁 Extraídos ${extractedFileIds.length} file IDs válidos (mantém image_generation):`, extractedFileIds);
+        }
+        
+        // 🚨 CORREÇÃO: Detectar file_id com URL (erro comum) e converter para input_image
+        const invalidFileIdRegex = /\[.*?\]\(file_id:(https?:\/\/[^)]+)\)/g;
+        const invalidFileIdMatches = [...userContent.matchAll(invalidFileIdRegex)];
+        
+        if (invalidFileIdMatches.length > 0) {
+          console.log(`⚠️ Detectados ${invalidFileIdMatches.length} file_id inválidos com URLs - convertendo para input_image`);
+          invalidFileIdMatches.forEach(match => {
+            const invalidUrl = match[1];
+            imageUrls.push(invalidUrl);
+            hasDirectImageUrls = true; // URLs diretas removem image_generation tool
+            console.log(`🔄 Convertendo file_id inválido para input_image: ${invalidUrl.substring(0, 50)}...`);
+          });
+          // Remover as referências inválidas do texto
+          userContent = userContent.replace(invalidFileIdRegex, '').trim();
+          
+          // 🚨 CORREÇÃO CRÍTICA: Limpar previous_response_id quando há URLs inválidas convertidas
+          if (compatiblePreviousResponseId) {
+            console.log(`🔧 LIMPANDO previous_response_id (${compatiblePreviousResponseId}) - usando URLs convertidas ao invés de contexto`);
+            compatiblePreviousResponseId = undefined;
+          }
+        }
+        
+        console.log(`📝 Texto limpo final: "${userContent}"`);
       } else if (Array.isArray(lastUserMessage.content)) {
         // Handle array content
         for (const contentItem of lastUserMessage.content) {
@@ -661,7 +694,18 @@ async function handleOpenAIRequest(messages: Message[], model: string, sessionId
           } else if (contentItem.type === 'image' && contentItem.image_url) {
             // Só adicionar como input_image se não há referência específica
             if (!compatiblePreviousResponseId) {
-              imageUrls.push(contentItem.image_url);
+              // Garantir que o formato esteja correto para Responses API
+              let imageUrl: string;
+              if (typeof contentItem.image_url === 'string') {
+                imageUrl = contentItem.image_url;
+              } else if (typeof contentItem.image_url === 'object' && contentItem.image_url && 'url' in contentItem.image_url) {
+                imageUrl = (contentItem.image_url as any).url;
+              } else {
+                console.warn('⚠️ Formato de image_url não reconhecido:', contentItem.image_url);
+                continue;
+              }
+              
+              imageUrls.push(imageUrl);
             }
           }
         }
@@ -671,7 +715,7 @@ async function handleOpenAIRequest(messages: Message[], model: string, sessionId
     
     // Preparar conteúdo de entrada para a Responses API
     const inputContent: any[] = [
-      { type: "input_text", text: userContent }
+      { type: "input_text", text: userContent || "Analise o conteúdo fornecido." }
     ];
     
     // Adicionar imagens extraídas como input_image APENAS se não há referência específica
@@ -679,19 +723,138 @@ async function handleOpenAIRequest(messages: Message[], model: string, sessionId
       imageUrls.forEach((imageUrl, index) => {
         inputContent.push({
           type: "input_image",
-          image_url: {
-            url: imageUrl,
-            detail: "high"
-          }
+          image_url: imageUrl // 🔧 CORREÇÃO: Responses API usa string direta, não objeto
         });
         console.log(`🖼️ Adicionada imagem ${index + 1} como input_image: ${imageUrl.substring(0, 50)}...`);
       });
     }
     
-    // Adicionar cada arquivo como um item separado no content
-    fileIds.forEach(fileId => {
-      inputContent.push({ type: "input_file", file_id: fileId });
-    });
+    // Adicionar cada arquivo como input_file (para PDFs) ou input_image (para imagens)
+    for (const fileId of extractedFileIds) {
+      // 🔧 NOVA LÓGICA: Determinar tipo do arquivo baseado no banco de dados
+      try {
+        let fileType = 'image'; // default para imagem
+        let fileName = `file-${fileId}`;
+        
+        // Buscar informações do arquivo no banco de dados
+        const chatFile = await db.chatFile.findFirst({
+          where: { openaiFileId: fileId }
+        });
+        
+        if (chatFile) {
+          fileType = chatFile.fileType || 'application/octet-stream';
+          fileName = chatFile.filename;
+          console.log(`📁 Arquivo encontrado no ChatFile: ${fileName}, tipo: ${fileType}`);
+        } else {
+          // Se não encontrar no ChatFile, buscar no GeneratedImage
+          const generatedImage = await db.generatedImage.findFirst({
+            where: { openaiFileId: fileId }
+          });
+          
+          if (generatedImage) {
+            fileType = generatedImage.mimeType || 'image/png';
+            fileName = `image-${generatedImage.id}.${generatedImage.mimeType?.split('/')[1] || 'png'}`;
+            console.log(`🖼️ Arquivo encontrado no GeneratedImage: ${fileName}, tipo: ${fileType}`);
+          } else {
+            console.warn(`⚠️ Arquivo ${fileId} não encontrado no banco, assumindo imagem`);
+          }
+        }
+        
+        // Determinar se é PDF ou imagem
+        const isPdf = fileType === 'application/pdf' || fileName.toLowerCase().endsWith('.pdf');
+        const isImage = fileType.startsWith('image/') || 
+                       ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp'].some(ext => 
+                         fileName.toLowerCase().includes(ext));
+        
+        if (isPdf) {
+          inputContent.push({ type: "input_file", file_id: fileId });
+          console.log(`📄 Adicionado PDF como input_file (file_id): ${fileId} - ${fileName}`);
+        } else if (isImage) {
+          inputContent.push({ type: "input_image", file_id: fileId });
+          console.log(`🖼️ Adicionado imagem como input_image (file_id): ${fileId} - ${fileName}`);
+        } else {
+          // Para outros tipos, usar input_file como fallback
+          inputContent.push({ type: "input_file", file_id: fileId });
+          console.log(`📁 Adicionado arquivo genérico como input_file (file_id): ${fileId} - ${fileName} (tipo: ${fileType})`);
+        }
+        
+      } catch (error) {
+        console.error(`❌ Erro ao determinar tipo do arquivo ${fileId}:`, error);
+        // Em caso de erro, usar input_image como fallback (comportamento anterior)
+        inputContent.push({ type: "input_image", file_id: fileId });
+        console.log(`🔄 Fallback: Adicionado como input_image (file_id): ${fileId}`);
+      }
+    }
+    
+    // Adicionar file IDs de parâmetro - determinar se é imagem ou PDF baseado no contexto
+    if (fileIds && fileIds.length > 0) {
+      for (const fileId of fileIds) {
+        // 🔧 NOVA LÓGICA: Determinar tipo do arquivo baseado no banco de dados
+        try {
+          let fileType = 'image'; // default para imagem
+          let fileName = `file-${fileId}`;
+          
+          // Buscar informações do arquivo no banco de dados
+          const chatFile = await db.chatFile.findFirst({
+            where: { openaiFileId: fileId }
+          });
+          
+          if (chatFile) {
+            fileType = chatFile.fileType || 'application/octet-stream';
+            fileName = chatFile.filename;
+            console.log(`📁 Arquivo (parâmetro) encontrado no ChatFile: ${fileName}, tipo: ${fileType}`);
+          } else {
+            // Se não encontrar no ChatFile, buscar no GeneratedImage
+            const generatedImage = await db.generatedImage.findFirst({
+              where: { openaiFileId: fileId }
+            });
+            
+            if (generatedImage) {
+              fileType = generatedImage.mimeType || 'image/png';
+              fileName = `image-${generatedImage.id}.${generatedImage.mimeType?.split('/')[1] || 'png'}`;
+              console.log(`🖼️ Arquivo (parâmetro) encontrado no GeneratedImage: ${fileName}, tipo: ${fileType}`);
+            } else {
+              console.warn(`⚠️ Arquivo (parâmetro) ${fileId} não encontrado no banco, assumindo imagem`);
+            }
+          }
+          
+          // Determinar se é PDF ou imagem
+          const isPdf = fileType === 'application/pdf' || fileName.toLowerCase().endsWith('.pdf');
+          const isImage = fileType.startsWith('image/') || 
+                         ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp'].some(ext => 
+                           fileName.toLowerCase().includes(ext));
+          
+          if (isPdf) {
+            inputContent.push({ type: "input_file", file_id: fileId });
+            console.log(`📄 Adicionado PDF (parâmetro) como input_file (file_id): ${fileId} - ${fileName}`);
+          } else if (isImage) {
+            inputContent.push({ type: "input_image", file_id: fileId });
+            console.log(`🖼️ Adicionado imagem (parâmetro) como input_image (file_id): ${fileId} - ${fileName}`);
+          } else {
+            // Para outros tipos, usar input_file como fallback
+            inputContent.push({ type: "input_file", file_id: fileId });
+            console.log(`📁 Adicionado arquivo genérico (parâmetro) como input_file (file_id): ${fileId} - ${fileName} (tipo: ${fileType})`);
+          }
+          
+        } catch (error) {
+          console.error(`❌ Erro ao determinar tipo do arquivo (parâmetro) ${fileId}:`, error);
+          // Em caso de erro, usar input_image como fallback (comportamento anterior)
+          inputContent.push({ type: "input_image", file_id: fileId });
+          console.log(`🔄 Fallback: Adicionado (parâmetro) como input_image (file_id): ${fileId}`);
+        }
+      }
+    }
+    
+    // 🔧 CORREÇÃO IMPORTANTE: Se há file_ids sendo fornecidos como input_image,
+    // isso significa que o usuário está fornecendo uma nova imagem de referência explícita.
+    // Nesse caso, limpar o previous_response_id para evitar conflito entre a imagem
+    // de referência e o contexto da conversa anterior
+    const hasExplicitImageReference = extractedFileIds.length > 0 || (fileIds && fileIds.length > 0);
+    if (hasExplicitImageReference && compatiblePreviousResponseId) {
+      console.log(`🚨 CONFLITO DETECTADO: File IDs fornecidos como input_image (${[...extractedFileIds, ...(fileIds || [])].join(', ')}) + previous_response_id (${compatiblePreviousResponseId})`);
+      console.log(`🔧 Limpando previous_response_id para usar apenas a imagem de referência explícita`);
+      compatiblePreviousResponseId = undefined;
+    }
     
     // Preparar ferramentas para Responses API
     const tools: any[] = [];
@@ -710,16 +873,28 @@ async function handleOpenAIRequest(messages: Message[], model: string, sessionId
       console.log('🔍 Ferramenta de pesquisa web adicionada (web_search_preview)');
     }
     
-    if (supportsImageGeneration) {
-      // Adicionar ferramenta de geração de imagem
-      tools.push({ 
+    // 🔧 CORREÇÃO: Não adicionar image_generation quando há URLs diretas ou input_image 
+    // (mas permitir quando há apenas file_ids via Files API)
+    const hasInputImages = imageUrls.length > 0 || hasDirectImageUrls;
+    const hasOnlyFileIds = extractedFileIds.length > 0 && !hasInputImages;
+    
+    // Adicionar ferramenta de geração de imagem APENAS se:
+    // 1. O modelo suporta geração de imagem E
+    // 2. NÃO há URLs diretas de imagem (input_image) E
+    // 3. OU há apenas file_ids via Files API (que são compatíveis)
+    if (supportsImageGeneration && !hasInputImages) {
+      tools.push({
         type: "image_generation",
         quality: "auto",
         size: "auto",
         background: "auto",
-        partial_images: 2
+        partial_images: 2 // Receber 2 imagens parciais durante a geração para melhor UX
       });
-      console.log('🎨 Ferramenta de geração de imagem adicionada');
+      console.log('🎨 Ferramenta de geração de imagem adicionada com partial_images: 2');
+    } else if (hasInputImages) {
+      console.log('🚫 Ferramenta de geração de imagem removida - incompatível com input_image/URLs diretas');
+    } else if (!supportsImageGeneration) {
+      console.log('🚫 Modelo não suporta geração de imagem');
     }
         
     // Configurar opções para a requisição da Responses API
@@ -814,16 +989,95 @@ async function handleOpenAIRequest(messages: Message[], model: string, sessionId
       inputContent.unshift({ type: "input_text", text: "Analise o conteúdo fornecido." });
     }
     
+    // Validações específicas para Responses API
+    if (requestOptions.tools && requestOptions.tools.length > 0) {
+      console.log('🔧 Validando ferramentas...');
+      requestOptions.tools.forEach((tool: any, index: number) => {
+        if (!tool.type) {
+          throw new Error(`Tool ${index} não tem tipo especificado`);
+        }
+        console.log(`✅ Tool ${index}: ${tool.type} validada`);
+      });
+    }
+    
+    // Verificar compatibilidade de tools com previous_response_id
+    if (requestOptions.previous_response_id && requestOptions.tools) {
+      console.log('🔧 Verificando compatibilidade de tools com previous_response_id...');
+      const imageGenTool = requestOptions.tools.find((t: any) => t.type === 'image_generation');
+      if (imageGenTool) {
+        console.log('✅ image_generation tool compatível com multi-turn');
+      }
+    }
+    
+    // Verificar se o modelo suporta as ferramentas especificadas
+    if (requestOptions.tools) {
+      const unsupportedForModel: string[] = [];
+      requestOptions.tools.forEach((tool: any) => {
+        if (tool.type === 'image_generation' && !supportsImageGeneration) {
+          unsupportedForModel.push(tool.type);
+        }
+      });
+      
+      if (unsupportedForModel.length > 0) {
+        console.warn(`⚠️ Ferramentas não suportadas pelo modelo ${apiModel}:`, unsupportedForModel);
+        // Remover ferramentas não suportadas
+        requestOptions.tools = requestOptions.tools.filter((tool: any) => 
+          !unsupportedForModel.includes(tool.type)
+        );
+        console.log('🔧 Ferramentas não suportadas removidas');
+      }
+    }
+    
     console.log('✅ Payload validado com sucesso');
 
-    const response = await fetch(API_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
-      },
-      body: JSON.stringify(requestOptions),
-    });
+    // Função para fazer a requisição com retry automático
+    const makeRequestWithRetry = async (requestOptions: any) => {
+      const response = await fetch(API_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
+        },
+        body: JSON.stringify(requestOptions),
+      });
+
+      // Se não deu certo e temos previous_response_id, tentar retry
+      if (!response.ok && requestOptions.previous_response_id) {
+        try {
+          const errorBody = await response.text();
+          const errorObject = JSON.parse(errorBody);
+          
+          // Se é erro 400 com invalid_request_error, tentar sem previous_response_id
+          if (response.status === 400 && errorObject?.error?.type === 'invalid_request_error') {
+            console.log('🔄 Erro 400 com previous_response_id detectado, tentando retry sem previous_response_id...');
+            
+            const retryOptions = { ...requestOptions };
+            delete retryOptions.previous_response_id;
+            
+            const retryResponse = await fetch(API_URL, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
+              },
+              body: JSON.stringify(retryOptions),
+            });
+            
+            if (retryResponse.ok) {
+              console.log('✅ Retry sem previous_response_id foi bem-sucedido');
+              return { response: retryResponse, usedPreviousResponseId: false };
+            }
+          }
+        } catch (retryError) {
+          console.error('❌ Erro durante retry:', retryError);
+        }
+      }
+      
+      return { response, usedPreviousResponseId: !!requestOptions.previous_response_id };
+    };
+
+    const { response, usedPreviousResponseId } = await makeRequestWithRetry(requestOptions);
+    const finalPreviousResponseId = usedPreviousResponseId ? compatiblePreviousResponseId : undefined;
 
     // Check if the fetch was successful
     if (!response.ok) {
@@ -862,6 +1116,7 @@ async function handleOpenAIRequest(messages: Message[], model: string, sessionId
               });
             });
             console.error('🛠️ Tools:', tools.length > 0 ? tools.map(t => t.type) : 'none');
+            console.error('🔗 Previous Response ID:', requestOptions.previous_response_id || 'none');
           }
         } catch (parseError) {
           console.error(`❌ OpenAI API Error ${response.status} - Raw:`, errorDetails);
@@ -950,6 +1205,27 @@ async function handleOpenAIRequest(messages: Message[], model: string, sessionId
                     this.fullResponseData = eventData.response;
                     break;
                     
+                  case 'response.in_progress':
+                    console.log('⏳ Response in progress');
+                    // Opcional: enviar status de progresso para o cliente
+                    controller.enqueue(this.encoder.encode(JSON.stringify({
+                      type: 'progress',
+                      message: 'Processando...'
+                    }) + '\n'));
+                    break;
+                    
+                  case 'response.output_item.added':
+                    console.log('📋 Output item added, type:', eventData.item?.type);
+                    // Opcional: enviar status de item adicionado para o cliente
+                    if (eventData.item?.type === 'image_generation_call') {
+                      controller.enqueue(this.encoder.encode(JSON.stringify({
+                        type: 'output_item_added',
+                        item_type: 'image_generation_call',
+                        message: 'Preparando geração de imagem...'
+                      }) + '\n'));
+                    }
+                    break;
+                    
                   case 'response.output_text.delta':
                     // Text incremental
                     const textDelta = eventData.delta || '';
@@ -970,6 +1246,26 @@ async function handleOpenAIRequest(messages: Message[], model: string, sessionId
                     controller.enqueue(this.encoder.encode(JSON.stringify({
                       type: 'image_generation_started',
                       message: 'Gerando imagem...'
+                    }) + '\n'));
+                    break;
+                    
+                  case 'response.image_generation_call.in_progress':
+                    console.log('🔄 Image generation in progress');
+                    
+                    // Send progress status to client
+                    controller.enqueue(this.encoder.encode(JSON.stringify({
+                      type: 'image_generation_progress',
+                      message: 'Imagem sendo gerada...'
+                    }) + '\n'));
+                    break;
+                    
+                  case 'response.image_generation_call.generating':
+                    console.log('✨ Image generation generating');
+                    
+                    // Send generating status to client
+                    controller.enqueue(this.encoder.encode(JSON.stringify({
+                      type: 'image_generation_generating',
+                      message: 'Processando imagem...'
                     }) + '\n'));
                     break;
                     
@@ -1006,6 +1302,43 @@ async function handleOpenAIRequest(messages: Message[], model: string, sessionId
                     controller.enqueue(this.encoder.encode(JSON.stringify({
                       type: 'web_search_completed',
                       message: 'Pesquisa web concluída'
+                    }) + '\n'));
+                    break;
+                    
+                  case 'error':
+                    console.error('❌ Stream error event:', eventData);
+                    console.error('❌ Full error data:', JSON.stringify(eventData, null, 2));
+                    
+                    // Determinar a estrutura do erro
+                    let errorMessage = 'Erro no stream';
+                    let errorCode = 'unknown';
+                    
+                    if (eventData.error) {
+                      errorMessage = eventData.error.message || eventData.error;
+                      errorCode = eventData.error.code || 'unknown';
+                    } else if (eventData.message) {
+                      errorMessage = eventData.message;
+                    } else if (eventData.code && eventData.message) {
+                      errorCode = eventData.code;
+                      errorMessage = eventData.message;
+                    }
+                    
+                    console.error(`❌ Processed error - Code: ${errorCode}, Message: ${errorMessage}`);
+                    
+                    // Send error to client
+                    controller.enqueue(this.encoder.encode(JSON.stringify({
+                      type: 'stream_error',
+                      error: errorMessage,
+                      error_code: errorCode,
+                      details: eventData
+                    }) + '\n'));
+                    break;
+                    
+                  case 'response.failed':
+                    console.error('❌ Response failed:', eventData.response?.error);
+                    controller.enqueue(this.encoder.encode(JSON.stringify({
+                      type: 'error',
+                      error: eventData.response?.error?.message || 'Response failed'
                     }) + '\n'));
                     break;
                     
@@ -1216,14 +1549,6 @@ async function handleOpenAIRequest(messages: Message[], model: string, sessionId
                     
                     break;
                     
-                  case 'response.failed':
-                    console.error('❌ Response failed:', eventData.response?.error);
-                    controller.enqueue(this.encoder.encode(JSON.stringify({
-                      type: 'error',
-                      error: eventData.response?.error?.message || 'Response failed'
-                    }) + '\n'));
-                    break;
-                    
                   default:
                     console.log(`ℹ️ Unhandled event type: ${eventData.type}`);
                 }
@@ -1232,6 +1557,9 @@ async function handleOpenAIRequest(messages: Message[], model: string, sessionId
                 // Log the error but don't crash the stream
                 console.error('❌ Error parsing Responses API event:', parseErr.message);
                 console.log('🔍 Problematic data:', data.substring(0, 100) + (data.length > 100 ? '...' : ''));
+                console.log('🔍 Full problematic data:', data);
+                console.log('🔍 Event data type:', typeof data);
+                console.log('🔍 Event data length:', data.length);
                 
                 // If the error is about unterminated JSON, keep in buffer for next chunk
                 if (parseErr.message.includes('Unterminated string') || 
@@ -1240,6 +1568,17 @@ async function handleOpenAIRequest(messages: Message[], model: string, sessionId
                   this.buffer = 'data: ' + data + '\n' + this.buffer;
                   console.log('📝 Added incomplete JSON back to buffer for next chunk');
                   continue;
+                }
+                
+                // Se não é um erro de JSON incompleto, tentar tratar como evento especial
+                if (data.includes('error') || data.includes('failed')) {
+                  console.log('🚨 Detected error-like content, sending error event to client');
+                  controller.enqueue(this.encoder.encode(JSON.stringify({
+                    type: 'parse_error',
+                    error: 'Erro ao processar evento da API',
+                    raw_data: data,
+                    parse_error: parseErr.message
+                  }) + '\n'));
                 }
               }
             }
@@ -1253,7 +1592,7 @@ async function handleOpenAIRequest(messages: Message[], model: string, sessionId
     }
 
     // Create our transformer instance
-    const transformer = new ChunkTransformer(sessionId, userContent, apiModel, compatiblePreviousResponseId);
+    const transformer = new ChunkTransformer(sessionId, userContent, apiModel, finalPreviousResponseId);
     const transformStream = new TransformStream(transformer);
 
     // Return the transformed stream

@@ -58,11 +58,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'PDF too large (32 MB max).' }, { status: 413 });
     }
 
-    // 1️⃣ Upload ao MinIO
-    const buffer = Buffer.from(await file.arrayBuffer());
-    const { url: storageUrl, thumbnail_url } = await uploadToMinIO(buffer, file.name, file.type, true);
-
-    // 2️⃣ Gravar (ou recuperar) no DB
+    // 🔧 REMOVIDO: Upload desnecessário para MinIO
+    // O arquivo já deveria estar no MinIO vindo da rota /api/upload
+    // Vamos buscar primeiro se já existe no banco
+    
+    // 1️⃣ Buscar arquivo existente no banco
     let dbFile = await db.chatFile.findFirst({
       where: { 
         sessionId: sessionId || undefined, 
@@ -71,8 +71,18 @@ export async function POST(req: NextRequest) {
       }
     });
 
+    let storageUrl: string;
+    let thumbnail_url: string | undefined;
+
     if (!dbFile) {
-      // Preparar os dados base para criar o arquivo
+      // 🔧 NOVO: Só fazer upload para MinIO se realmente não existir
+      console.log(`Arquivo ${file.name} não encontrado no banco, fazendo upload para MinIO`);
+      const buffer = Buffer.from(await file.arrayBuffer());
+      const uploadResult = await uploadToMinIO(buffer, file.name, file.type, true);
+      storageUrl = uploadResult.url;
+      thumbnail_url = uploadResult.thumbnail_url;
+
+      // Criar registro no banco
       const fileData: any = {
         storageUrl,
         thumbnail_url,
@@ -82,7 +92,6 @@ export async function POST(req: NextRequest) {
         status: 'stored',
       };
       
-      // Adicionar sessionId apenas se existir
       if (sessionId) {
         fileData.sessionId = sessionId;
       }
@@ -90,9 +99,15 @@ export async function POST(req: NextRequest) {
       dbFile = await db.chatFile.create({
         data: fileData
       });
+      console.log(`Novo arquivo criado no banco: ${dbFile.id}`);
+    } else {
+      // Arquivo já existe, usar URLs do banco
+      storageUrl = dbFile.storageUrl;
+      thumbnail_url = dbFile.thumbnail_url || undefined;
+      console.log(`Arquivo ${file.name} já existe no banco: ${dbFile.id}`);
     }
 
-    // 3️⃣ Sincronização com OpenAI
+    // 2️⃣ Sincronização com OpenAI
     let uploaded: any = null;
 
     // Sempre sincronizar arquivos (principalmente PDFs) com OpenAI 
@@ -127,7 +142,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 4️⃣ Extração opcional de PDF
+    // 3️⃣ Extração opcional de PDF
     if (extract && isPdf && uploaded?.id) {
       const text = await openaiService.extractPdfWithAssistant(uploaded.id, prompt);
       return NextResponse.json({
@@ -140,7 +155,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // 5️⃣ Resposta final
+    // 4️⃣ Resposta final
     return NextResponse.json({
       fileId:       uploaded?.id    ?? null,
       internalId:   dbFile.id,       // deixa explícito pro front

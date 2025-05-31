@@ -27,19 +27,64 @@ export async function GET(req: Request) {
     console.log(`🔍 Buscando imagem por URL: ${imageUrl.substring(0, 100)}...`);
     console.log(`📋 SessionId: ${sessionId || 'não fornecido'}`);
 
-    // Buscar imagem no banco de dados
-    const whereClause: any = {
+    // 🔧 NOVA LÓGICA: Extrair diferentes identificadores da URL
+    let openaiFileId = null;
+    let filename = null;
+    
+    // Se a URL contém file-XXX, extrair o openaiFileId
+    const fileIdMatch = imageUrl.match(/file-([A-Za-z0-9]+)/);
+    if (fileIdMatch) {
+      openaiFileId = fileIdMatch[0]; // file-XXX completo
+      console.log(`🔍 OpenAI File ID extraído: ${openaiFileId}`);
+    }
+    
+    // Extrair filename se estiver na URL
+    const filenameMatch = imageUrl.match(/([^\/]+\.(png|jpg|jpeg|gif|webp))(?:\?|$)/i);
+    if (filenameMatch) {
+      filename = filenameMatch[1];
+      console.log(`🔍 Filename extraído: ${filename}`);
+    }
+
+    // 🔧 BUSCA MÚLTIPLA: Criar condições OR para buscar por diferentes critérios
+    const searchConditions = [];
+    
+    // 1. Busca pela URL exata
+    searchConditions.push({ imageUrl: imageUrl });
+    
+    // 2. Se temos openaiFileId, buscar por ele
+    if (openaiFileId) {
+      searchConditions.push({ openaiFileId: openaiFileId });
+    }
+    
+    // 3. Se temos filename, buscar por URLs que contenham o filename
+    if (filename) {
+      searchConditions.push({ 
+        imageUrl: {
+          contains: filename
+        }
+      });
+    }
+
+    // Buscar imagem no banco de dados com múltiplos critérios
+    const baseWhere: any = {
       userId: session.user.id,
-      imageUrl: imageUrl
+      OR: searchConditions
     };
 
     // Se sessionId foi fornecido, incluir na busca
     if (sessionId) {
-      whereClause.sessionId = sessionId;
+      baseWhere.sessionId = sessionId;
     }
 
+    console.log(`🔍 Buscando com ${searchConditions.length} critérios:`, {
+      originalUrl: imageUrl,
+      openaiFileId,
+      filename,
+      sessionId: sessionId || 'qualquer'
+    });
+
     const image = await db.generatedImage.findFirst({
-      where: whereClause,
+      where: baseWhere,
       select: {
         id: true,
         responseId: true,
@@ -50,7 +95,8 @@ export async function GET(req: Request) {
         imageUrl: true,
         thumbnailUrl: true,
         createdAt: true,
-        sessionId: true
+        sessionId: true,
+        openaiFileId: true
       },
       orderBy: {
         createdAt: 'desc' // Pegar a mais recente se houver duplicatas
@@ -58,14 +104,14 @@ export async function GET(req: Request) {
     });
 
     if (!image) {
-      console.log(`❌ Imagem não encontrada no banco de dados`);
+      console.log(`❌ Imagem não encontrada no banco de dados com nenhum dos critérios`);
       return NextResponse.json(
         { error: 'Imagem não encontrada' },
         { status: 404 }
       );
     }
 
-    console.log(`✅ Imagem encontrada: ${image.id}, responseId: ${image.responseId || 'nenhum'}`);
+    console.log(`✅ Imagem encontrada: ${image.id}, responseId: ${image.responseId || 'nenhum'}, openaiFileId: ${image.openaiFileId || 'nenhum'}`);
 
     return NextResponse.json({
       success: true,
@@ -79,7 +125,8 @@ export async function GET(req: Request) {
         imageUrl: image.imageUrl,
         thumbnailUrl: image.thumbnailUrl,
         createdAt: image.createdAt,
-        sessionId: image.sessionId
+        sessionId: image.sessionId,
+        openaiFileId: image.openaiFileId
       }
     });
   } catch (error: any) {

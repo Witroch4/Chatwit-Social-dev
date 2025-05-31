@@ -309,46 +309,64 @@ export default function ChatwitIA({
   }, [messages, chatId, onTitleChange]);
 
   // Função para lidar com referência de imagem
-  const handleImageReference = useCallback(async (imageUrl: string, prompt?: string) => {
+  const handleImageReference = useCallback(async (imageUrl: string, prompt?: string, openaiFileId?: string) => {
     console.log(`🖼️ Referenciando imagem: ${imageUrl.substring(0, 50)}... com prompt: "${prompt}"`);
+    console.log(`🔍 OpenAI File ID fornecido: ${openaiFileId || 'não fornecido'}`);
     
     try {
-      // 🔧 CORREÇÃO: Buscar o responseId da imagem no banco de dados
-      console.log(`🔍 Buscando responseId da imagem no banco...`);
-      
-      const searchResponse = await fetch(`/api/chatwitia/images/search?imageUrl=${encodeURIComponent(imageUrl)}&sessionId=${chatId}`);
-      
       let imageResponseId = null;
-      if (searchResponse.ok) {
-        const searchResult = await searchResponse.json();
-        if (searchResult.image?.responseId) {
-          imageResponseId = searchResult.image.responseId;
-          console.log(`🔗 ResponseId da imagem encontrado: ${imageResponseId}`);
-        } else {
-          console.log(`⚠️ Imagem encontrada no banco mas sem responseId: ${searchResult.image?.id}`);
-        }
-      } else {
-        console.log(`⚠️ Imagem não encontrada no banco, será salva como nova referência`);
-      }
       
-      // Se não encontrou a imagem ou responseId, salvar como nova referência
-      if (!imageResponseId) {
-        const saveResponse = await fetch('/api/chatwitia/images/save', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            imageData: imageUrl,
-            prompt: prompt || 'Imagem referenciada pelo usuário',
-            sessionId: chatId,
-            model: 'user-reference'
-          }),
-        });
+      // 🔧 OTIMIZAÇÃO: Se já temos openaiFileId, não precisamos buscar no banco
+      if (openaiFileId && openaiFileId.startsWith('file-')) {
+        console.log(`✅ Usando openaiFileId fornecido diretamente: ${openaiFileId}`);
+        console.log(`🚀 Pulando busca no banco - informação já disponível`);
+        
+        // Não precisamos fazer busca nem salvar - a imagem já existe e temos o fileId
+        // imageResponseId permanece null pois não precisamos dele para referenciar via openaiFileId
+      } else {
+        // 🔧 FALLBACK: Só buscar no banco se não temos openaiFileId
+        console.log(`🔍 OpenAI File ID não fornecido, buscando no banco...`);
+        
+        const searchResponse = await fetch(`/api/chatwitia/images/search?imageUrl=${encodeURIComponent(imageUrl)}&sessionId=${chatId}`);
+        
+        let imageExists = false;
+        
+        if (searchResponse.ok) {
+          const searchResult = await searchResponse.json();
+          imageExists = true;
+          
+          if (searchResult.image?.responseId) {
+            imageResponseId = searchResult.image.responseId;
+            console.log(`🔗 ResponseId da imagem encontrado: ${imageResponseId}`);
+          } else {
+            console.log(`⚠️ Imagem encontrada no banco mas sem responseId: ${searchResult.image?.id}`);
+          }
+        } else {
+          console.log(`⚠️ Imagem não encontrada no banco, será salva como nova referência`);
+        }
+        
+        // Só salvar se a imagem realmente não existir no banco
+        if (!imageExists) {
+          console.log(`💾 Salvando nova referência de imagem no banco...`);
+          const saveResponse = await fetch('/api/chatwitia/images/save', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              imageData: imageUrl,
+              prompt: prompt || 'Imagem referenciada pelo usuário',
+              sessionId: chatId,
+              model: 'user-reference'
+            }),
+          });
 
-        if (saveResponse.ok) {
-          const saveResult = await saveResponse.json();
-          console.log(`✅ Imagem referenciada salva no banco: ${saveResult.image?.id}`);
+          if (saveResponse.ok) {
+            const saveResult = await saveResponse.json();
+            console.log(`✅ Imagem referenciada salva no banco: ${saveResult.image?.id}`);
+          }
+        } else {
+          console.log(`✅ Imagem já existe no banco, reutilizando registro existente`);
         }
       }
       

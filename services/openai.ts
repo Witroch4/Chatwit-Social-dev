@@ -126,28 +126,63 @@ class ServerOpenAIService implements IOpenAIService {
     const mergedOptions = { ...defaultOptions, ...options };
     
     try {
-      // Verificar se há referências de arquivo PDF no formato [filename](file_id:XXX)
+      // 🖼️ CORREÇÃO: Separar claramente URLs de imagem de file IDs
       const fileIdReferences: string[] = [];
+      const imageUrls: string[] = [];
+      
       const cleanedMessages = messages.map(message => {
         if (typeof message.content === 'string') {
-          const fileIdMatches = message.content.match(/\[.*?\]\(file_id:(.*?)\)/g);
+          let cleanedContent = message.content;
+          
+          // Extrair file IDs válidos (que começam com 'file-')
+          const fileIdMatches = message.content.match(/\[.*?\]\(file_id:(file-[^)]+)\)/g);
           if (fileIdMatches && fileIdMatches.length > 0) {
-            // Extrair os IDs dos arquivos
+            // Extrair os IDs dos arquivos válidos
             fileIdMatches.forEach((match: string) => {
-              const fileId = match.match(/\[.*?\]\(file_id:(.*?)\)/)?.[1];
+              const fileId = match.match(/\[.*?\]\(file_id:(file-[^)]+)\)/)?.[1];
               if (fileId) fileIdReferences.push(fileId);
             });
-
-            // Limpar a referência do arquivo e manter apenas o texto da pergunta
-            const cleanedContent = message.content.replace(/\[.*?\]\(file_id:.*?\)/g, '').trim();
-            
-            return { ...message, content: cleanedContent };
+            // Remover as referências de arquivo válido do texto
+            cleanedContent = cleanedContent.replace(/\[.*?\]\(file_id:file-[^)]+\)/g, '').trim();
           }
+          
+          // 🚨 CORREÇÃO: Detectar file_id com URL (erro comum) e converter para input_image
+          const invalidFileIdMatches = message.content.match(/\[.*?\]\(file_id:(https?:\/\/[^)]+)\)/g);
+          if (invalidFileIdMatches && invalidFileIdMatches.length > 0) {
+            console.log(`⚠️ Detectados ${invalidFileIdMatches.length} file_id inválidos com URLs - convertendo para input_image`);
+            invalidFileIdMatches.forEach((match: string) => {
+              const invalidUrl = match.match(/\[.*?\]\(file_id:(https?:\/\/[^)]+)\)/)?.[1];
+              if (invalidUrl) {
+                imageUrls.push(invalidUrl);
+                console.log(`🔄 Convertendo file_id inválido para input_image: ${invalidUrl.substring(0, 50)}...`);
+              }
+            });
+            // Remover as referências inválidas do texto
+            cleanedContent = cleanedContent.replace(/\[.*?\]\(file_id:https?:\/\/[^)]+\)/g, '').trim();
+          }
+          
+          // Extrair URLs de imagem do markdown
+          const imageMarkdownMatches = message.content.match(/!\[.*?\]\((https?:\/\/[^)]+)\)/g);
+          if (imageMarkdownMatches && imageMarkdownMatches.length > 0) {
+            imageMarkdownMatches.forEach((match: string) => {
+              const imageUrl = match.match(/!\[.*?\]\((https?:\/\/[^)]+)\)/)?.[1];
+              if (imageUrl) {
+                imageUrls.push(imageUrl);
+                console.log(`🖼️ Extraída URL de imagem: ${imageUrl.substring(0, 50)}...`);
+              }
+            });
+            // Remover as referências de imagem do texto
+            cleanedContent = cleanedContent.replace(/!\[.*?\]\((https?:\/\/[^)]+)\)/g, '').trim();
+          }
+          
+          return { ...message, content: cleanedContent };
         }
         return message;
       });
 
-            console.log(`🚀 Usando Responses API exclusivamente para modelo: ${mergedOptions.model}`);
+      console.log(`🚀 Usando Responses API exclusivamente para modelo: ${mergedOptions.model}`);
+      console.log(`📁 File IDs extraídos: ${fileIdReferences.length}`);
+      console.log(`🖼️ URLs de imagem extraídas: ${imageUrls.length}`);
       
       // Verificar se é modelo da série O para adicionar reasoning
       const isOSeriesModel = mergedOptions.model!.startsWith('o');
@@ -173,8 +208,8 @@ class ServerOpenAIService implements IOpenAIService {
           if (textItem && textItem.text) {
             userContent = textItem.text;
           }
-          }
         }
+      }
         
       // Se não tiver conteúdo, usar uma instrução genérica
       const promptText = userContent || "Analise o conteúdo fornecido.";
@@ -184,9 +219,19 @@ class ServerOpenAIService implements IOpenAIService {
         { type: "input_text", text: promptText }
       ];
       
+      // Adicionar imagens como input_image
+      imageUrls.forEach((imageUrl, index) => {
+        inputContent.push({
+          type: "input_image",
+          image_url: imageUrl // 🔧 CORREÇÃO: Responses API usa string direta, não objeto
+        });
+        console.log(`🖼️ Adicionada imagem ${index + 1} como input_image: ${imageUrl.substring(0, 50)}...`);
+      });
+      
       // Adicionar cada arquivo como um item separado no content
       fileIdReferences.forEach(fileId => {
         inputContent.push({ type: "input_file", file_id: fileId });
+        console.log(`📁 Adicionado arquivo como input_file: ${fileId}`);
       });
       
       // Processar mensagens com conteúdo complexo (imagens, etc.)
@@ -194,11 +239,22 @@ class ServerOpenAIService implements IOpenAIService {
         if (Array.isArray(message.content)) {
           (message.content as any[]).forEach((item: any) => {
             if (item.type === 'image' && item.image_url) {
+              // Garantir que o formato esteja correto para Responses API
+              let imageUrl: string;
+              if (typeof item.image_url === 'string') {
+                imageUrl = item.image_url;
+              } else if (typeof item.image_url === 'object' && item.image_url && 'url' in item.image_url) {
+                imageUrl = item.image_url.url;
+              } else {
+                console.warn('⚠️ Formato de image_url não reconhecido:', item.image_url);
+                return;
+              }
+              
               inputContent.push({
                 type: "input_image",
-                image_url: item.image_url,
-                detail: "high"
+                image_url: imageUrl // 🔧 CORREÇÃO: Responses API usa string direta
               });
+              console.log(`🖼️ Adicionada imagem do conteúdo complexo como input_image`);
             }
           });
         }
@@ -492,11 +548,57 @@ class ServerOpenAIService implements IOpenAIService {
         throw new Error('uploadFileFromPath só pode ser usado no lado do servidor');
       }
       
-      // Implementação genérica que não faz referência direta ao fs
-      // Quando executada no lado do servidor, o código de criação via API será usado
-      console.warn('Este método deve ser implementado especificamente em ambiente de servidor.');
+      // Implementação para ambiente Node.js usando eval para evitar bundling
+      console.log(`Servidor: Enviando arquivo do caminho: ${filePath}`);
       
-      throw new Error('Funcionalidade disponível apenas em ambiente de servidor Node.js.');
+      // Usar eval para evitar que o webpack tente resolver 'fs' no cliente
+      const fs = eval('require')('fs');
+      
+      // Verificar se o arquivo existe
+      if (!fs.existsSync(filePath)) {
+        throw new Error(`Arquivo não encontrado: ${filePath}`);
+      }
+      
+      // Ler o arquivo
+      const fileBuffer = fs.readFileSync(filePath);
+      
+      // Criar um File object para usar com toFile
+      const oaiFile = await toFile(fileBuffer, opts.filename, { type: opts.mimeType });
+      
+      // PDF não é suportado em "vision" → redireciona para assistants
+      const isPdf = opts.mimeType === 'application/pdf';
+      const purpose = isPdf && opts.purpose === 'vision' ? 'assistants' : opts.purpose;
+      
+      // Se for PDF no propósito vision, faz raw fetch para permitir application/pdf
+      if (isPdf && opts.purpose === 'vision') {
+        const formData = new FormData();
+        formData.append('file', oaiFile as unknown as any, opts.filename);
+        formData.append('purpose', 'assistants'); // Força assistants para PDFs
+
+        const response = await fetch('https://api.openai.com/v1/files', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
+          body: formData,
+        });
+
+        if (!response.ok) {
+          const text = await response.text();
+          throw new Error(`Erro upload PDF via path: ${response.status} - ${text}`);
+        }
+        
+        const result = await response.json();
+        console.log('Servidor: uploadFileFromPath (PDF) concluído:', result.id);
+        return result;
+      }
+
+      // Para demais formatos/usos, usa SDK normalmente
+      const response = await this.client.files.create({
+        file: oaiFile,
+        purpose: purpose as any,
+      });
+
+      console.log('Servidor: uploadFileFromPath concluído com sucesso:', response.id);
+      return response;
     } catch (error) {
       console.error('Erro ao enviar arquivo do caminho:', filePath, error);
       throw error;

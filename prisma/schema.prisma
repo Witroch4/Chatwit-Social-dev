@@ -577,6 +577,7 @@ model GeneratedImage {
   quality            String?
   previousResponseId String?  // ID da resposta anterior usada para gerar esta imagem (multi-turn)
   responseId         String?  // ID desta resposta da OpenAI para referência futura (multi-turn)
+  openaiFileId       String?  // ID do arquivo na OpenAI Files API (file-XnTFUFg79jXRw6wNi9jxQM)
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
@@ -588,5 +589,6 @@ model GeneratedImage {
   @@index([createdAt])
   @@index([responseId])         // Índice para busca rápida por responseId
   @@index([previousResponseId]) // Índice para busca por cadeia de refinamentos
+  @@index([openaiFileId])       // Índice para busca rápida por openaiFileId
 }
 

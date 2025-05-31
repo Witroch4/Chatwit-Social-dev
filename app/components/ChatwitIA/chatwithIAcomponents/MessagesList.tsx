@@ -9,7 +9,7 @@ interface MessagesListProps {
   error: string | null;
   containerRef: React.RefObject<HTMLDivElement>;
   endRef: React.RefObject<HTMLDivElement>;
-  onImageReference?: (imageUrl: string, prompt?: string) => void;
+  onImageReference?: (imageUrl: string, prompt?: string, openaiFileId?: string) => void;
 }
 
 const MessagesList = React.memo(function MessagesList({
@@ -66,7 +66,11 @@ const MessagesList = React.memo(function MessagesList({
         {messages.map((m, i) => {
           if (!m || m.role === "system") return null;
           const isUser = m.role === "user";
-          const pdf = typeof m.content === "string" && m.content.match(/\[.*?\]\(file_id:.*?\)/);
+          
+          // 🔧 CORREÇÃO: Detectar apenas PDFs, não imagens
+          const hasPdfReference = typeof m.content === "string" && 
+            /\[([^\]]*\.pdf[^\]]*)\]\(file_id:([^)]+)\)/i.test(m.content);
+          
           return (
             <div key={i} className={`mb-6 flex ${isUser ? "justify-end" : "justify-start"}`}>
               <AnimatedMessage isAssistant={!isUser}>
@@ -77,14 +81,14 @@ const MessagesList = React.memo(function MessagesList({
                   {typeof m.content === "string" ? (
                     isUser ? (
                       <div className="w-full">
-                        {pdf && (
+                        {hasPdfReference && (
                           <div className="flex items-center gap-2 p-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-md mb-2">
                             <FileIcon size={16} className="text-blue-500" />
                             <span className="text-xs text-blue-700 dark:text-blue-300">Arquivo PDF anexado</span>
                           </div>
                         )}
                         <MessageContent 
-                          content={pdf ? m.content.replace(/\[(.+?)\]\(file_id:.*?\)/g, "**[ARQUIVO: $1]**") : m.content}
+                          content={hasPdfReference ? m.content.replace(/\[([^\]]*\.pdf[^\]]*)\]\(file_id:([^)]+)\)/gi, "**[ARQUIVO: $1]**") : m.content}
                           isStreaming={false}
                           onImageReference={onImageReference}
                         />

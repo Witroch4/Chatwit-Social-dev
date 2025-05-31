@@ -5,7 +5,6 @@ import { uploadToMinIO, correctMinioUrl } from '@/lib/minio';
 import { auth } from '@/auth';
 import { db } from '@/lib/db';
 import type { UploadPurpose } from '@/app/components/ChatInputForm';
-import { randomUUID } from 'crypto';
 
 export async function POST(request: Request) {
   try {
@@ -20,7 +19,7 @@ export async function POST(request: Request) {
     const file = formData.get('file') as File | null;
     const purpose = (formData.get('purpose') as UploadPurpose) || 'user_data';
     const sessionId = formData.get('sessionId') as string || null;
-    console.log(`#########ERA PRA SER SESSAO ID: ${sessionId}`);
+    console.log(`#########sessionId recebido: ${sessionId}`);
 
     if (!file) {
       console.error('Nenhum arquivo enviado');
@@ -35,8 +34,9 @@ export async function POST(request: Request) {
     const fileName = file.name;
     const mimeType = file.type;
     
-    // Verificar se é PDF pela extensão ou mimetype
+    // Verificar se é PDF ou imagem
     const isPdf = mimeType === 'application/pdf' || fileName.toLowerCase().endsWith('.pdf');
+    const isImage = mimeType.startsWith('image/');
     
     // Ajustar o purpose para PDFs se necessário
     const finalPurpose = isPdf && purpose === 'vision' ? 'user_data' : purpose;
@@ -52,31 +52,67 @@ export async function POST(request: Request) {
       console.log(`[Upload] Thumbnail gerada e enviada: ${uploadResult.thumbnail_url}`);
     }
 
-    // Gerar ID único para o arquivo
-    const fileId = randomUUID().substring(0, 8);
-    
-    // Tentar criar o registro no ChatFile
-    let dbFileId = null;
+    // Tentar criar o registro no banco - usar GeneratedImage para imagens e ChatFile para PDFs
+    let dbRecord = null;
     try {
       if (sessionId) {
         console.log(`[Upload] Salvando arquivo no banco com sessionId=${sessionId}`);
         
-        // Criar entrada no banco de dados com os nomes corretos de campos
-        const chatFile = await db.chatFile.create({
-          data: {
-            id: fileId,
-            sessionId: sessionId,
-            filename: fileName,
-            fileType: mimeType,
-            purpose: finalPurpose,
-            storageUrl: uploadResult.url,
-            thumbnail_url: uploadResult.thumbnail_url,
-            status: 'stored',
-          }
-        });
-        
-        dbFileId = chatFile.id;
-        console.log(`[Upload] Arquivo salvo no banco: ${dbFileId}`);
+        if (isImage) {
+          // Usar GeneratedImage para imagens
+          console.log(`[Upload] Salvando imagem no modelo GeneratedImage`);
+          const generatedImage = await db.generatedImage.create({
+            data: {
+              userId: session.user.id!,
+              sessionId: sessionId,
+              prompt: `Imagem carregada: ${fileName}`, // Prompt descritivo para upload
+              model: 'upload', // Indicar que foi upload
+              imageUrl: uploadResult.url,
+              thumbnailUrl: uploadResult.thumbnail_url,
+              mimeType: mimeType,
+              size: `${buffer.length}`,
+              quality: 'original',
+              // openaiFileId será definido posteriormente quando sincronizar com OpenAI
+            }
+          });
+          
+          dbRecord = generatedImage;
+          console.log(`[Upload] Imagem salva no GeneratedImage: ${generatedImage.id}`);
+        } else if (isPdf) {
+          // Usar ChatFile apenas para PDFs
+          console.log(`[Upload] Salvando PDF no modelo ChatFile`);
+          const chatFile = await db.chatFile.create({
+            data: {
+              sessionId: sessionId,
+              filename: fileName,
+              fileType: mimeType,
+              purpose: finalPurpose,
+              storageUrl: uploadResult.url,
+              thumbnail_url: uploadResult.thumbnail_url,
+              status: 'stored',
+            }
+          });
+          
+          dbRecord = chatFile;
+          console.log(`[Upload] PDF salvo no ChatFile: ${chatFile.id}`);
+        } else {
+          // Outros tipos de arquivo - usar ChatFile
+          console.log(`[Upload] Salvando arquivo genérico no modelo ChatFile`);
+          const chatFile = await db.chatFile.create({
+            data: {
+              sessionId: sessionId,
+              filename: fileName,
+              fileType: mimeType,
+              purpose: finalPurpose,
+              storageUrl: uploadResult.url,
+              thumbnail_url: uploadResult.thumbnail_url,
+              status: 'stored',
+            }
+          });
+          
+          dbRecord = chatFile;
+          console.log(`[Upload] Arquivo salvo no ChatFile: ${chatFile.id}`);
+        }
       } else {
         console.log('[Upload] Nenhum sessionId fornecido, ignorando salvamento no banco');
       }
@@ -87,16 +123,17 @@ export async function POST(request: Request) {
 
     return NextResponse.json(
       {
-        id: dbFileId || fileId,
+        id: dbRecord?.id,
         fileName,
         url: uploadResult.url,
         mime_type: uploadResult.mime_type,
-        is_image: mimeType.startsWith('image/'),
+        is_image: isImage,
         fileType: mimeType,
         purpose: finalPurpose,
         thumbnail_url: uploadResult.thumbnail_url,
         size: buffer.length,
         uploaded_at: new Date().toISOString(),
+        model_used: isImage ? 'GeneratedImage' : 'ChatFile', // Informar qual modelo foi usado
       },
       { status: 200 }
     );
