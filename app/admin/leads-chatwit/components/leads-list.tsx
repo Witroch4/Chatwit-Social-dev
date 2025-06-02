@@ -13,7 +13,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { toast, useToast } from "@/hooks/use-toast";
 import { ToastAction } from "@/components/ui/toast";
-import { LeadItem } from "./lead-item";
+import { LeadItem } from "./lead-item/lead-item";
 import { RefreshCw, FileUp, Edit3 } from "lucide-react";
 import { DialogDetalheLead } from "./dialog-detalhe-lead";
 import { LeadChatwit } from "../types";
@@ -426,6 +426,7 @@ export function LeadsList({ searchQuery, onRefresh, initialLoading, refreshCount
                 <TableHead className="w-[100px] align-middle">Manuscrito</TableHead>
                 <TableHead className="w-[120px] align-middle">Espelho de Correção</TableHead>
                 <TableHead className="w-[120px] align-middle">Análise</TableHead>
+                <TableHead className="w-[80px] align-middle">Consultoria</TableHead>
                 <TableHead className="w-[60px] align-middle">Ações</TableHead>
               </TableRow>
             </TableHeader>

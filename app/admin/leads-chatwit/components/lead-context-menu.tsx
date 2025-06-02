@@ -33,7 +33,8 @@ export type ContextAction =
   | 'excluirEspelho'
   | 'excluirAnalise'
   | 'verAnalise'
-  | 'verAnaliseValidada';
+  | 'verAnaliseValidada'
+  | 'enviarEspelhoUpload';
 
 interface LeadContextMenuProps {
   contextType: ContextType;
@@ -126,9 +127,14 @@ export function LeadContextMenu({ contextType, onAction, children, data }: LeadC
                 Editar Espelho
               </ContextMenuItem>
             ) : (
-              <ContextMenuItem onClick={() => onAction('selecionarEspelho', data)}>
-                Selecionar Espelho
-              </ContextMenuItem>
+              <>
+                <ContextMenuItem onClick={() => onAction('selecionarEspelho', data)}>
+                  Selecionar Espelho
+                </ContextMenuItem>
+                <ContextMenuItem onClick={() => onAction('enviarEspelhoUpload', data)}>
+                  Upload Espelho
+                </ContextMenuItem>
+              </>
             )}
             {data.hasEspelho && (
               <>

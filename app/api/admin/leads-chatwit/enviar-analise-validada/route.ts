@@ -53,12 +53,20 @@ export async function POST(request: Request): Promise<Response> {
     // Extrair os dados da análise preliminar
     const analiseData = payload.analiseData || {};
     
+    // Detectar se é análise de simulado baseado na flag
+    const isAnaliseSimulado = analiseData.analisesimuladovalidado === true;
+    
     // Preparar o payload para envio com as flags requeridas e garantir que todos os campos do cabeçalho estejam presentes
     const requestPayload = {
       // Flags necessárias para o sistema externo
       leadID: leadId,
-      analisevalidada: true,
       telefone: lead.phoneNumber,
+      
+      // Flag correta baseada no tipo de análise
+      ...(isAnaliseSimulado 
+        ? { analisesimuladovalidado: true }
+        : { analisevalidada: true }
+      ),
       
       // Garantir que os campos do cabeçalho estejam explicitamente presentes
       exameDescricao: analiseData.exameDescricao || "",
@@ -77,11 +85,12 @@ export async function POST(request: Request): Promise<Response> {
       conclusao: analiseData.conclusao || "",
       argumentacao: analiseData.argumentacao || [],
       
-      // Incluir o restante dos dados da análise preliminar
-      ...analiseData,
-      
-      // Adicionar flag de análise preliminar
-      analisepreliminar: true
+      // Incluir o restante dos dados da análise preliminar (exceto flags de controle)
+      ...Object.fromEntries(
+        Object.entries(analiseData).filter(([key]) => 
+          !['analisesimuladovalidado', 'analiseValidada'].includes(key)
+        )
+      )
     };
     
     // Logar o payload final que será enviado

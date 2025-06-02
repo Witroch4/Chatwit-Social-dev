@@ -57,18 +57,7 @@ app.prepare().then(() => {
       { shell: true, stdio: "inherit" }
     );
 
-    // ngrok (apenas em dev local)
-    try {
-      const ngrokProcess = spawn(
-        "ngrok",
-        ["http", "--region=sa", "--hostname=moving-eagle-bright.ngrok-free.app", "3000"],
-        { shell: true, stdio: "pipe" }
-      );
-      ngrokProcess.stdout.on("data", data => console.log(`[ngrok] ${data}`));
-      ngrokProcess.stderr.on("data", data => console.error(`[ngrok-err] ${data}`));
-    } catch (error) {
-      console.error(`[ngrok-err] Falha ao iniciar ngrok: ${error.message}`);
-    }
+    // ngrok removido - agora é um serviço Docker separado
 
     // função de shutdown encerra também esses spawns
     function shutdown() {

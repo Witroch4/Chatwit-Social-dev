@@ -117,7 +117,7 @@ class ServerOpenAIService implements IOpenAIService {
     const defaultOptions: ChatOptions = {
       model: 'gpt-4o-latest',
       temperature: 0.7,
-      max_tokens: 1000,
+      max_tokens: 42000,
       top_p: 1,
       frequency_penalty: 0,
       presence_penalty: 0,
@@ -920,7 +920,7 @@ class ServerOpenAIService implements IOpenAIService {
       const defaultOptions: ChatOptions = {
         model: 'gpt-4o',
         temperature: 0.7,
-        max_tokens: 4000,
+        max_tokens: 42000,
       };
       
       const mergedOptions = { ...defaultOptions, ...options };

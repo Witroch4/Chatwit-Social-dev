@@ -31,6 +31,7 @@ export interface LeadChatwit {
   aguardandoAnalise?: boolean;
   analisePreliminar?: any;
   analiseValidada?: boolean;
+  consultoriaFase2?: boolean;
   createdAt: string | Date;
   updatedAt: string | Date;
   usuario: {

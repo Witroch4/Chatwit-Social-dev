@@ -92,7 +92,8 @@ export async function POST(request: Request): Promise<Response> {
       analiseProcessada,
       aguardandoAnalise,
       analisePreliminar,
-      analiseValidada 
+      analiseValidada,
+      consultoriaFase2
     } = await request.json();
     
     // Valide os dados recebidos
@@ -109,27 +110,31 @@ export async function POST(request: Request): Promise<Response> {
       ...(analiseUrl !== undefined && { analiseUrl }),
       ...(analisePreliminar !== undefined && { analisePreliminar: "Presente" }),
       ...(analiseValidada !== undefined && { analiseValidada }),
+      ...(consultoriaFase2 !== undefined && { consultoriaFase2 }),
     });
+
+    // Verificar quais campos foram enviados e montar o objeto de update
+    const updateData: any = {};
+    
+    if (nomeReal !== undefined) updateData.nomeReal = nomeReal;
+    if (email !== undefined) updateData.email = email;
+    if (anotacoes !== undefined) updateData.anotacoes = anotacoes;
+    if (concluido !== undefined) updateData.concluido = concluido;
+    if (fezRecurso !== undefined) updateData.fezRecurso = fezRecurso;
+    if (datasRecurso !== undefined) updateData.datasRecurso = datasRecurso;
+    if (textoDOEspelho !== undefined) updateData.textoDOEspelho = textoDOEspelho;
+    if (espelhoCorrecao !== undefined) updateData.espelhoCorrecao = espelhoCorrecao;
+    if (analiseUrl !== undefined) updateData.analiseUrl = analiseUrl;
+    if (analiseProcessada !== undefined) updateData.analiseProcessada = analiseProcessada;
+    if (aguardandoAnalise !== undefined) updateData.aguardandoAnalise = aguardandoAnalise;
+    if (analisePreliminar !== undefined) updateData.analisePreliminar = analisePreliminar;
+    if (analiseValidada !== undefined) updateData.analiseValidada = analiseValidada;
+    if (consultoriaFase2 !== undefined) updateData.consultoriaFase2 = consultoriaFase2;
 
     // Atualize o lead
     const lead = await prisma.leadChatwit.update({
       where: { id },
-      data: {
-        ...(nomeReal !== undefined && { nomeReal }),
-        ...(email !== undefined && { email }),
-        ...(anotacoes !== undefined && { anotacoes }),
-        ...(concluido !== undefined && { concluido }),
-        ...(fezRecurso !== undefined && { fezRecurso }),
-        ...(datasRecurso !== undefined && { datasRecurso }),
-        ...(textoDOEspelho !== undefined && { textoDOEspelho }),
-        ...(espelhoCorrecao !== undefined && { espelhoCorrecao }),
-        // Campos relacionados à análise
-        ...(analiseUrl !== undefined && { analiseUrl }),
-        ...(analiseProcessada !== undefined && { analiseProcessada }),
-        ...(aguardandoAnalise !== undefined && { aguardandoAnalise }),
-        ...(analisePreliminar !== undefined && { analisePreliminar }),
-        ...(analiseValidada !== undefined && { analiseValidada }),
-      },
+      data: updateData,
     });
 
     return NextResponse.json({

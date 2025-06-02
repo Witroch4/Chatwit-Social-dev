@@ -1,0 +1,123 @@
+services:
+  app:
+    container_name: chatwit_dev
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    env_file:
+      - .env.development.ngrok
+    environment:
+      # Dev watch
+      WATCHPACK_POLLING: "true"
+      CHOKIDAR_USEPOLLING: "true"
+      FAST_REFRESH: "true"
+      NEXT_WEBPACK_USEPOLLING: "true"
+      NEXT_SCRIPT: dev:polling
+
+      # Redis
+      REDIS_HOST: "redis"
+      REDIS_PORT: "6379"
+
+      # Ngrok (se ainda quiser no app)
+      NGROK_AUTHTOKEN: "2q8n28IDz0mMwNr02MlHnLGsbKE_6ohF5ifRMgFBW867Mk5Zi"
+    ports:
+      - "3000:3000"
+      - "3005:3005" # Bull Board
+    volumes:
+      - .:/src
+      - node_modules:/src/node_modules
+      - ./temp:/src/temp
+    command: sh -c "npm run ${NEXT_SCRIPT:-dev}"
+    networks:
+      - minha_rede
+    restart: unless-stopped
+    depends_on:
+      - redis
+
+  # ───────────────────────────────────────────────────────
+  # Worker 1: automacao (worker/automacao.worker.ts)
+  # ───────────────────────────────────────────────────────
+  automacao_worker:
+    container_name: chatwit_worker_automacao
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    env_file:
+      - .env.development
+    environment:
+      REDIS_HOST: "redis"
+      REDIS_PORT: "6379"
+    command: npm run start:worker        # roda worker/automacao.worker.ts
+    volumes:
+      - .:/src
+      - node_modules:/src/node_modules
+    networks:
+      - minha_rede
+    restart: unless-stopped
+    depends_on:
+      - redis
+
+  # ───────────────────────────────────────────────────────
+  # Worker 2: webhook (worker/webhook.worker.ts)
+  # ───────────────────────────────────────────────────────
+  webhook_worker:
+    container_name: chatwit_worker_webhook
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    env_file:
+      - .env.development
+    environment:
+      REDIS_HOST: "redis"
+      REDIS_PORT: "6379"
+    command: npm run worker             # roda worker/webhook.worker.ts
+    volumes:
+      - .:/src
+      - node_modules:/src/node_modules
+    networks:
+      - minha_rede
+    restart: unless-stopped
+    depends_on:
+      - redis
+
+  # ───────────────────────────────────────────────────────
+  # Redis
+  # ───────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: chatwit_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - minha_rede
+    restart: unless-stopped
+
+  # ───────────────────────────────────────────────────────
+  # NGROK - Serviço separado
+  # ───────────────────────────────────────────────────────
+  ngrok:
+    image: ngrok/ngrok:latest
+    container_name: chatwit_ngrok
+    environment:
+      NGROK_AUTHTOKEN: "2q8n28IDz0mMwNr02MlHnLGsbKE_6ohF5ifRMgFBW867Mk5Zi"
+    command: http app:3000 --url=beagle-great-awfully.ngrok-free.app
+    ports:
+      - "4040:4040"  # Interface web do ngrok
+    networks:
+      - minha_rede
+    depends_on:
+      - app
+    restart: unless-stopped
+
+volumes:
+  node_modules:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  minha_rede:
+    external: true
+    name: minha_rede

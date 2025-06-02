@@ -274,6 +274,8 @@ export async function POST(request: Request) {
           for (let i = 0; i < convertedUrls.length; i++) {
             const imageUrl = convertedUrls[i];
             
+            // Não salvar na tabela GeneratedImage se for um upload de espelho
+            if (!sessionId.startsWith('espelho-')) {
             const savedImage = await db.generatedImage.create({
               data: {
                 userId: session.user.id!,
@@ -290,6 +292,9 @@ export async function POST(request: Request) {
             
             savedImages.push(savedImage);
             log.info(`Imagem da página ${i + 1} salva no banco: ${savedImage.id}`);
+            } else {
+              log.info(`Imagem da página ${i + 1} não salva no banco (upload de espelho)`);
+            }
           }
         }
         
@@ -307,6 +312,8 @@ export async function POST(request: Request) {
       
       // Salvar imagem no banco
       if (sessionId) {
+        // Não salvar na tabela GeneratedImage se for um upload de espelho
+        if (!sessionId.startsWith('espelho-')) {
         const savedImage = await db.generatedImage.create({
           data: {
             userId: session.user.id!,
@@ -323,6 +330,9 @@ export async function POST(request: Request) {
         
         savedImages.push(savedImage);
         log.info(`Imagem salva no banco: ${savedImage.id}`);
+        } else {
+          log.info(`Imagem não salva no banco (upload de espelho)`);
+        }
       }
       
     } else {

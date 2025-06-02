@@ -22,6 +22,7 @@ import {
   CheckCircle,
   AlertCircle,
   UploadCloud,
+  Code2,
 } from "lucide-react";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { FileWithContent } from "@/hooks/useChatwitIA";
@@ -124,6 +125,9 @@ const ChatInputForm: React.FC<ChatInputFormProps> = ({
   const [uploadingFiles, setUploadingFiles] = useState<FileUploadState[]>([]);
   const [completedFiles, setCompletedFiles] = useState<FileUploadState[]>([]);
   
+  // 🔧 NOVO: Estado para modo código
+  const [codeMode, setCodeMode] = useState(false);
+  
   const sendingRef = useRef(false);
   
   // Estado para o texto visível
@@ -199,7 +203,7 @@ const ChatInputForm: React.FC<ChatInputFormProps> = ({
     return () => document.removeEventListener("mousedown", onClick);
   }, []);
 
-  // 🔧 NOVA: Função para processar arquivo e mostrar progresso
+  // 🔧 NOVO: Função para processar arquivo e mostrar progresso
   const processFile = useCallback(async (file: File, purpose: UploadPurpose, useUrl: boolean) => {
     const fileId = Math.random().toString(36).substr(2, 9);
     const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
@@ -456,6 +460,103 @@ const ChatInputForm: React.FC<ChatInputFormProps> = ({
     }
   }, [currentSessionId]);
 
+  // 🔧 NOVO: Função para encapsular conteúdo APENAS quando há risco de problemas de formatação
+  const shouldEncapsulate = useCallback((content: string): boolean => {
+    if (!content.trim()) return false;
+    
+    // Verificar se há padrões que podem causar problemas de formatação
+    const problematicPatterns = [
+      /<[^>]+>/,           // Tags HTML/XML
+      /```/,               // Code blocks existentes
+      /\*\*.*\*\*/,        // Bold markdown
+      /_.*_/,              // Italic markdown  
+      /\[.*\]\(.*\)/,      // Links markdown
+      /#{1,6}\s/,          // Headers markdown
+      /^\s*[-*+]\s/m,      // Lista markdown
+      /^\s*\d+\.\s/m,      // Lista numerada
+      /^\s*>/m,            // Blockquote
+    ];
+    
+    // Contar padrões encontrados
+    const matchCount = problematicPatterns.filter(pattern => pattern.test(content)).length;
+    
+    // Verificar densidade de caracteres especiais
+    const specialChars = (content.match(/[<>{}[\]();=+\-*\/\\|&%$#@!~`]/g) || []).length;
+    const specialCharsRatio = specialChars / content.length;
+    
+    // Encapsular se:
+    // 1. Há 2+ padrões problemáticos OU
+    // 2. Densidade de caracteres especiais > 20% OU  
+    // 3. Contém tags HTML
+    return matchCount >= 2 || specialCharsRatio > 0.2 || /<[^>]+>/.test(content);
+  }, []);
+
+  // 🔧 ATUALIZADO: Função para encapsular apenas quando necessário
+  const encapsulateContent = useCallback((content: string): string => {
+    if (!content.trim() || !shouldEncapsulate(content)) {
+      return content; // Não encapsular texto normal
+    }
+    
+    // Se já está em code block, não duplicar
+    if (content.startsWith('```') && content.endsWith('```')) {
+      return content;
+    }
+    
+    // Detectar linguagem automaticamente baseado no conteúdo
+    let language = '';
+    
+    // JavaScript/TypeScript
+    if (content.includes('function ') || content.includes('const ') || content.includes('let ') || content.includes('var ')) {
+      if (content.includes('interface ') || content.includes('type ') || content.includes(': string') || content.includes(': number')) {
+        language = 'typescript';
+      } else {
+        language = 'javascript';
+      }
+    }
+    // React/JSX
+    else if (content.includes('<') && content.includes('>') && (content.includes('className') || content.includes('jsx') || content.includes('tsx'))) {
+      language = 'jsx';
+    }
+    // HTML
+    else if (content.includes('<') && content.includes('>') && (content.includes('<!DOCTYPE') || content.includes('<html') || content.includes('<div'))) {
+      language = 'html';
+    }
+    // CSS
+    else if (content.includes('{') && content.includes('}') && (content.includes(':') && content.includes(';'))) {
+      language = 'css';
+    }
+    // Python
+    else if (content.includes('def ') || content.includes('import ') || content.includes('from ') || content.includes('class ')) {
+      language = 'python';
+    }
+    // C/C++
+    else if (content.includes('#include') || content.includes('int main') || content.includes('std::')) {
+      language = 'cpp';
+    }
+    // Java
+    else if (content.includes('public class ') || content.includes('import java') || content.includes('System.out')) {
+      language = 'java';
+    }
+    // JSON
+    else if (content.trim().startsWith('{') && content.trim().endsWith('}') && content.includes('"')) {
+      language = 'json';
+    }
+    // SQL
+    else if (/\b(SELECT|INSERT|UPDATE|DELETE|CREATE|ALTER|DROP)\b/i.test(content)) {
+      language = 'sql';
+    }
+    // Shell/Bash
+    else if (content.includes('#!/bin/bash') || content.includes('chmod ') || content.includes('ls ') || content.includes('cd ')) {
+      language = 'bash';
+    }
+    // Se tem muitos símbolos especiais, provavelmente é código
+    else if (/[<>{}[\]();=+\-*\/\\|&%$#@!~`]/.test(content)) {
+      language = 'text'; // código genérico
+    }
+    
+    return `\`\`\`${language}\n${content}\n\`\`\``;
+  }, [shouldEncapsulate]);
+
   // Handle send with debounce against duplicates
   const handleSend = useCallback(async (e: React.MouseEvent | React.KeyboardEvent) => {
     e.preventDefault();
@@ -475,6 +576,14 @@ const ChatInputForm: React.FC<ChatInputFormProps> = ({
 
     // Cria conteúdo apropriado para diferentes tipos de arquivos
     let content = input.trim();
+    
+    // 🔧 ATUALIZADO: Encapsular apenas quando há risco de problemas de formatação
+    if (content && shouldEncapsulate(content)) {
+      content = encapsulateContent(content);
+      console.log(`🔧 Conteúdo protegido contra problemas de formatação`);
+    } else if (content) {
+      console.log(`✅ Texto normal enviado sem encapsulamento`);
+    }
 
     // Se temos arquivos para enviar com a mensagem
     if (pendingPdfRefs.length > 0) {
@@ -529,7 +638,9 @@ const ChatInputForm: React.FC<ChatInputFormProps> = ({
     onSubmit, 
     currentSessionId, 
     setInput,
-    isUploading
+    isUploading,
+    shouldEncapsulate,
+    encapsulateContent
   ]);
 
   // Toggle CNIS analysis
@@ -895,7 +1006,7 @@ const ChatInputForm: React.FC<ChatInputFormProps> = ({
               <textarea
                 ref={inputRef}
                 className="w-full pt-[30px] pb-[50px] pl-[30px] pr-[30px] bg-transparent text-foreground placeholder:text-muted-foreground resize-none focus:outline-none min-h-[120px] max-h-[280px] overflow-auto rounded-t-lg"
-                placeholder={isUploading ? "⏳ Aguardando processamento de arquivos..." : isDragActive ? "📁 Solte os arquivos aqui..." : "Digite sua mensagem ou arraste arquivos..."}
+                placeholder={isUploading ? "⏳ Aguardando processamento de arquivos..." : isDragActive ? "📁 Solte os arquivos aqui..." : "Digite sua mensagem (proteção inteligente contra problemas de formatação)..."}
                 rows={1}
                 disabled={isUploading} // 🔧 NOVO: Desabilitar durante upload
                 style={{ 
@@ -995,7 +1106,7 @@ const ChatInputForm: React.FC<ChatInputFormProps> = ({
                     <FileTextIcon size={20} />
                     <span className="ml-1 text-sm">CNIS</span>
                   </button>
-                  
+
                   {/* Abertura de menu */}
                   <button
                     type="button"

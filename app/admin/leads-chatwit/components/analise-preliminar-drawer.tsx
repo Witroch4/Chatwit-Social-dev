@@ -210,10 +210,25 @@ export function AnalisePreviewDrawer({
   const handleValidar = async () => {
     try {
       setIsValidating(true);
-      await onValidar(analiseData);
+      
+      // Detectar se é análise de simulado baseado na pré-análise recebida
+      const isAnaliseSimulado = analisePreliminar?.analisesimuladopreliminar === true;
+      
+      // Adicionar a flag apropriada ao payload de validação
+      const validationData = {
+        ...analiseData,
+        ...(isAnaliseSimulado 
+          ? { analisesimuladovalidado: true }  // Para análise de simulado
+          : { analiseValidada: true }          // Para análise normal
+        )
+      };
+      
+      await onValidar(validationData);
       toast({
         title: "Análise validada",
-        description: "A análise foi validada e enviada para gerar o PDF final.",
+        description: isAnaliseSimulado 
+          ? "A análise de simulado foi validada e enviada para gerar o PDF final."
+          : "A análise foi validada e enviada para gerar o PDF final.",
       });
       onClose();
     } catch (error: any) {

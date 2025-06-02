@@ -1,12 +1,13 @@
 import React, { useState } from "react";
 import { Check, Copy } from "lucide-react";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
-import { prism } from "react-syntax-highlighter/dist/cjs/styles/prism";
+import { prism, coldarkDark } from "react-syntax-highlighter/dist/cjs/styles/prism";
 import {
   Tooltip,
   TooltipTrigger,
   TooltipContent,
 } from "@/components/ui/tooltip";
+import { useTheme } from "next-themes";
 
 interface CodeBlockProps {
   language: string;
@@ -30,6 +31,7 @@ export const detectLanguage = (language: string, value: string) => {
 
 export default function CodeBlock({ language, value }: CodeBlockProps) {
   const [copied, setCopied] = useState(false);
+  const { theme } = useTheme();
   const detectedLanguage = detectLanguage(language, value);
   const displayLanguage = detectedLanguage || "código";
 
@@ -38,6 +40,9 @@ export default function CodeBlock({ language, value }: CodeBlockProps) {
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
+
+  // 🔧 NOVO: Detectar se está no modo escuro
+  const isDark = theme === 'dark';
 
   // Componente personalizado para substituir o SyntaxHighlighter usando um div em vez de pre
   const HighlighterWrapper = ({ children }: { children: React.ReactNode }) => (
@@ -58,11 +63,12 @@ export default function CodeBlock({ language, value }: CodeBlockProps) {
   );
 
   return (
-    <div className="rounded-lg overflow-hidden border border-gray-200 my-4">
-      <div className="bg-[#F9F9F9] px-4 py-2 text-xs flex justify-between items-center">
+    <div className="rounded-lg overflow-hidden border border-border my-4 bg-muted/30">
+      {/* Header do código com tema apropriado */}
+      <div className="bg-muted/50 px-4 py-2 text-xs flex justify-between items-center border-b border-border">
         <Tooltip>
           <TooltipTrigger asChild>
-            <span className="text-gray-600 font-medium cursor-default">
+            <span className="text-muted-foreground font-medium cursor-default">
               {displayLanguage}
             </span>
           </TooltipTrigger>
@@ -79,11 +85,11 @@ export default function CodeBlock({ language, value }: CodeBlockProps) {
           <TooltipTrigger asChild>
             <button
               onClick={handleCopy}
-              className="flex items-center gap-1 text-gray-500 hover:text-gray-700 transition-colors"
+              className="flex items-center gap-1 text-muted-foreground hover:text-foreground transition-colors"
             >
               {copied ? (
                 <>
-                  <Check size={14} className="text-green-600" />
+                  <Check size={14} className="text-green-600 dark:text-green-400" />
                   <span>Copiado</span>
                 </>
               ) : (
@@ -104,19 +110,20 @@ export default function CodeBlock({ language, value }: CodeBlockProps) {
         </Tooltip>
       </div>
 
+      {/* Conteúdo do código com sintaxe colorida */}
       <SyntaxHighlighter
         language={detectedLanguage || "text"}
-        style={prism}
+        style={isDark ? coldarkDark : prism}
         customStyle={{
           margin: 0,
           padding: "1rem",
-          background: "#F9F9F9",
+          background: isDark ? "hsl(var(--muted))" : "hsl(var(--muted))",
           borderRadius: 0,
           fontSize: "0.875rem",
           lineHeight: "1.7",
           fontFamily:
             'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
-          color: "#24292e",
+          color: isDark ? "hsl(var(--foreground))" : "hsl(var(--foreground))",
           fontWeight: "500",
         }}
         PreTag="div" // Usar div em vez de pre para evitar erros de hidratação

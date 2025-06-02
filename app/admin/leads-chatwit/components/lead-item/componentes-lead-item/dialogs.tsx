@@ -1,0 +1,354 @@
+import React from "react";
+import { 
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { LeadChatwit } from "../../../types";
+import { getDisplayName } from "./utils";
+
+// Importar componentes de diálogo
+import { DialogDetalheLead } from "@/app/admin/leads-chatwit/components/dialog-detalhe-lead";
+import { ImageGalleryDialog } from "@/app/admin/leads-chatwit/components/image-gallery-dialog";
+import { ProcessDialog, ProcessType } from "@/app/admin/leads-chatwit/components/process-dialog";
+import { ManuscritoDialog } from "@/app/admin/leads-chatwit/components/manuscrito-dialog";
+import { EspelhoDialog } from "@/app/admin/leads-chatwit/components/espelho-dialog";
+import { AnaliseDialog } from "@/app/admin/leads-chatwit/components/analise-dialog";
+import { AnalisePreviewDrawer } from "@/app/admin/leads-chatwit/components/analise-preliminar-drawer";
+
+interface LeadDialogsProps {
+  lead: LeadChatwit;
+  
+  // Estados dos diálogos
+  detailsOpen: boolean;
+  setDetailsOpen: (open: boolean) => void;
+  
+  confirmDelete: boolean;
+  setConfirmDelete: (open: boolean) => void;
+  
+  showGallery: boolean;
+  setShowGallery: (open: boolean) => void;
+  
+  showProcessDialog: boolean;
+  setShowProcessDialog: (open: boolean) => void;
+  processType: ProcessType;
+  
+  showManuscritoDialog: boolean;
+  setShowManuscritoDialog: (open: boolean) => void;
+  
+  confirmDeleteManuscrito: boolean;
+  setConfirmDeleteManuscrito: (open: boolean) => void;
+  manuscritoToDelete: string | null;
+  setManuscritoToDelete: (id: string | null) => void;
+  
+  showManuscritoImageSeletor: boolean;
+  setShowManuscritoImageSeletor: (open: boolean) => void;
+  
+  showEspelhoSeletor: boolean;
+  setShowEspelhoSeletor: (open: boolean) => void;
+  
+  showEspelhoDialog: boolean;
+  setShowEspelhoDialog: (open: boolean) => void;
+  
+  confirmDeleteEspelho: boolean;
+  setConfirmDeleteEspelho: (open: boolean) => void;
+  
+  showAnaliseDialog: boolean;
+  setShowAnaliseDialog: (open: boolean) => void;
+  
+  showAnalisePreviewDrawer: boolean;
+  setShowAnalisePreviewDrawer: (open: boolean) => void;
+  
+  confirmDeleteAllFiles: boolean;
+  setConfirmDeleteAllFiles: (open: boolean) => void;
+  
+  // Estados de carregamento
+  isSaving: boolean;
+  isDigitando: boolean;
+  setIsDigitando: (loading: boolean) => void;
+  
+  // Estados locais
+  localAnaliseState: {
+    analiseUrl?: string;
+    aguardandoAnalise: boolean;
+    analisePreliminar?: any;
+    analiseValidada: boolean;
+  };
+  
+  // Funções de callback
+  onEdit: (lead: LeadChatwit) => void;
+  onDelete: () => void;
+  onSendSelectedImages: (images: string[]) => Promise<void>;
+  onEnviarManuscrito: (images: string[]) => Promise<void>;
+  onSaveManuscrito: (texto: string) => Promise<void>;
+  onEnviarEspelho: (images: string[]) => Promise<void>;
+  onSaveEspelho: (texto: any, imagens: string[]) => Promise<void>;
+  onExcluirEspelho: () => Promise<void>;
+  onSaveAnotacoes: (anotacoes: string) => Promise<void>;
+  onEnviarPdf: (sourceId: string) => Promise<void>;
+  onCancelarAnalise: () => Promise<void>;
+  onSaveAnalisePreliminar: (data: any) => Promise<void>;
+  onValidarAnalise: (data: any) => Promise<void>;
+  onExecuteDeleteAllFiles: () => Promise<void>;
+  onExecuteManuscritoDelete: () => Promise<void>;
+  
+  // Dados auxiliares
+  convertedImages: string[];
+}
+
+export function LeadDialogs({
+  lead,
+  detailsOpen,
+  setDetailsOpen,
+  confirmDelete,
+  setConfirmDelete,
+  showGallery,
+  setShowGallery,
+  showProcessDialog,
+  setShowProcessDialog,
+  processType,
+  showManuscritoDialog,
+  setShowManuscritoDialog,
+  confirmDeleteManuscrito,
+  setConfirmDeleteManuscrito,
+  manuscritoToDelete,
+  setManuscritoToDelete,
+  showManuscritoImageSeletor,
+  setShowManuscritoImageSeletor,
+  showEspelhoSeletor,
+  setShowEspelhoSeletor,
+  showEspelhoDialog,
+  setShowEspelhoDialog,
+  confirmDeleteEspelho,
+  setConfirmDeleteEspelho,
+  showAnaliseDialog,
+  setShowAnaliseDialog,
+  showAnalisePreviewDrawer,
+  setShowAnalisePreviewDrawer,
+  confirmDeleteAllFiles,
+  setConfirmDeleteAllFiles,
+  isSaving,
+  isDigitando,
+  setIsDigitando,
+  localAnaliseState,
+  onEdit,
+  onDelete,
+  onSendSelectedImages,
+  onEnviarManuscrito,
+  onSaveManuscrito,
+  onEnviarEspelho,
+  onSaveEspelho,
+  onExcluirEspelho,
+  onSaveAnotacoes,
+  onEnviarPdf,
+  onCancelarAnalise,
+  onSaveAnalisePreliminar,
+  onValidarAnalise,
+  onExecuteDeleteAllFiles,
+  onExecuteManuscritoDelete,
+  convertedImages
+}: LeadDialogsProps) {
+  const displayName = getDisplayName(lead);
+
+  const handleCloseManuscritoDialog = () => {
+    setIsDigitando(false);
+    setTimeout(() => {
+      setShowManuscritoDialog(false);
+    }, 50);
+  };
+
+  const handleConfirmDeleteManuscrito = (open: boolean) => {
+    if (!open) {
+      setConfirmDeleteManuscrito(false);
+      setManuscritoToDelete(null);
+      setIsDigitando(false);
+    }
+  };
+
+  return (
+    <>
+      {/* Diálogo de Detalhes do Lead */}
+      <DialogDetalheLead
+        lead={lead}
+        open={detailsOpen}
+        onOpenChange={setDetailsOpen}
+        onEdit={(lead) => Promise.resolve(onEdit(lead))}
+        isSaving={isSaving}
+      />
+
+      {/* Diálogo de Confirmação de Exclusão */}
+      <Dialog open={confirmDelete} onOpenChange={setConfirmDelete}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirmar exclusão</DialogTitle>
+            <DialogDescription>
+              Tem certeza que deseja excluir o lead "{displayName}"? Esta ação não pode ser desfeita.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmDelete(false)}>
+              Cancelar
+            </Button>
+            <Button variant="destructive" onClick={onDelete}>
+              Excluir
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Galeria de Imagens */}
+      <ImageGalleryDialog
+        isOpen={showGallery}
+        onClose={() => setShowGallery(false)}
+        images={convertedImages}
+        leadId={lead.id}
+        title={`Imagens de ${displayName}`}
+        description="Selecione as imagens da prova para enviar. Clique em uma miniatura para ver a imagem completa."
+        selectionMode={true}
+        onSend={onSendSelectedImages}
+      />
+
+      {/* Diálogo de Processo */}
+      <ProcessDialog
+        isOpen={showProcessDialog}
+        onClose={() => setShowProcessDialog(false)}
+        processType={processType}
+        leadName={displayName}
+        numFiles={lead.arquivos.length}
+      />
+
+      {/* Diálogo de Manuscrito */}
+      <ManuscritoDialog
+        isOpen={showManuscritoDialog}
+        onClose={handleCloseManuscritoDialog}
+        leadId={lead.id}
+        textoManuscrito={lead.provaManuscrita || ""}
+        onSave={onSaveManuscrito}
+      />
+
+      {/* Confirmação de Exclusão de Manuscrito */}
+      <Dialog open={confirmDeleteManuscrito} onOpenChange={handleConfirmDeleteManuscrito}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirmar exclusão</DialogTitle>
+            <DialogDescription>
+              Tem certeza que deseja excluir o manuscrito do lead "{displayName}"? Esta ação não pode ser desfeita.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => handleConfirmDeleteManuscrito(false)}>
+              Cancelar
+            </Button>
+            <Button variant="destructive" onClick={onExecuteManuscritoDelete}>
+              Excluir
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Seletor de Imagens para Manuscrito */}
+      <ImageGalleryDialog
+        isOpen={showManuscritoImageSeletor}
+        onClose={() => setShowManuscritoImageSeletor(false)}
+        images={convertedImages}
+        leadId={lead.id}
+        title="Selecionar Imagens para Manuscrito"
+        description="Selecione as imagens que serão usadas para o processo de digitação do manuscrito."
+        selectionMode={true}
+        onSend={onEnviarManuscrito}
+      />
+
+      {/* Seletor de Espelho de Correção */}
+      <ImageGalleryDialog
+        isOpen={showEspelhoSeletor}
+        onClose={() => setShowEspelhoSeletor(false)}
+        images={convertedImages}
+        leadId={lead.id}
+        title="Selecionar Espelho de Correção"
+        description="Selecione as imagens que serão utilizadas como espelho de correção. Você pode selecionar mais de uma imagem."
+        selectionMode={true}
+        onSend={onEnviarEspelho}
+      />
+
+      {/* Diálogo de Edição do Espelho */}
+      <EspelhoDialog
+        isOpen={showEspelhoDialog}
+        onClose={() => setShowEspelhoDialog(false)}
+        leadId={lead.id}
+        textoEspelho={lead.textoDOEspelho || null}
+        imagensEspelho={lead.espelhoCorrecao ? JSON.parse(lead.espelhoCorrecao) : []}
+        onSave={onSaveEspelho}
+      />
+
+      {/* Confirmação de Exclusão do Espelho */}
+      <Dialog open={confirmDeleteEspelho} onOpenChange={setConfirmDeleteEspelho}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirmar exclusão</DialogTitle>
+            <DialogDescription>
+              Tem certeza que deseja excluir completamente o espelho de correção do lead "{displayName}"? 
+              Esta ação irá remover tanto o texto quanto as imagens do espelho e não pode ser desfeita.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmDeleteEspelho(false)}>
+              Cancelar
+            </Button>
+            <Button variant="destructive" onClick={onExcluirEspelho}>
+              Excluir Espelho
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Diálogo de Análise */}
+      <AnaliseDialog
+        isOpen={showAnaliseDialog}
+        onClose={() => setShowAnaliseDialog(false)}
+        leadId={lead.id}
+        sourceId={lead.sourceId}
+        analiseUrl={localAnaliseState.analiseUrl || null}
+        anotacoes={lead.anotacoes || null}
+        aguardandoAnalise={localAnaliseState.aguardandoAnalise}
+        onSaveAnotacoes={onSaveAnotacoes}
+        onEnviarPdf={onEnviarPdf}
+        onCancelarAnalise={onCancelarAnalise}
+      />
+
+      {/* Drawer de Pré-Análise */}
+      <AnalisePreviewDrawer
+        isOpen={showAnalisePreviewDrawer}
+        onClose={() => setShowAnalisePreviewDrawer(false)}
+        analisePreliminar={localAnaliseState.analisePreliminar}
+        leadId={lead.id}
+        onSave={onSaveAnalisePreliminar}
+        onValidar={onValidarAnalise}
+      />
+
+      {/* Confirmação de Exclusão de Todos os Arquivos */}
+      <Dialog open={confirmDeleteAllFiles} onOpenChange={setConfirmDeleteAllFiles}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirmar exclusão em massa</DialogTitle>
+            <DialogDescription>
+              Tem certeza que deseja excluir TODOS os arquivos do lead "{displayName}"? 
+              Esta ação não pode ser desfeita e irá remover {lead.arquivos.length} arquivo(s).
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmDeleteAllFiles(false)}>
+              Cancelar
+            </Button>
+            <Button variant="destructive" onClick={onExecuteDeleteAllFiles}>
+              Excluir Todos
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+} 

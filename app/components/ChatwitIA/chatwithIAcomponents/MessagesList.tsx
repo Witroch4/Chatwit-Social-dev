@@ -80,6 +80,7 @@ const MessagesList = React.memo(function MessagesList({
                 `}>
                   {typeof m.content === "string" ? (
                     isUser ? (
+                      // 🔧 MENSAGENS DO USUÁRIO: Texto simples sem formatação markdown
                       <div className="w-full">
                         {hasPdfReference && (
                           <div className="flex items-center gap-2 p-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-md mb-2">
@@ -87,13 +88,16 @@ const MessagesList = React.memo(function MessagesList({
                             <span className="text-xs text-blue-700 dark:text-blue-300">Arquivo PDF anexado</span>
                           </div>
                         )}
-                        <MessageContent 
-                          content={hasPdfReference ? m.content.replace(/\[([^\]]*\.pdf[^\]]*)\]\(file_id:([^)]+)\)/gi, "**[ARQUIVO: $1]**") : m.content}
-                          isStreaming={false}
-                          onImageReference={onImageReference}
-                        />
+                        {/* 🔧 NOVO: Renderizar mensagem do usuário como texto simples */}
+                        <div className="text-foreground whitespace-pre-wrap break-words">
+                          {hasPdfReference ? 
+                            m.content.replace(/\[([^\]]*\.pdf[^\]]*)\]\(file_id:([^)]+)\)/gi, "**[ARQUIVO: $1]**") :
+                            m.content
+                          }
+                        </div>
                       </div>
                     ) : (
+                      // 🔧 MENSAGENS DO ASSISTENTE: Formatação markdown completa
                       <div className="w-full">
                         <MessageContent 
                           content={m.content} 
