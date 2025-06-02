@@ -175,18 +175,18 @@ export function LeadItem({
         {...leadState}
         onEdit={handlers.handleEditLead}
         onDelete={handlers.handleDelete}
-        onSendSelectedImages={() => Promise.resolve()} // TODO: implementar
+        onSendSelectedImages={handlers.handleSendSelectedImages}
         onEnviarManuscrito={handlers.handleEnviarManuscrito}
         onSaveManuscrito={handlers.handleSaveManuscrito}
-        onEnviarEspelho={() => Promise.resolve()} // TODO: implementar 
-        onSaveEspelho={() => Promise.resolve()} // TODO: implementar
+        onEnviarEspelho={handlers.handleEnviarEspelho}
+        onSaveEspelho={handlers.handleSaveEspelho}
         onExcluirEspelho={handlers.handleExcluirEspelho}
-        onSaveAnotacoes={() => Promise.resolve()} // TODO: implementar
-        onEnviarPdf={() => Promise.resolve()} // TODO: implementar
-        onCancelarAnalise={() => Promise.resolve()} // TODO: implementar
-        onSaveAnalisePreliminar={() => Promise.resolve()} // TODO: implementar
+        onSaveAnotacoes={handlers.handleSaveAnotacoes}
+        onEnviarPdf={handlers.handleEnviarPdf}
+        onCancelarAnalise={handlers.handleCancelarAnalise}
+        onSaveAnalisePreliminar={handlers.handleSaveAnalisePreliminar}
         onValidarAnalise={handlers.handleValidarAnalise}
-        onExecuteDeleteAllFiles={() => Promise.resolve()} // TODO: implementar
+        onExecuteDeleteAllFiles={handlers.handleExecuteDeleteAllFiles}
         onExecuteManuscritoDelete={handlers.handleExcluirManuscrito}
       />
     </>

@@ -35,7 +35,9 @@ export function AnaliseCell({
         data={{
           id: lead.id,
           analiseUrl: localAnaliseState.analiseUrl,
-          aguardandoAnalise: localAnaliseState.aguardandoAnalise
+          aguardandoAnalise: localAnaliseState.aguardandoAnalise,
+          analisePreliminar: localAnaliseState.analisePreliminar,
+          analiseValidada: localAnaliseState.analiseValidada
         }}
       >
         <Button

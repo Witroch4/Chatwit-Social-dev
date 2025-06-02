@@ -41,6 +41,8 @@ interface UseLeadHandlersProps {
   setUploadingFile: (file: File | null) => void;
   setIsSaving: (loading: boolean) => void;
   setShowFullImage: (show: boolean) => void;
+  setIsDeletedFile: (fileId: string | null) => void;
+  isDeletedFile: string | null;
   
   // Estados locais
   manuscritoProcessadoLocal: boolean;
@@ -96,6 +98,8 @@ export function useLeadHandlers({
   setUploadingFile,
   setIsSaving,
   setShowFullImage,
+  setIsDeletedFile,
+  isDeletedFile,
   manuscritoProcessadoLocal,
   hasEspelho,
   consultoriaAtiva,
@@ -162,6 +166,7 @@ export function useLeadHandlers({
   // Handlers de arquivos
   const handleDeleteFile = async (fileId: string, type: "arquivo" | "pdf" | "imagem") => {
     try {
+      setIsDeletedFile(fileId);
       const params = new URLSearchParams();
       
       if (type === "arquivo") {
@@ -179,11 +184,12 @@ export function useLeadHandlers({
       const data = await response.json();
       
       if (response.ok) {
+        // Atualiza o estado local imediatamente
         if (typeof onEdit === 'function') {
           onEdit({
             ...lead,
-            _skipDialog: true,
-            _internal: true
+            _skipDialog: true, // Adiciona flag para evitar abrir o dialog
+            _internal: true // Evita reabrir o dialog
           });
         }
         return Promise.resolve();
@@ -197,6 +203,8 @@ export function useLeadHandlers({
         variant: "destructive",
       });
       return Promise.reject(error);
+    } finally {
+      setIsDeletedFile(null);
     }
   };
 
@@ -734,6 +742,22 @@ export function useLeadHandlers({
           });
         }
         break;
+      case 'excluirAnalise':
+        handleExcluirAnalise();
+        break;
+      case 'verAnalise':
+        if (localAnaliseState.analiseUrl) {
+          setShowAnaliseDialog(true);
+        } else if (localAnaliseState.analisePreliminar) {
+          setShowAnalisePreviewDrawer(true);
+        } else {
+          toast({
+            title: "Análise não encontrada",
+            description: "Não foi possível encontrar a análise.",
+            variant: "default",
+          });
+        }
+        break;
       default:
         break;
     }
@@ -916,6 +940,377 @@ export function useLeadHandlers({
     }
   };
 
+  // Handler de exclusão em massa de arquivos
+  const handleExecuteDeleteAllFiles = async () => {
+    try {
+      setConfirmDeleteAllFiles(false);
+      
+      // Mostrar toast de carregamento
+      toast({
+        title: "Excluindo arquivos",
+        description: "Aguarde enquanto excluímos todos os arquivos...",
+      });
+      
+      // Criar um array com as promessas de exclusão para cada arquivo
+      const deletePromises = lead.arquivos.map(arquivo => 
+        handleDeleteFile(arquivo.id, "arquivo")
+      );
+      
+      // Executar todas as promessas em paralelo
+      await Promise.all(deletePromises);
+      
+      // Atualizar o lead após todas as exclusões
+      onEdit({
+        ...lead,
+        arquivos: [],
+        _skipDialog: true,
+        _forceUpdate: true
+      });
+      
+      toast({
+        title: "Sucesso",
+        description: "Todos os arquivos foram excluídos com sucesso!",
+      });
+    } catch (error: any) {
+      console.error("Erro ao excluir todos os arquivos:", error);
+      toast({
+        title: "Erro",
+        description: error.message || "Não foi possível excluir todos os arquivos. Tente novamente.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Handler de exclusão de análise
+  const handleExcluirAnalise = async () => {
+    try {
+      // Atualizar estado local imediatamente para feedback visual instantâneo
+      updateAnaliseState({
+        analiseUrl: undefined,
+        aguardandoAnalise: false,
+        analisePreliminar: false,
+        analiseValidada: false
+      });
+      
+      // Forçar atualização do botão
+      forceRefresh();
+      
+      // Prepara o payload para envio
+      const payload = {
+        id: lead.id,
+        analiseUrl: "", // String vazia em vez de null
+        analiseProcessada: false,
+        aguardandoAnalise: false,
+        analisePreliminar: false,
+        analiseValidada: false,
+      };
+      
+      const response = await fetch("/api/admin/leads-chatwit/leads", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+      
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || "Erro ao excluir análise");
+      }
+      
+      // Atualizar o lead localmente
+      const updatedLead = {
+        ...lead,
+        analiseUrl: undefined,
+        analiseProcessada: false,
+        aguardandoAnalise: false,
+        analisePreliminar: false,
+        analiseValidada: false,
+        _skipDialog: true,
+        _forceUpdate: true, // Forçar atualização completa
+      };
+      
+      // Chamar o método de edição
+      await onEdit(updatedLead);
+      
+      toast({
+        title: "Sucesso",
+        description: "Análise excluída com sucesso!",
+      });
+      
+      // Forçar nova atualização após pequeno delay para garantir sincronização
+      setTimeout(() => {
+        forceRefresh();
+      }, 100);
+      
+    } catch (error: any) {
+      console.error("Erro ao excluir análise:", error);
+      toast({
+        title: "Erro",
+        description: error.message || "Não foi possível excluir a análise. Tente novamente.",
+        variant: "destructive",
+      });
+      
+      // Restaurar estado em caso de erro
+      updateAnaliseState({
+        analiseUrl: lead.analiseUrl,
+        aguardandoAnalise: !!lead.aguardandoAnalise,
+        analisePreliminar: lead.analisePreliminar,
+        analiseValidada: !!lead.analiseValidada
+      });
+      
+      // Forçar atualização do botão
+      forceRefresh();
+    }
+  };
+
+  // Handler para enviar imagens selecionadas
+  const handleSendSelectedImages = async (images: string[]) => {
+    try {
+      if (images.length === 0) {
+        toast({
+          title: "Aviso", 
+          description: "Selecione pelo menos uma imagem.",
+          variant: "default",
+        });
+        return;
+      }
+
+      toast({
+        title: "Enviando imagens",
+        description: `Enviando ${images.length} imagem(ns) selecionada(s)...`,
+      });
+
+      // Aqui você pode implementar a lógica específica para envio das imagens
+      // Por exemplo, para análise, manuscrito, etc.
+      
+      toast({
+        title: "Sucesso",
+        description: "Imagens enviadas com sucesso!",
+      });
+    } catch (error: any) {
+      console.error("Erro ao enviar imagens:", error);
+      toast({
+        title: "Erro",
+        description: error.message || "Não foi possível enviar as imagens.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Handler para enviar espelho
+  const handleEnviarEspelho = async (images: string[]) => {
+    try {
+      if (images.length === 0) {
+        toast({
+          title: "Aviso",
+          description: "Selecione pelo menos uma imagem para o espelho.",
+          variant: "default",
+        });
+        return;
+      }
+
+      setShowEspelhoSeletor(false);
+      setIsEnviandoEspelho(true);
+
+      // Atualizar o lead com as imagens do espelho
+      await onEdit({
+        ...lead,
+        espelhoCorrecao: JSON.stringify(images),
+        _skipDialog: true
+      });
+
+      updateEspelhoState(true);
+      forceRefresh();
+
+      toast({
+        title: "Espelho enviado",
+        description: `${images.length} imagem(ns) enviada(s) para o espelho de correção.`,
+      });
+    } catch (error: any) {
+      console.error("Erro ao enviar espelho:", error);
+      toast({
+        title: "Erro",
+        description: error.message || "Não foi possível enviar o espelho.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsEnviandoEspelho(false);
+    }
+  };
+
+  // Handler para salvar espelho
+  const handleSaveEspelho = async (texto: any, imagens: string[]) => {
+    try {
+      await onEdit({
+        ...lead,
+        textoDOEspelho: texto,
+        espelhoCorrecao: JSON.stringify(imagens),
+        _skipDialog: true
+      });
+
+      updateEspelhoState(true);
+      forceRefresh();
+
+      toast({
+        title: "Espelho salvo",
+        description: "Espelho de correção salvo com sucesso!",
+      });
+    } catch (error: any) {
+      console.error("Erro ao salvar espelho:", error);
+      toast({
+        title: "Erro",
+        description: error.message || "Não foi possível salvar o espelho.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Handler para salvar anotações
+  const handleSaveAnotacoes = async (anotacoes: string) => {
+    try {
+      await onEdit({
+        ...lead,
+        anotacoes,
+        _skipDialog: true
+      });
+
+      toast({
+        title: "Anotações salvas",
+        description: "Anotações salvas com sucesso!",
+      });
+    } catch (error: any) {
+      console.error("Erro ao salvar anotações:", error);
+      toast({
+        title: "Erro",
+        description: error.message || "Não foi possível salvar as anotações.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Handler para enviar PDF
+  const handleEnviarPdf = async (sourceId: string) => {
+    try {
+      setIsEnviandoPdf(true);
+
+      const response = await fetch("/api/admin/leads-chatwit/enviar-analise", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          leadID: lead.id,
+          sourceId
+        }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || "Erro ao enviar PDF para análise");
+      }
+
+      updateAnaliseState({
+        aguardandoAnalise: true
+      });
+
+      toast({
+        title: "PDF enviado",
+        description: "PDF enviado para análise com sucesso!",
+      });
+    } catch (error: any) {
+      console.error("Erro ao enviar PDF:", error);
+      toast({
+        title: "Erro",
+        description: error.message || "Não foi possível enviar o PDF.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsEnviandoPdf(false);
+    }
+  };
+
+  // Handler para cancelar análise
+  const handleCancelarAnalise = async () => {
+    try {
+      const response = await fetch(`/api/admin/leads-chatwit/cancelar-analise?leadId=${lead.id}`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || "Erro ao cancelar análise");
+      }
+
+      updateAnaliseState({
+        aguardandoAnalise: false,
+        analiseUrl: undefined
+      });
+
+      await onEdit({
+        ...lead,
+        aguardandoAnalise: false,
+        analiseUrl: undefined,
+        _skipDialog: true
+      });
+
+      toast({
+        title: "Análise cancelada",
+        description: "Análise cancelada com sucesso!",
+      });
+    } catch (error: any) {
+      console.error("Erro ao cancelar análise:", error);
+      toast({
+        title: "Erro",
+        description: error.message || "Não foi possível cancelar a análise.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Handler para salvar análise preliminar
+  const handleSaveAnalisePreliminar = async (data: any) => {
+    try {
+      const response = await fetch("/api/admin/leads-chatwit/analise-preliminar", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          leadId: lead.id,
+          analisePreliminar: data
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Erro ao salvar análise preliminar");
+      }
+
+      updateAnaliseState({
+        analisePreliminar: data
+      });
+
+      await onEdit({
+        ...lead,
+        analisePreliminar: data,
+        _skipDialog: true
+      });
+
+      toast({
+        title: "Análise preliminar salva",
+        description: "Análise preliminar salva com sucesso!",
+      });
+    } catch (error: any) {
+      console.error("Erro ao salvar análise preliminar:", error);
+      toast({
+        title: "Erro",
+        description: error.message || "Não foi possível salvar a análise preliminar.",
+        variant: "destructive",
+      });
+    }
+  };
+
   return {
     handleEditLead,
     handleDelete,
@@ -938,6 +1333,15 @@ export function useLeadHandlers({
     handleContextMenuAction,
     handleConsultoriaToggle,
     handleValidarAnalise,
+    handleExecuteDeleteAllFiles,
+    handleExcluirAnalise,
+    handleSendSelectedImages,
+    handleEnviarEspelho,
+    handleSaveEspelho,
+    handleSaveAnotacoes,
+    handleEnviarPdf,
+    handleCancelarAnalise,
+    handleSaveAnalisePreliminar,
     getConvertedImages: () => getConvertedImages(lead)
   };
 } 

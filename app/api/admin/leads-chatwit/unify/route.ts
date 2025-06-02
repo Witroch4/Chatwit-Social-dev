@@ -101,12 +101,12 @@ export async function POST(request: Request): Promise<Response> {
       return NextResponse.json({ error: "ID do lead ou do usuário é obrigatório" }, { status: 400 });
     }
     
-    let fileUrls: string[] = [];
+    let arquivos: ArquivoLeadChatwit[] = [];
     let fileName: string = "";
     
     if (leadId) {
       // Buscar os arquivos de um lead específico
-      const arquivos = await prisma.arquivoLeadChatwit.findMany({
+      arquivos = await prisma.arquivoLeadChatwit.findMany({
         where: { leadId },
       });
       
@@ -114,10 +114,29 @@ export async function POST(request: Request): Promise<Response> {
         return NextResponse.json({ error: "Nenhum arquivo encontrado para esse lead" }, { status: 404 });
       }
       
-      fileUrls = arquivos.map((arquivo: ArquivoLeadChatwit) => arquivo.dataUrl);
       fileName = `lead_${leadId}_unificado_${new Date().getTime()}.pdf`;
       
-      console.log(`[API Unify] Unificando ${fileUrls.length} arquivos para o lead ${leadId}`);
+      console.log(`[API Unify] Processando ${arquivos.length} arquivo(s) para o lead ${leadId}`);
+      
+      // OTIMIZAÇÃO: Se há apenas um arquivo PDF, usar diretamente sua URL
+      if (arquivos.length === 1 && arquivos[0].fileType.toLowerCase() === 'pdf') {
+        const unicoArquivoPdf = arquivos[0];
+        
+        console.log(`[API Unify] Único arquivo PDF detectado para o lead ${leadId}. Usando diretamente: ${unicoArquivoPdf.dataUrl}`);
+        
+        // Atualizar o registro do Lead com a URL do PDF existente
+        await prisma.leadChatwit.update({
+          where: { id: leadId },
+          data: { pdfUnificado: unicoArquivoPdf.dataUrl },
+        });
+        
+        return NextResponse.json({
+          success: true,
+          message: "PDF único definido como unificado (sem processamento necessário)",
+          pdfUrl: unicoArquivoPdf.dataUrl,
+          optimized: true,
+        });
+      }
     } 
     else if (usuarioId) {
       // Buscar todos os leads do usuário com seus arquivos
@@ -126,17 +145,23 @@ export async function POST(request: Request): Promise<Response> {
         include: { arquivos: true },
       });
       
-      const todosArquivos = leads.flatMap((lead: LeadChatwit) => lead.arquivos);
+      arquivos = leads.flatMap((lead: LeadChatwit) => lead.arquivos);
       
-      if (todosArquivos.length === 0) {
+      if (arquivos.length === 0) {
         return NextResponse.json({ error: "Nenhum arquivo encontrado para os leads desse usuário" }, { status: 404 });
       }
       
-      fileUrls = todosArquivos.map((arquivo: ArquivoLeadChatwit) => arquivo.dataUrl);
       fileName = `usuario_${usuarioId}_todos_leads_unificado_${new Date().getTime()}.pdf`;
       
-      console.log(`[API Unify] Unificando ${fileUrls.length} arquivos para o usuário ${usuarioId}`);
+      console.log(`[API Unify] Processando ${arquivos.length} arquivo(s) para o usuário ${usuarioId}`);
+      
+      // Para usuário, sempre unificar mesmo se for um só arquivo (pode ser de múltiplos leads)
     }
+    
+    // Continuar com unificação normal para múltiplos arquivos ou cenário de usuário
+    const fileUrls = arquivos.map((arquivo: ArquivoLeadChatwit) => arquivo.dataUrl);
+    
+    console.log(`[API Unify] Unificando ${fileUrls.length} arquivos...`);
     
     // Unificar os PDFs
     const pdfBuffer = await unifyFilesToPdf(fileUrls);
@@ -144,20 +169,21 @@ export async function POST(request: Request): Promise<Response> {
     // Salvar o PDF no MinIO
     const pdfUrl = await savePdfToMinIO(pdfBuffer, fileName, process.env.S3Bucket || "chatwit", process.env.NODE_ENV || "development");
     
-    // Atualizar o registro do Lead ou do Usuário com a URL do PDF unificado
+    // Atualizar o registro do Lead com a URL do PDF unificado
     if (leadId) {
       await prisma.leadChatwit.update({
         where: { id: leadId },
         data: { pdfUnificado: pdfUrl },
       });
       
-      console.log(`[API Unify] PDF unificado atualizado para o lead ${leadId}: ${pdfUrl}`);
+      console.log(`[API Unify] PDF unificado criado para o lead ${leadId}: ${pdfUrl}`);
     }
     
     return NextResponse.json({
       success: true,
       message: "Arquivos unificados com sucesso",
       pdfUrl,
+      filesProcessed: fileUrls.length,
     });
   } catch (error: any) {
     console.error("[API Unify] Erro ao unificar arquivos:", error);
