@@ -1,6 +1,6 @@
 import { TableCell } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { Eye, Image as ImageIcon, FileUp, Loader2 } from "lucide-react";
+import { Eye, Image as ImageIcon, FileUp, Loader2, Library } from "lucide-react";
 import { CellProps } from "../types";
 import { LeadContextMenu, ContextAction } from "@/app/admin/leads-chatwit/components/lead-context-menu";
 
@@ -14,6 +14,7 @@ interface EspelhoCellProps extends CellProps {
   onContextMenuAction: (action: ContextAction, data?: any) => void;
   onEspelhoClick: () => void;
   onOpenFileUpload: () => void;
+  onOpenBiblioteca?: () => void;
 }
 
 export function EspelhoCell({ 
@@ -26,11 +27,30 @@ export function EspelhoCell({
   refreshKey,
   onContextMenuAction,
   onEspelhoClick,
-  onOpenFileUpload
+  onOpenFileUpload,
+  onOpenBiblioteca
 }: EspelhoCellProps) {
   if (!manuscritoProcessadoLocal) {
     return <TableCell className="w-[120px] p-2 align-middle"></TableCell>;
   }
+
+  const handleButtonClick = () => {
+    if (consultoriaAtiva) {
+      if (hasEspelho) {
+        onEspelhoClick();
+      } else {
+        if (onOpenBiblioteca) {
+          onOpenBiblioteca();
+        }
+      }
+    } else {
+      if (hasEspelho) {
+        onEspelhoClick();
+      } else {
+        onEspelhoClick();
+      }
+    }
+  };
 
   return (
     <TableCell className="w-[120px] p-2 align-middle">
@@ -45,10 +65,7 @@ export function EspelhoCell({
         <Button
           variant="outline"
           size="sm"
-          onClick={consultoriaAtiva 
-            ? (hasEspelho ? onEspelhoClick : onOpenFileUpload)
-            : onEspelhoClick
-          }
+          onClick={handleButtonClick}
           disabled={isEnviandoEspelho || isUploadingEspelho}
           className="whitespace-nowrap w-full"
           key={`espelho-btn-${refreshKey}-${hasEspelho ? 'edit' : 'select'}-${consultoriaAtiva ? 'consultoria' : 'normal'}`}
@@ -83,8 +100,8 @@ export function EspelhoCell({
               if (consultoriaAtiva) {
                 return (
                   <>
-                    <FileUp className={`h-4 w-4 mr-1 ${isEnviandoEspelho ? "animate-spin" : ""}`} />
-                    {isEnviandoEspelho ? "Enviando..." : "Enviar Espelho"}
+                    <Library className={`h-4 w-4 mr-1 ${isEnviandoEspelho ? "animate-spin" : ""}`} />
+                    {isEnviandoEspelho ? "Carregando..." : "Biblioteca de Espelho"}
                   </>
                 );
               } else {

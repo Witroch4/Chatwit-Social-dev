@@ -43,6 +43,7 @@ export async function POST(request: Request): Promise<Response> {
     // Verificar o formato do payload para identificar o tipo
     const isEspelho = webhookData.espelho === true;
     const isEspelhoConsultoriaFase2 = webhookData.espelhoconsultoriafase2 === true;
+    const isEspelhoParaBiblioteca = webhookData.espelhoparabiblioteca === true;
     const isManuscrito = webhookData.manuscrito === true && webhookData.textoDAprova;
     const isAnalise = webhookData.analise === true;
     const isAnaliseSimulado = webhookData.analisesimulado === true;
@@ -52,7 +53,7 @@ export async function POST(request: Request): Promise<Response> {
     const isAnaliseSimuladoValidada = webhookData.analisesimuladovalidado === true;
     const isAnaliseSimuladoValidadaCamelCase = webhookData.analiseSimuladoValidada === true;
     
-    console.log("[Webhook] Tipo do payload - espelho:", isEspelho, "espelhoConsultoriaFase2:", isEspelhoConsultoriaFase2, "manuscrito:", isManuscrito, "analise:", isAnalise, "analiseSimulado:", isAnaliseSimulado, "analisePreliminar:", isAnalisePreliminar, "analiseSimuladoPreliminar:", isAnaliseSimuladoPreliminar, "analiseValidada:", isAnaliseValidada, "analiseSimuladoValidada:", isAnaliseSimuladoValidada, "analiseSimuladoValidadaCamelCase:", isAnaliseSimuladoValidadaCamelCase);
+    console.log("[Webhook] Tipo do payload - espelho:", isEspelho, "espelhoConsultoriaFase2:", isEspelhoConsultoriaFase2, "espelhoParaBiblioteca:", isEspelhoParaBiblioteca, "manuscrito:", isManuscrito, "analise:", isAnalise, "analiseSimulado:", isAnaliseSimulado, "analisePreliminar:", isAnalisePreliminar, "analiseSimuladoPreliminar:", isAnaliseSimuladoPreliminar, "analiseValidada:", isAnaliseValidada, "analiseSimuladoValidada:", isAnaliseSimuladoValidada, "analiseSimuladoValidadaCamelCase:", isAnaliseSimuladoValidadaCamelCase);
 
     // Processar webhook de pré-análise
     if (isAnalisePreliminar) {
@@ -118,6 +119,89 @@ export async function POST(request: Request): Promise<Response> {
         return NextResponse.json({
           success: false,
           message: `Erro ao processar pré-análise: ${error.message || 'Erro desconhecido'}`,
+        }, { status: 500 });
+      }
+    }
+
+    // Processar webhook de espelho para biblioteca
+    if (isEspelhoParaBiblioteca) {
+      console.log("[Webhook] Identificado payload de espelho para biblioteca");
+      
+      // Para espelhos da biblioteca, precisamos do ID do espelho
+      const espelhoBibliotecaId = webhookData.espelhoBibliotecaId;
+      
+      if (!espelhoBibliotecaId) {
+        console.error("[Webhook] ID do espelho da biblioteca não fornecido");
+        return NextResponse.json({
+          success: false,
+          message: "ID do espelho da biblioteca não fornecido (espelhoBibliotecaId)",
+        });
+      }
+      
+      // Processar o texto do espelho
+      const textoDOEspelho = webhookData.textoDOEspelho || null;
+      
+      if (!textoDOEspelho) {
+        console.error("[Webhook] Espelho da biblioteca sem texto (textoDOEspelho)");
+        return NextResponse.json({
+          success: false,
+          message: "Texto do espelho não fornecido para a biblioteca (textoDOEspelho)",
+        });
+      }
+      
+      try {
+        // Verificar se o espelho existe na biblioteca
+        const espelhoExistente = await prisma.espelhoBiblioteca.findUnique({
+          where: { id: espelhoBibliotecaId }
+        });
+        
+        if (!espelhoExistente) {
+          console.error("[Webhook] Espelho da biblioteca não encontrado:", espelhoBibliotecaId);
+          return NextResponse.json({
+            success: false,
+            message: "Espelho da biblioteca não encontrado",
+          });
+        }
+        
+        // Verificar imagens do espelho (opcional)
+        let urlsEspelho: string[] = [];
+        
+        if (webhookData.arquivos_imagens_espelho && 
+            Array.isArray(webhookData.arquivos_imagens_espelho) && 
+            webhookData.arquivos_imagens_espelho.length > 0) {
+          
+          console.log("[Webhook] Processando imagens do espelho para biblioteca");
+          const imagensEspelho = webhookData.arquivos_imagens_espelho;
+          urlsEspelho = imagensEspelho.map((item: { url: string }) => item.url);
+          console.log("[Webhook] URLs do espelho para biblioteca:", urlsEspelho);
+        }
+        
+        // Atualizar o espelho na biblioteca com o texto gerado
+        const espelhoAtualizado = await prisma.espelhoBiblioteca.update({
+          where: { id: espelhoBibliotecaId },
+          data: {
+            textoDOEspelho: textoDOEspelho,
+            // Manter as imagens existentes se não foram fornecidas novas
+            ...(urlsEspelho.length > 0 && { espelhoCorrecao: JSON.stringify(urlsEspelho) }),
+            updatedAt: new Date()
+          }
+        });
+        
+        console.log("[Webhook] Espelho da biblioteca atualizado com texto:", espelhoAtualizado.id);
+        
+        // SSE desabilitado
+        console.log("[Webhook] Notificação SSE desabilitada");
+        
+        return NextResponse.json({
+          success: true,
+          message: "Texto do espelho adicionado à biblioteca com sucesso",
+          espelhoId: espelhoAtualizado.id
+        });
+      } catch (error: any) {
+        console.error("[Webhook] Erro ao atualizar espelho da biblioteca:", error);
+        return NextResponse.json({
+          success: false,
+          message: `Erro ao processar espelho para biblioteca: ${error.message || 'Erro desconhecido'}`,
         }, { status: 500 });
       }
     }
@@ -954,14 +1038,16 @@ export async function POST(request: Request): Promise<Response> {
     // Se não for identificado como espelho, manuscrito, pré-análise, pré-análise de simulado, análise ou análise de simulado
     console.error("[Webhook] Payload não identificado como espelho, manuscrito, pré-análise, pré-análise de simulado, análise, análise de simulado, validação ou validação de simulado");
     console.error("[Webhook] Valores das flags - espelho:", webhookData.espelho, 
-      "espelhoConsultoriaFase2:", webhookData.espelhoconsultoriafase2, "manuscrito:", webhookData.manuscrito, "análise:", webhookData.analise,
+      "espelhoConsultoriaFase2:", webhookData.espelhoconsultoriafase2, 
+      "espelhoParaBiblioteca:", webhookData.espelhoparabiblioteca,
+      "manuscrito:", webhookData.manuscrito, "análise:", webhookData.analise,
       "análiseSimulado:", webhookData.analisesimulado, "pré-análise:", webhookData.analisepreliminar, "préAnaliseSimulado:", webhookData.analisesimuladopreliminar,
       "analiseValidada:", webhookData.analiseValidada, "analiseSimuladoValidada:", webhookData.analisesimuladovalidado);
     console.error("[Webhook] Campos disponíveis:", Object.keys(webhookData));
     
     return NextResponse.json({
       success: false,
-      message: "Payload não identificado como manuscrito, espelho, pré-análise, pré-análise de simulado, análise, análise de simulado, validação ou validação de simulado",
+      message: "Payload não identificado como manuscrito, espelho, espelho para biblioteca, pré-análise, pré-análise de simulado, análise, análise de simulado, validação ou validação de simulado",
       debug: webhookData // Incluir o payload para debug
     });
     

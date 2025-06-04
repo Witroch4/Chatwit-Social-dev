@@ -362,13 +362,13 @@ export function useLeadHandlers({
   const handleSaveManuscrito = async (texto: string) => {
     try {
       const response = await fetch("/api/admin/leads-chatwit/manuscrito", {
-        method: "POST",
+        method: "PUT",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
           leadId: lead.id,
-          manuscrito: texto,
+          texto: texto,
         }),
       });
 
@@ -1230,44 +1230,6 @@ export function useLeadHandlers({
     }
   };
 
-  // Handler para cancelar análise
-  const handleCancelarAnalise = async () => {
-    try {
-      const response = await fetch(`/api/admin/leads-chatwit/cancelar-analise?leadId=${lead.id}`, {
-        method: "DELETE",
-      });
-
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || "Erro ao cancelar análise");
-      }
-
-      updateAnaliseState({
-        aguardandoAnalise: false,
-        analiseUrl: undefined
-      });
-
-      await onEdit({
-        ...lead,
-        aguardandoAnalise: false,
-        analiseUrl: undefined,
-        _skipDialog: true
-      });
-
-      toast({
-        title: "Análise cancelada",
-        description: "Análise cancelada com sucesso!",
-      });
-    } catch (error: any) {
-      console.error("Erro ao cancelar análise:", error);
-      toast({
-        title: "Erro",
-        description: error.message || "Não foi possível cancelar a análise.",
-        variant: "destructive",
-      });
-    }
-  };
-
   // Handler para salvar análise preliminar
   const handleSaveAnalisePreliminar = async (data: any) => {
     try {
@@ -1340,7 +1302,6 @@ export function useLeadHandlers({
     handleSaveEspelho,
     handleSaveAnotacoes,
     handleEnviarPdf,
-    handleCancelarAnalise,
     handleSaveAnalisePreliminar,
     getConvertedImages: () => getConvertedImages(lead)
   };

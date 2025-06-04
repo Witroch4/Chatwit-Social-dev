@@ -26,6 +26,7 @@ interface AnaliseItem {
   titulo: string;
   descricao: string;
   valor: string;
+  MelhoriasPropostas?: string;
 }
 
 interface AnaliseData {
@@ -109,7 +110,8 @@ export function AnalisePreviewDrawer({
     const novoPonto: AnaliseItem = {
       titulo: "Novo Ponto",
       descricao: "Descrição do novo ponto",
-      valor: "+0,00"
+      valor: "+0,00",
+      MelhoriasPropostas: "Melhorias propostas para este ponto"
     };
 
     setAnaliseData((prev) => ({
@@ -134,7 +136,8 @@ export function AnalisePreviewDrawer({
     const novoPonto: AnaliseItem = {
       titulo: "Nova Questão",
       descricao: "Descrição da nova questão",
-      valor: "+0,00"
+      valor: "+0,00",
+      MelhoriasPropostas: "Melhorias propostas para esta questão"
     };
 
     setAnaliseData((prev) => ({
@@ -378,29 +381,43 @@ export function AnalisePreviewDrawer({
                             >
                               <XCircle className="h-4 w-4 text-destructive" />
                             </Button>
-                            <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
-                              <div className="space-y-2 md:col-span-2">
-                                <Label htmlFor={`peca-titulo-${index}`}>Título</Label>
-                                <Input
-                                  id={`peca-titulo-${index}`}
-                                  value={ponto.titulo || ""}
-                                  onChange={(e) => updatePontoPeca(index, "titulo", e.target.value)}
-                                />
+                            <div className="grid grid-cols-1 gap-4">
+                              {/* Primeira linha - Título, Descrição e Valor */}
+                              <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
+                                <div className="space-y-2 md:col-span-2">
+                                  <Label htmlFor={`peca-titulo-${index}`}>Título</Label>
+                                  <Input
+                                    id={`peca-titulo-${index}`}
+                                    value={ponto.titulo || ""}
+                                    onChange={(e) => updatePontoPeca(index, "titulo", e.target.value)}
+                                  />
+                                </div>
+                                <div className="space-y-2 md:col-span-3">
+                                  <Label htmlFor={`peca-descricao-${index}`}>Descrição</Label>
+                                  <Input
+                                    id={`peca-descricao-${index}`}
+                                    value={ponto.descricao || ""}
+                                    onChange={(e) => updatePontoPeca(index, "descricao", e.target.value)}
+                                  />
+                                </div>
+                                <div className="space-y-2 md:col-span-1">
+                                  <Label htmlFor={`peca-valor-${index}`}>Valor</Label>
+                                  <Input
+                                    id={`peca-valor-${index}`}
+                                    value={ponto.valor || ""}
+                                    onChange={(e) => updatePontoPeca(index, "valor", e.target.value)}
+                                  />
+                                </div>
                               </div>
-                              <div className="space-y-2 md:col-span-3">
-                                <Label htmlFor={`peca-descricao-${index}`}>Descrição</Label>
-                                <Input
-                                  id={`peca-descricao-${index}`}
-                                  value={ponto.descricao || ""}
-                                  onChange={(e) => updatePontoPeca(index, "descricao", e.target.value)}
-                                />
-                              </div>
-                              <div className="space-y-2 md:col-span-1">
-                                <Label htmlFor={`peca-valor-${index}`}>Valor</Label>
-                                <Input
-                                  id={`peca-valor-${index}`}
-                                  value={ponto.valor || ""}
-                                  onChange={(e) => updatePontoPeca(index, "valor", e.target.value)}
+                              {/* Segunda linha - Melhorias Propostas */}
+                              <div className="space-y-2">
+                                <Label htmlFor={`peca-melhorias-${index}`}>Melhorias Propostas</Label>
+                                <Textarea
+                                  id={`peca-melhorias-${index}`}
+                                  rows={3}
+                                  value={ponto.MelhoriasPropostas || ""}
+                                  onChange={(e) => updatePontoPeca(index, "MelhoriasPropostas", e.target.value)}
+                                  className="resize-none"
                                 />
                               </div>
                             </div>
@@ -450,29 +467,43 @@ export function AnalisePreviewDrawer({
                             >
                               <XCircle className="h-4 w-4 text-destructive" />
                             </Button>
-                            <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
-                              <div className="space-y-2 md:col-span-2">
-                                <Label htmlFor={`questao-titulo-${index}`}>Título</Label>
-                                <Input
-                                  id={`questao-titulo-${index}`}
-                                  value={ponto.titulo || ""}
-                                  onChange={(e) => updatePontoQuestao(index, "titulo", e.target.value)}
-                                />
+                            <div className="grid grid-cols-1 gap-4">
+                              {/* Primeira linha - Título, Descrição e Valor */}
+                              <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
+                                <div className="space-y-2 md:col-span-2">
+                                  <Label htmlFor={`questao-titulo-${index}`}>Título</Label>
+                                  <Input
+                                    id={`questao-titulo-${index}`}
+                                    value={ponto.titulo || ""}
+                                    onChange={(e) => updatePontoQuestao(index, "titulo", e.target.value)}
+                                  />
+                                </div>
+                                <div className="space-y-2 md:col-span-3">
+                                  <Label htmlFor={`questao-descricao-${index}`}>Descrição</Label>
+                                  <Input
+                                    id={`questao-descricao-${index}`}
+                                    value={ponto.descricao || ""}
+                                    onChange={(e) => updatePontoQuestao(index, "descricao", e.target.value)}
+                                  />
+                                </div>
+                                <div className="space-y-2 md:col-span-1">
+                                  <Label htmlFor={`questao-valor-${index}`}>Valor</Label>
+                                  <Input
+                                    id={`questao-valor-${index}`}
+                                    value={ponto.valor || ""}
+                                    onChange={(e) => updatePontoQuestao(index, "valor", e.target.value)}
+                                  />
+                                </div>
                               </div>
-                              <div className="space-y-2 md:col-span-3">
-                                <Label htmlFor={`questao-descricao-${index}`}>Descrição</Label>
-                                <Input
-                                  id={`questao-descricao-${index}`}
-                                  value={ponto.descricao || ""}
-                                  onChange={(e) => updatePontoQuestao(index, "descricao", e.target.value)}
-                                />
-                              </div>
-                              <div className="space-y-2 md:col-span-1">
-                                <Label htmlFor={`questao-valor-${index}`}>Valor</Label>
-                                <Input
-                                  id={`questao-valor-${index}`}
-                                  value={ponto.valor || ""}
-                                  onChange={(e) => updatePontoQuestao(index, "valor", e.target.value)}
+                              {/* Segunda linha - Melhorias Propostas */}
+                              <div className="space-y-2">
+                                <Label htmlFor={`questao-melhorias-${index}`}>Melhorias Propostas</Label>
+                                <Textarea
+                                  id={`questao-melhorias-${index}`}
+                                  rows={3}
+                                  value={ponto.MelhoriasPropostas || ""}
+                                  onChange={(e) => updatePontoQuestao(index, "MelhoriasPropostas", e.target.value)}
+                                  className="resize-none"
                                 />
                               </div>
                             </div>

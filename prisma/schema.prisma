@@ -350,6 +350,9 @@ model UsuarioChatwit {
 
   // Relação com leads
   leads         LeadChatwit[]
+
+  // Relação com espelhos da biblioteca
+  espelhosBiblioteca EspelhoBiblioteca[]
 }
 
 model LeadChatwit {
@@ -379,6 +382,7 @@ model LeadChatwit {
   analiseValidada   Boolean       @default(false) // Indica se a análise foi validada pelo usuário
   consultoriaFase2  Boolean       @default(false) // Indica se o lead está em modo consultoria fase 2
   customAccessToken String?       // Token de acesso personalizado para o Chatwoot
+  espelhoBibliotecaId String?     // ID do espelho da biblioteca associado ao lead
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
 
@@ -389,8 +393,12 @@ model LeadChatwit {
   // Relação com arquivos
   arquivos      ArquivoLeadChatwit[]
 
+  // Relação com espelho da biblioteca
+  espelhoBiblioteca EspelhoBiblioteca? @relation(fields: [espelhoBibliotecaId], references: [id])
+
   @@index([usuarioId])
   @@index([sourceId])
+  @@index([espelhoBibliotecaId])
 }
 
 model ArquivoLeadChatwit {
@@ -591,5 +599,29 @@ model GeneratedImage {
   @@index([responseId])         // Índice para busca rápida por responseId
   @@index([previousResponseId]) // Índice para busca por cadeia de refinamentos
   @@index([openaiFileId])       // Índice para busca rápida por openaiFileId
+}
+
+// Modelo para Biblioteca de Espelhos
+model EspelhoBiblioteca {
+  id                String        @id @default(cuid())
+  nome              String        // Nome identificador do espelho
+  descricao         String?       // Descrição opcional do espelho
+  textoDOEspelho    Json?         // Texto do espelho de correção
+  espelhoCorrecao   String?       // Lista de URLs das imagens do espelho em formato JSON
+  isAtivo           Boolean       @default(true) // Se o espelho está ativo na biblioteca
+  totalUsos         Int           @default(0) // Contador de quantas vezes foi usado
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  // Relação com usuário que criou o espelho
+  criadoPorId       String
+  criadoPor         UsuarioChatwit @relation(fields: [criadoPorId], references: [id], onDelete: Cascade)
+
+  // Relação com leads que usam este espelho
+  leads             LeadChatwit[]
+
+  @@index([criadoPorId])
+  @@index([isAtivo])
+  @@index([nome])
 }
 

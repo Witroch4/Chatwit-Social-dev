@@ -17,6 +17,8 @@ import {
   RowActionsCell
 } from "./componentes-lead-item/cells";
 import { LeadDialogs } from "./componentes-lead-item/dialogs";
+import { BibliotecaEspelhosDrawer } from "../biblioteca-espelhos-drawer";
+import { useState } from "react";
 
 export function LeadItem({
   lead,
@@ -37,6 +39,9 @@ export function LeadItem({
   // Estados dos diálogos
   const dialogState = useDialogState();
   
+  // Estado da biblioteca de espelhos
+  const [showBibliotecaEspelhos, setShowBibliotecaEspelhos] = useState(false);
+  
   // Handlers e lógica
   const handlers = useLeadHandlers({
     lead,
@@ -48,6 +53,11 @@ export function LeadItem({
     ...dialogState,
     ...leadState
   });
+
+  // Handler para abrir biblioteca de espelhos
+  const handleOpenBiblioteca = () => {
+    setShowBibliotecaEspelhos(true);
+  };
 
   return (
     <>
@@ -88,7 +98,7 @@ export function LeadItem({
         
         {/* Célula de PDF */}
         <PdfCell
-          lead={lead}
+        lead={lead}
           onEdit={onEdit}
           onUnificar={handlers.handleUnificarArquivos}
           isUnifying={isUnifying}
@@ -134,6 +144,7 @@ export function LeadItem({
           onContextMenuAction={handlers.handleContextMenuAction}
           onEspelhoClick={handlers.handleEspelhoClick}
           onOpenFileUpload={handlers.handleOpenFileUpload}
+          onOpenBiblioteca={handleOpenBiblioteca}
         />
         
         {/* Célula de Análise */}
@@ -183,12 +194,21 @@ export function LeadItem({
         onExcluirEspelho={handlers.handleExcluirEspelho}
         onSaveAnotacoes={handlers.handleSaveAnotacoes}
         onEnviarPdf={handlers.handleEnviarPdf}
-        onCancelarAnalise={handlers.handleCancelarAnalise}
+        onCancelarAnalise={handlers.handleExcluirAnalise}
         onSaveAnalisePreliminar={handlers.handleSaveAnalisePreliminar}
         onValidarAnalise={handlers.handleValidarAnalise}
         onExecuteDeleteAllFiles={handlers.handleExecuteDeleteAllFiles}
         onExecuteManuscritoDelete={handlers.handleExcluirManuscrito}
       />
+      
+      {/* Biblioteca de Espelhos Drawer */}
+      <BibliotecaEspelhosDrawer
+        isOpen={showBibliotecaEspelhos}
+        onClose={() => setShowBibliotecaEspelhos(false)}
+        lead={lead}
+        onLeadUpdate={onEdit}
+        usuarioId={lead.usuarioId}
+      />
     </>
   );
-} 
+}

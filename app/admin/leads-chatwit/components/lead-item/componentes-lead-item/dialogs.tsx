@@ -279,6 +279,7 @@ export function LeadDialogs({
         isOpen={showEspelhoDialog}
         onClose={() => setShowEspelhoDialog(false)}
         leadId={lead.id}
+        leadData={lead}
         textoEspelho={lead.textoDOEspelho || null}
         imagensEspelho={lead.espelhoCorrecao ? JSON.parse(lead.espelhoCorrecao) : []}
         onSave={onSaveEspelho}
