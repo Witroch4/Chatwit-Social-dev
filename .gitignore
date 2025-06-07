@@ -14,7 +14,13 @@
 /.pnp
 .pnp.js
 .yarn/install-state.gz
-
+.env
+.env.development
+.env.development.ngrok
+.env.local
+.env.production
+.env.temp
+.env.example
 # testing
 /coverage
 

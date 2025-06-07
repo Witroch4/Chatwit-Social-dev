@@ -884,7 +884,7 @@ export default React.memo(function MessageContent({ content, isStreaming = false
   }, [content]);
 
   const proseClass = useMemo(() => 
-    "prose prose-slate dark:prose-invert max-w-none break-words " +
+    "prose prose-gemini dark:prose-invert max-w-none break-words " +
     "w-full min-w-0 overflow-wrap-anywhere " +
     (isStreaming ? "stream-content" : "stream-complete")
   , [isStreaming]);

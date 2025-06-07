@@ -1,7 +1,7 @@
 import React, { useEffect, useCallback, useMemo } from "react";
 import MessageContent from "./MessageContent";
 import AnimatedMessage from "./AnimatedMessage";
-import { FileIcon } from "lucide-react";
+import { FileIcon, Sparkles, User } from "lucide-react";
 
 interface MessagesListProps {
   messages: any[];
@@ -75,40 +75,61 @@ const MessagesList = React.memo(function MessagesList({
             <div key={i} className={`mb-6 flex ${isUser ? "justify-end" : "justify-start"}`}>
               <AnimatedMessage isAssistant={!isUser}>
                 <div className={`
-                  w-full max-w-[85%] min-w-[200px]
+                  w-full max-w-[85%] min-w-[200px] relative
                   ${isUser ? "bg-muted/50 rounded-lg px-4 py-3" : ""}
                 `}>
-                  {typeof m.content === "string" ? (
-                    isUser ? (
-                      // 🔧 MENSAGENS DO USUÁRIO: Texto simples sem formatação markdown
-                      <div className="w-full">
-                        {hasPdfReference && (
-                          <div className="flex items-center gap-2 p-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-md mb-2">
-                            <FileIcon size={16} className="text-blue-500" />
-                            <span className="text-xs text-blue-700 dark:text-blue-300">Arquivo PDF anexado</span>
-                          </div>
-                        )}
-                        {/* 🔧 NOVO: Renderizar mensagem do usuário como texto simples */}
-                        <div className="text-foreground whitespace-pre-wrap break-words">
-                          {hasPdfReference ? 
-                            m.content.replace(/\[([^\]]*\.pdf[^\]]*)\]\(file_id:([^)]+)\)/gi, "**[ARQUIVO: $1]**") :
-                            m.content
-                          }
-                        </div>
+                  {/* Ícone da IA estilo Gemini */}
+                  {!isUser && (
+                    <div className="flex items-center gap-2 mb-3">
+                      <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
+                        <Sparkles className="w-4 h-4 text-white" />
                       </div>
-                    ) : (
-                      // 🔧 MENSAGENS DO ASSISTENTE: Formatação markdown completa
-                      <div className="w-full">
-                        <MessageContent 
-                          content={m.content} 
-                          isStreaming={isLoading && i === messages.length - 1 && m.role === 'assistant'} 
-                          onImageReference={onImageReference}
-                        />
-                      </div>
-                    )
-                  ) : (
-                    <p className="text-red-500">Formato de conteúdo não suportado</p>
+                      <span className="text-sm font-medium text-muted-foreground">ChatwitIA</span>
+                    </div>
                   )}
+                  
+                  {/* Ícone do usuário */}
+                  {isUser && (
+                    <div className="flex items-center gap-2 mb-3 justify-end">
+                      <span className="text-sm font-medium text-muted-foreground">Você</span>
+                      <div className="w-8 h-8 bg-gradient-to-r from-green-500 to-blue-500 rounded-full flex items-center justify-center">
+                        <User className="w-4 h-4 text-white" />
+                      </div>
+                    </div>
+                  )}
+                  <div className={isUser ? "" : "pl-10"}>
+                    {typeof m.content === "string" ? (
+                      isUser ? (
+                        // 🔧 MENSAGENS DO USUÁRIO: Texto simples sem formatação markdown
+                        <div className="w-full">
+                          {hasPdfReference && (
+                            <div className="flex items-center gap-2 p-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-md mb-2">
+                              <FileIcon size={16} className="text-blue-500" />
+                              <span className="text-xs text-blue-700 dark:text-blue-300">Arquivo PDF anexado</span>
+                            </div>
+                          )}
+                          {/* 🔧 NOVO: Renderizar mensagem do usuário como texto simples */}
+                          <div className="text-foreground whitespace-pre-wrap break-words">
+                            {hasPdfReference ? 
+                              m.content.replace(/\[([^\]]*\.pdf[^\]]*)\]\(file_id:([^)]+)\)/gi, "**[ARQUIVO: $1]**") :
+                              m.content
+                            }
+                          </div>
+                        </div>
+                      ) : (
+                        // 🔧 MENSAGENS DO ASSISTENTE: Formatação markdown completa
+                        <div className="w-full">
+                          <MessageContent 
+                            content={m.content} 
+                            isStreaming={isLoading && i === messages.length - 1 && m.role === 'assistant'} 
+                            onImageReference={onImageReference}
+                          />
+                        </div>
+                      )
+                    ) : (
+                      <p className="text-red-500">Formato de conteúdo não suportado</p>
+                    )}
+                  </div>
                 </div>
               </AnimatedMessage>
             </div>

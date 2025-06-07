@@ -1,339 +1,163 @@
-import { v4 as uuidv4 } from "uuid";
-import * as fs from "fs";
-import * as path from "path";
-import ILovePDF from "@ilovepdf/ilovepdf-nodejs";
-import ILovePDFFile from "@ilovepdf/ilovepdf-nodejs/ILovePDFFile";
-import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+// chatwit-atual/app/api/admin/leads-chatwit/unify/utils.ts
+import { PDFDocument, PageSizes } from 'pdf-lib';
+import * as fs from 'fs';
+import * as path from 'path';
+import { v4 as uuidv4 } from 'uuid';
+import { uploadToMinIO } from '../../../../../lib/minio';
 
-// Carrega as variáveis de ambiente
-const publicKey = process.env.ILOVEPDF_PUBLIC_KEY || "";
-const secretKey = process.env.ILOVEPDF_SECRET_KEY || "";
-
-// Instância do iLovePDF
-const ilovepdfInstance = new ILovePDF(publicKey, secretKey);
-
-// Tipo para ambientes
+// --- Type Definitions ---
 export type Environment = "development" | "production" | "test";
 
+// --- Helper Functions ---
+
 /**
- * Salva um buffer em um arquivo temporário e retorna o caminho.
+ * Downloads a file from a URL and returns it as a Buffer.
+ * @param url The URL of the file to download.
+ * @returns A Promise that resolves to a Buffer.
  */
-export async function saveTempFile(buffer: Buffer, extension: string): Promise<string> {
-  if (!buffer || buffer.length === 0) {
-    throw new Error("Buffer vazio ou inválido");
-  }
-  const tempDir = path.join(process.cwd(), "temp");
-  console.log(`[iLovePDF] Diretório temporário: ${tempDir}`);
-  if (!fs.existsSync(tempDir)) {
-    console.log(`[iLovePDF] Criando diretório temporário: ${tempDir}`);
-    fs.mkdirSync(tempDir, { recursive: true });
+async function downloadUrlAsBuffer(url: string): Promise<Buffer> {
     try {
-      fs.chmodSync(tempDir, 0o777);
-      console.log(`[iLovePDF] Permissões definidas com sucesso`);
-    } catch (permError) {
-      console.warn("[iLovePDF] Aviso: Não foi possível definir permissões para o diretório temp:", permError);
+        console.log(`[PDF-Lib] Attempting to download file: ${url}`);
+        let correctedUrl = url;
+        if (url.includes('objstore.witdev.com.br')) {
+            console.warn(`[PDF-Lib] Incorrect endpoint URL detected, correcting: ${url}`);
+            correctedUrl = url.replace('objstore.witdev.com.br', process.env.S3Endpoint || 'objstoreapi.witdev.com.br');
+        }
+
+        const response = await fetch(correctedUrl, {
+            headers: { 'Accept': '*/*', 'User-Agent': 'Chatwit-Social/1.0' }
+        });
+
+        if (!response.ok) {
+            throw new Error(`Failed to download file (status ${response.status}): ${url}`);
+        }
+        
+        const arrayBuf = await response.arrayBuffer();
+        return Buffer.from(arrayBuf);
+    } catch (error) {
+        console.error(`[PDF-Lib] Error downloading file ${url}:`, error);
+        throw error;
     }
-  }
-  const fileName = `${uuidv4()}.${extension}`;
-  const filePath = path.join(tempDir, fileName);
-  console.log(`[iLovePDF] Salvando arquivo temporário: ${filePath} (${buffer.length} bytes)`);
-  await fs.promises.writeFile(filePath, buffer);
-  console.log(`[iLovePDF] Arquivo temporário salvo: ${filePath}`);
-  return filePath;
 }
 
 /**
- * Unifica múltiplos arquivos em um único PDF.
+ * Checks if a URL points to an image file.
+ */
+function isImage(url: string): boolean {
+    if (!url) return false;
+    const imageExtensions = ['jpg', 'jpeg', 'png']; // Apenas extensões suportadas pelo pdf-lib
+    try {
+        const extension = new URL(url).pathname.split('.').pop()?.toLowerCase() || '';
+        return imageExtensions.includes(extension);
+    } catch {
+        return imageExtensions.some(ext => url.toLowerCase().endsWith(`.${ext}`));
+    }
+}
+
+/**
+ * Checks if a URL points to a PDF file.
+ */
+function isPdf(url: string): boolean {
+    if (!url) return false;
+    try {
+        return new URL(url).pathname.toLowerCase().endsWith('.pdf');
+    } catch {
+        return url.toLowerCase().endsWith('.pdf');
+    }
+}
+
+
+// --- Core Unification Logic ---
+
+/**
+ * Unifies multiple files (PDFs and images) into a single PDF using pdf-lib.
+ * @param fileUrls An array of URLs for the files to merge.
+ * @returns A Promise that resolves to the merged PDF as a Buffer.
  */
 export async function unifyFilesToPdf(fileUrls: string[]): Promise<Buffer> {
-  console.log(`[iLovePDF] Iniciando unificação de ${fileUrls.length} arquivos em PDF`);
-  
-  if (fileUrls.length === 0) {
-    throw new Error("Nenhum arquivo fornecido para unificação");
-  }
-  
-  // Se houver apenas um arquivo e ele já for PDF, retorne-o diretamente
-  if (fileUrls.length === 1) {
-    const fileUrl = fileUrls[0];
-    if (isPdf(fileUrl)) {
-      return await downloadUrlAsBuffer(fileUrl);
-    }
-  }
-  
-  // Inicie a tarefa de mesclagem
-  const mergeTask = ilovepdfInstance.newTask("merge");
-  await mergeTask.start();
-  
-  // Array para rastrear arquivos temporários para exclusão
-  const tempFiles: string[] = [];
-  
-  try {
-    // Processar cada URL de arquivo
+    console.log(`[PDF-Lib] Starting unification for ${fileUrls.length} files.`);
+    const pdfDoc = await PDFDocument.create();
+
     for (const url of fileUrls) {
-      console.log(`[iLovePDF] Processando arquivo: ${url}`);
-      
-      let tempFilePath: string;
-      
-      if (isPdf(url)) {
-        // Se já for PDF, apenas baixe
-        const pdfBuffer = await downloadUrlAsBuffer(url);
-        tempFilePath = await saveTempFile(pdfBuffer, "pdf");
-      } 
-      else if (isImage(url)) {
-        // Se for imagem, converta para PDF
-        const pdfBuffer = await convertImageToPdf(url);
-        tempFilePath = await saveTempFile(pdfBuffer, "pdf");
-      } 
-      else if (isOfficeFile(url)) {
-        // Se for documento Office, converta para PDF
-        const pdfBuffer = await convertOfficeToPdf(url);
-        tempFilePath = await saveTempFile(pdfBuffer, "pdf");
-      } 
-      else {
-        // Outro tipo de arquivo, tente baixar e tratar como PDF
-        console.log(`[iLovePDF] Tipo de arquivo não reconhecido: ${url}`);
-        const fileBuffer = await downloadUrlAsBuffer(url);
-        tempFilePath = await saveTempFile(fileBuffer, "pdf");
-      }
-      
-      tempFiles.push(tempFilePath);
-      
-      // Adicione o arquivo à tarefa
-      const pdfFile = new ILovePDFFile(tempFilePath);
-      await mergeTask.addFile(pdfFile);
+        try {
+            if (isImage(url)) {
+                console.log(`[PDF-Lib] Processing and embedding image file: ${url}`);
+                const imageBuffer = await downloadUrlAsBuffer(url);
+                const extension = url.split('.').pop()?.toLowerCase() || '';
+
+                let embeddedImage;
+                if (extension === 'jpg' || extension === 'jpeg') {
+                    embeddedImage = await pdfDoc.embedJpg(imageBuffer);
+                } else if (extension === 'png') {
+                    embeddedImage = await pdfDoc.embedPng(imageBuffer);
+                } else {
+                    console.warn(`[PDF-Lib] Skipping unsupported image type: ${extension}`);
+                    continue;
+                }
+
+                const page = pdfDoc.addPage(PageSizes.A4);
+                const { width: pageWidth, height: pageHeight } = page.getSize();
+                const { width: imgWidth, height: imgHeight } = embeddedImage.scale(1);
+
+                const widthRatio = pageWidth / imgWidth;
+                const heightRatio = pageHeight / imgHeight;
+                const ratio = Math.min(widthRatio, heightRatio);
+
+                const scaledWidth = imgWidth * ratio;
+                const scaledHeight = imgHeight * ratio;
+                
+                page.drawImage(embeddedImage, {
+                    x: (pageWidth - scaledWidth) / 2,
+                    y: (pageHeight - scaledHeight) / 2,
+                    width: scaledWidth,
+                    height: scaledHeight,
+                });
+
+                console.log(`[PDF-Lib] Successfully embedded image from: ${url}`);
+
+            } else if (isPdf(url)) {
+                console.log(`[PDF-Lib] Merging PDF file: ${url}`);
+                const pdfBuffer = await downloadUrlAsBuffer(url);
+                const donorPdfDoc = await PDFDocument.load(pdfBuffer);
+                const copiedPages = await pdfDoc.copyPages(donorPdfDoc, donorPdfDoc.getPageIndices());
+                copiedPages.forEach((page) => pdfDoc.addPage(page));
+                console.log(`[PDF-Lib] Successfully merged PDF from: ${url}`);
+            } else {
+                console.warn(`[PDF-Lib] Skipping unsupported file type: ${url}`);
+            }
+
+        } catch (error) {
+            console.error(`[PDF-Lib] Failed to process file ${url}:`, error);
+        }
+    }
+
+    if (pdfDoc.getPageCount() === 0) {
+        throw new Error("Could not process any of the provided files into a PDF.");
     }
     
-    // Processe e baixe o PDF final
-    console.log(`[iLovePDF] Processando mesclagem...`);
-    await mergeTask.process();
-    console.log(`[iLovePDF] Baixando PDF final...`);
-    const resultBuffer = await mergeTask.download();
-    return Buffer.from(resultBuffer);
-  } finally {
-    // Limpe os arquivos temporários
-    for (const file of tempFiles) {
-      try {
-        await fs.promises.unlink(file);
-        console.log(`[iLovePDF] Arquivo temporário removido: ${file}`);
-      } catch (error) {
-        console.error(`[iLovePDF] Erro ao remover arquivo temporário ${file}:`, error);
-      }
-    }
-  }
+    const mergedPdfBytes = await pdfDoc.save();
+    console.log(`[PDF-Lib] Unification complete. Final PDF size: ${mergedPdfBytes.length} bytes.`);
+    return Buffer.from(mergedPdfBytes);
 }
 
 /**
- * Converte uma imagem em PDF usando iLovePDF.
- */
-export async function convertImageToPdf(imageUrl: string): Promise<Buffer> {
-  console.log(`[iLovePDF] Convertendo imagem para PDF: ${imageUrl}`);
-  const imageTask = ilovepdfInstance.newTask("imagepdf");
-  await imageTask.start();
-  
-  // Baixar a imagem
-  const imageBuffer = await downloadUrlAsBuffer(imageUrl);
-  
-  // Determinar a extensão correta
-  let extension = "jpg";
-  if (imageUrl.toLowerCase().endsWith("png")) extension = "png";
-  if (imageUrl.toLowerCase().endsWith("gif")) extension = "gif";
-  if (imageUrl.toLowerCase().endsWith("webp")) extension = "webp";
-  
-  // Salvar em arquivo temporário
-  const tempFilePath = await saveTempFile(imageBuffer, extension);
-  
-  try {
-    // Adicionar à tarefa
-    const imageFile = new ILovePDFFile(tempFilePath);
-    await imageTask.addFile(imageFile);
-    
-    // Processar e baixar
-    await imageTask.process();
-    const pdfBuffer = await imageTask.download();
-    return Buffer.from(pdfBuffer);
-  } finally {
-    // Limpar arquivo temporário
-    try {
-      await fs.promises.unlink(tempFilePath);
-    } catch (error) {
-      console.error(`[iLovePDF] Erro ao excluir arquivo temporário ${tempFilePath}:`, error);
-    }
-  }
-}
-
-/**
- * Converte um arquivo Office em PDF usando iLovePDF.
- */
-export async function convertOfficeToPdf(officeUrl: string): Promise<Buffer> {
-  console.log(`[iLovePDF] Convertendo arquivo Office para PDF: ${officeUrl}`);
-  const officeTask = ilovepdfInstance.newTask("officepdf");
-  await officeTask.start();
-  
-  // Baixar o arquivo Office
-  const officeBuffer = await downloadUrlAsBuffer(officeUrl);
-  
-  // Determinar a extensão correta
-  let extension = "docx";
-  try {
-    const urlObj = new URL(officeUrl);
-    const pathname = urlObj.pathname;
-    const fileExtension = pathname.split(".").pop()?.toLowerCase();
-    if (fileExtension && ["doc", "docx", "xls", "xlsx", "ppt", "pptx", "odt", "ods", "odp"].includes(fileExtension)) {
-      extension = fileExtension;
-    }
-  } catch (error) {
-    console.warn("[iLovePDF] Não foi possível determinar a extensão do arquivo, usando .docx");
-  }
-  
-  // Salvar em arquivo temporário
-  const tempFilePath = await saveTempFile(officeBuffer, extension);
-  
-  try {
-    // Adicionar à tarefa
-    const officeFile = new ILovePDFFile(tempFilePath);
-    await officeTask.addFile(officeFile);
-    
-    // Processar e baixar
-    await officeTask.process();
-    const pdfBuffer = await officeTask.download();
-    return Buffer.from(pdfBuffer);
-  } finally {
-    // Limpar arquivo temporário
-    try {
-      await fs.promises.unlink(tempFilePath);
-    } catch (error) {
-      console.error(`[iLovePDF] Erro ao excluir arquivo temporário ${tempFilePath}:`, error);
-    }
-  }
-}
-
-/**
- * Baixa o arquivo de uma URL e retorna como Buffer.
- */
-export async function downloadUrlAsBuffer(url: string): Promise<Buffer> {
-  try {
-    console.log(`[iLovePDF] Baixando arquivo: ${url}`);
-    
-    // Verificar se a URL é válida
-    if (!url || typeof url !== 'string') {
-      throw new Error(`URL inválida: ${url}`);
-    }
-    
-    // Garantir que a URL tenha um protocolo
-    let fullUrl = url;
-    if (!url.startsWith('http://') && !url.startsWith('https://')) {
-      fullUrl = `https://${url}`;
-      console.log(`[iLovePDF] URL sem protocolo detectada, adicionando HTTPS: ${fullUrl}`);
-    }
-    
-    const response = await fetch(fullUrl);
-    if (!response.ok) {
-      throw new Error(`Falha ao baixar arquivo (status ${response.status}): ${fullUrl}`);
-    }
-    const arrayBuffer = await response.arrayBuffer();
-    console.log(`[iLovePDF] Arquivo baixado com sucesso: ${fullUrl} (${arrayBuffer.byteLength} bytes)`);
-    return Buffer.from(arrayBuffer);
-  } catch (error) {
-    console.error(`[iLovePDF] Erro ao baixar arquivo: ${url}`, error);
-    throw error;
-  }
-}
-
-/**
- * Verifica se uma URL indica um arquivo de imagem.
- */
-export function isImage(url: string): boolean {
-  try {
-    const urlPath = url.split('?')[0].split('#')[0]; // Remove query params e hash
-    const filename = urlPath.split('/').pop() || "";
-    // Extrai a extensão até o primeiro caractere especial após ela
-    const extensionMatch = filename.match(/\.([^.-]+)(?:[-*]|$)/);
-    const ext = extensionMatch ? extensionMatch[1].toLowerCase() : "";
-    return ["jpg", "jpeg", "png", "gif", "webp", "bmp", "svg", "tiff", "tif"].includes(ext);
-  } catch (error) {
-    return false;
-  }
-}
-
-/**
- * Verifica se uma URL indica um arquivo Office.
- */
-export function isOfficeFile(url: string): boolean {
-  try {
-    const urlPath = url.split('?')[0].split('#')[0]; // Remove query params e hash
-    const filename = urlPath.split('/').pop() || "";
-    // Extrai a extensão até o primeiro caractere especial após ela
-    const extensionMatch = filename.match(/\.([^.-]+)(?:[-*]|$)/);
-    const ext = extensionMatch ? extensionMatch[1].toLowerCase() : "";
-    return ["doc", "docx", "ppt", "pptx", "xls", "xlsx", "odt", "odp", "ods"].includes(ext);
-  } catch (error) {
-    return false;
-  }
-}
-
-/**
- * Verifica se uma URL indica um arquivo PDF.
- */
-export function isPdf(url: string): boolean {
-  try {
-    const urlPath = url.split('?')[0].split('#')[0]; // Remove query params e hash
-    const filename = urlPath.split('/').pop() || "";
-    // Extrai a extensão até o primeiro caractere especial após ela
-    const extensionMatch = filename.match(/\.([^.-]+)(?:[-*]|$)/);
-    const ext = extensionMatch ? extensionMatch[1].toLowerCase() : "";
-    return ext === "pdf";
-  } catch (error) {
-    return false;
-  }
-}
-
-/**
- * Salva o PDF em um bucket MinIO.
+ * Saves the unified PDF buffer to MinIO storage.
+ * @param pdfBuffer The buffer of the final PDF.
+ * @param fileName The desired file name for the uploaded PDF.
+ * @returns A Promise resolving to the public URL of the uploaded PDF.
  */
 export async function savePdfToMinIO(
-  pdfBuffer: Buffer,
-  filename: string,
-  bucket: string,
-  env: Environment
+    pdfBuffer: Buffer,
+    fileName: string,
+    bucket: string,
+    environment: string
 ): Promise<string> {
-  try {
-    // Configuração do client S3
-    const endpoint = `https://${process.env.S3Endpoint || 'objstoreapi.witdev.com.br'}`;
-    console.log(`[iLovePDF] Endpoint S3: ${endpoint}`);
-    
-    // Inicializando o client S3
-    const s3Client = new S3Client({
-      region: "us-east-1",
-      endpoint,
-      forcePathStyle: true,
-      credentials: {
-        accessKeyId: process.env.S3AccessKey!,
-        secretAccessKey: process.env.S3SecretKey!,
-      },
-    });
+    console.log(`[PDF-Lib] Uploading final PDF to MinIO as ${fileName}`);
+    if (!pdfBuffer || pdfBuffer.length === 0) {
+        throw new Error('PDF buffer is empty and cannot be uploaded.');
+    }
 
-    // Criando o comando para upload
-    const key = `${env}/${filename}`;
-    const uploadCommand = new PutObjectCommand({
-      Bucket: bucket,
-      Key: key,
-      Body: pdfBuffer,
-      ContentType: "application/pdf",
-    });
-
-    // Executa o upload
-    console.log(`[iLovePDF] Iniciando upload para: bucket=${bucket}, key=${key}`);
-    await s3Client.send(uploadCommand);
-    console.log(`[iLovePDF] Upload concluído com sucesso`);
-
-    // Garante que a URL retornada está completa e correta
-    const host = process.env.S3Endpoint || 'objstoreapi.witdev.com.br';
-    const url = `https://${host}/${bucket}/${key}`;
-    console.log(`[iLovePDF] URL gerada: ${url}`);
-    
-    return url;
-  } catch (error) {
-    console.error("[iLovePDF] Erro ao salvar arquivo no MinIO:", error);
-    throw error;
-  }
-} 
+    const response = await uploadToMinIO(pdfBuffer, fileName, 'application/pdf');
+    console.log(`[PDF-Lib] PDF successfully uploaded: ${response.url}`);
+    return response.url;
+}

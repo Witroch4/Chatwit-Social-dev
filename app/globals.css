@@ -4,85 +4,147 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Estilos para formatação de markdown */
-.prose h1 {
-  @apply text-2xl font-bold mt-6 mb-4;
-}
+/* Estilos para as mensagens da IA, imitando o Gemini */
+.prose-gemini {
+  @apply text-base leading-relaxed;
 
-.prose h2 {
-  @apply text-xl font-bold mt-5 mb-3;
-}
+  /* Estilo para parágrafos */
+  p {
+    @apply mb-4 leading-relaxed;
+  }
 
-.prose h3 {
-  @apply text-lg font-bold mt-4 mb-2;
-}
+  /* Estilo para links */
+  a {
+    @apply text-blue-500 hover:underline transition-colors;
+  }
 
-.prose h4 {
-  @apply text-base font-bold mt-3 mb-2;
-}
+  /* Estilo para negrito */
+  strong {
+    @apply font-semibold text-foreground;
+  }
 
-.prose p {
-  @apply mb-4;
-}
+  /* Estilo para itálico */
+  em {
+    @apply italic text-foreground/90;
+  }
 
-.prose ul {
-  @apply list-disc pl-6 mb-4;
-}
+  /* Estilo para títulos */
+  h1 {
+    @apply text-2xl font-bold mt-8 mb-4 text-foreground;
+  }
 
-.prose ol {
-  @apply list-decimal pl-6 mb-4;
-}
+  h2 {
+    @apply text-xl font-bold mt-6 mb-3 text-foreground;
+  }
 
-.prose li {
-  @apply mb-1;
-}
+  h3 {
+    @apply text-lg font-bold mt-5 mb-3 text-foreground;
+  }
 
-.prose a {
-  @apply text-blue-600 hover:underline;
-}
+  h4 {
+    @apply text-base font-bold mt-4 mb-2 text-foreground;
+  }
 
-.prose blockquote {
-  @apply border-l-4 border-gray-300 pl-4 italic my-4;
-}
+  h5 {
+    @apply text-sm font-bold mt-3 mb-2 text-foreground;
+  }
 
-.prose pre {
-  @apply bg-gray-100 p-4 rounded-md overflow-x-auto my-4;
-}
+  h6 {
+    @apply text-sm font-bold mt-2 mb-1 text-foreground;
+  }
 
-.prose code {
-  @apply bg-gray-100 px-1.5 py-0.5 rounded text-sm;
-}
+  /* Estilo para listas */
+  ul, ol {
+    @apply list-inside mb-4 pl-0;
+  }
 
-.prose pre code {
-  @apply bg-transparent p-0;
-}
+  ul {
+    @apply list-disc;
+  }
 
-.prose table {
-  @apply border-collapse w-full my-4;
-}
+  ol {
+    @apply list-decimal;
+  }
 
-.prose table th {
-  @apply border border-gray-300 px-4 py-2 bg-gray-100 font-bold;
-}
+  li {
+    @apply mb-2 pl-2;
+  }
 
-.prose table td {
-  @apply border border-gray-300 px-4 py-2;
-}
+  li::marker {
+    @apply text-foreground/80;
+  }
 
-.prose img {
-  @apply my-4 rounded-md max-w-full h-auto;
-}
+  /* Listas aninhadas */
+  ul ul, ol ol, ul ol, ol ul {
+    @apply mt-2 mb-2 ml-4;
+  }
 
-.prose strong {
-  @apply font-bold;
-}
+  /* Estilo para Blockquotes (citações) */
+  blockquote {
+    @apply border-l-4 border-muted-foreground/30 pl-4 py-2 my-4 bg-muted/20 rounded-r-md;
+  }
 
-.prose em {
-  @apply italic;
-}
+  blockquote p {
+    @apply text-muted-foreground mb-2;
+  }
 
-.prose hr {
-  @apply my-6 border-t border-gray-300;
+  /* Estilo para código inline */
+  code {
+    @apply bg-muted/80 px-1.5 py-0.5 rounded text-sm font-mono text-foreground;
+  }
+
+  /* Garantir que código em blocos não tenha estilo inline */
+  pre code {
+    @apply bg-transparent p-0 text-inherit;
+  }
+
+  /* Estilo para tabelas */
+  table {
+    @apply border-collapse w-full my-4 border border-border rounded-lg overflow-hidden;
+  }
+
+  table th {
+    @apply border-b border-border px-4 py-3 bg-muted/50 font-semibold text-left;
+  }
+
+  table td {
+    @apply border-b border-border px-4 py-3;
+  }
+
+  table tr:last-child td {
+    @apply border-b-0;
+  }
+
+  /* Estilo para imagens */
+  img {
+    @apply my-4 rounded-lg max-w-full h-auto shadow-sm;
+  }
+
+  /* Estilo para Linhas Horizontais */
+  hr {
+    @apply my-8 border-border/50 border-t;
+  }
+
+  /* Estilo para texto pré-formatado */
+  pre {
+    @apply bg-muted p-4 rounded-lg overflow-x-auto my-4 text-sm;
+  }
+
+  /* Melhorias para acessibilidade */
+  a:focus {
+    @apply outline-2 outline-blue-500 outline-offset-2;
+  }
+
+  /* Estilos específicos para modo escuro */
+  &.dark {
+    a {
+      @apply text-blue-400 hover:text-blue-300;
+    }
+
+    code {
+      @apply bg-muted/60;
+    }
+  }
 }
 
 /* Adicionando uma classe helper para garantir que o markdown seja exibido corretamente */
