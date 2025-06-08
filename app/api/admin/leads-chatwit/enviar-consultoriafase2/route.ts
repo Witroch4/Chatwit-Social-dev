@@ -52,6 +52,21 @@ export async function POST(request: Request): Promise<Response> {
     
     console.log("[Enviar Consultoria Fase 2] Lead marcado como aguardando análise");
     
+    // Buscar espelho da biblioteca se foi selecionado
+    let espelhoBiblioteca = null;
+    if (lead.espelhoBibliotecaId) {
+      console.log("[Enviar Consultoria Fase 2] Buscando espelho da biblioteca:", lead.espelhoBibliotecaId);
+      espelhoBiblioteca = await prisma.espelhoBiblioteca.findUnique({
+        where: { id: lead.espelhoBibliotecaId }
+      });
+      
+      if (espelhoBiblioteca) {
+        console.log("[Enviar Consultoria Fase 2] Espelho da biblioteca encontrado:", espelhoBiblioteca.nome);
+      } else {
+        console.log("[Enviar Consultoria Fase 2] Espelho da biblioteca não encontrado");
+      }
+    }
+    
     // Formatar o texto do manuscrito e do espelho se existirem
     let textoManuscrito = "";
     if (lead.provaManuscrita) {
@@ -68,7 +83,34 @@ export async function POST(request: Request): Promise<Response> {
     }
     
     let textoEspelho = "";
-    if (lead.textoDOEspelho) {
+    let imagensEspelho: string[] = [];
+    
+    // Priorizar espelho da biblioteca se existir
+    if (espelhoBiblioteca) {
+      // Usar texto do espelho da biblioteca
+      if (espelhoBiblioteca.textoDOEspelho) {
+        if (typeof espelhoBiblioteca.textoDOEspelho === 'string') {
+          textoEspelho = `Espelho da Prova (Biblioteca):\n${espelhoBiblioteca.textoDOEspelho}`;
+        } else if (Array.isArray(espelhoBiblioteca.textoDOEspelho)) {
+          textoEspelho = "Espelho da Prova (Biblioteca):\n" + espelhoBiblioteca.textoDOEspelho
+            .map((item: any) => typeof item === 'object' && item.output ? item.output : JSON.stringify(item))
+            .join('\n\n---------------------------------\n\n');
+        } else if (typeof espelhoBiblioteca.textoDOEspelho === 'object') {
+          textoEspelho = `Espelho da Prova (Biblioteca):\n${JSON.stringify(espelhoBiblioteca.textoDOEspelho, null, 2)}`;
+        }
+      }
+      
+      // Usar imagens do espelho da biblioteca
+      if (espelhoBiblioteca.espelhoCorrecao) {
+        try {
+          imagensEspelho = JSON.parse(espelhoBiblioteca.espelhoCorrecao);
+        } catch (e) {
+          console.error("[Enviar Consultoria Fase 2] Erro ao fazer parse das imagens do espelho da biblioteca:", e);
+          imagensEspelho = [];
+        }
+      }
+    } else if (lead.textoDOEspelho) {
+      // Usar espelho individual do lead se não houver da biblioteca
       if (typeof lead.textoDOEspelho === 'string') {
         textoEspelho = `Espelho da Prova:\n${lead.textoDOEspelho}`;
       } else if (Array.isArray(lead.textoDOEspelho)) {
@@ -79,13 +121,22 @@ export async function POST(request: Request): Promise<Response> {
       } else if (typeof lead.textoDOEspelho === 'object') {
         textoEspelho = `Espelho da Prova:\n${JSON.stringify(lead.textoDOEspelho, null, 2)}`;
       }
+      
+      // Usar imagens do espelho individual
+      if (lead.espelhoCorrecao) {
+        try {
+          imagensEspelho = JSON.parse(lead.espelhoCorrecao);
+        } catch (e) {
+          console.error("[Enviar Consultoria Fase 2] Erro ao fazer parse das imagens do espelho individual:", e);
+          imagensEspelho = [];
+        }
+      }
     }
     
-    // Preparar o payload para envio com a flag de consultoria fase 2
+    // Preparar o payload para envio com a flag de análise de simulado
     const requestPayload = {
       ...payload,
       analisesimulado: true, // Flag específica para análise de simulado
-      consultoriafase2: true, // Flag específica para consultoria fase 2
       leadID: leadId,
       nome: lead.nomeReal || lead.name || "Lead sem nome",
       telefone: lead.phoneNumber,
@@ -102,20 +153,37 @@ export async function POST(request: Request): Promise<Response> {
         url: lead.pdfUnificado,
         nome: "PDF Unificado"
       }] : [],
+      // Adicionar imagens do espelho (da biblioteca ou individual)
+      arquivos_imagens_espelho: imagensEspelho.map((url: string, index: number) => ({
+        id: `${lead.id}-espelho-${index}`,
+        url: url,
+        nome: `Espelho ${index + 1}`
+      })),
       metadata: {
         leadUrl: lead.leadUrl,
         sourceId: lead.sourceId,
         concluido: lead.concluido,
         fezRecurso: lead.fezRecurso,
         manuscritoProcessado: lead.manuscritoProcessado,
-        temEspelho: !!lead.espelhoCorrecao,
-        consultoriafase2: true // Metadata adicional
+        temEspelho: !!lead.espelhoCorrecao || !!espelhoBiblioteca,
+        espelhoBibliotecaId: lead.espelhoBibliotecaId,
+        espelhoBibliotecaNome: espelhoBiblioteca?.nome
       }
     };
     
     // Enviar para o sistema externo de forma assíncrona
     // (Não esperamos a resposta para não bloquear o fluxo)
     console.log("[Enviar Consultoria Fase 2] Enviando payload para processamento:", webhookUrl);
+    console.log("[Enviar Consultoria Fase 2] Payload resumo:", {
+      leadID: requestPayload.leadID,
+      temTextoManuscrito: !!requestPayload.textoManuscrito,
+      temTextoEspelho: !!requestPayload.textoEspelho,
+      tipoEspelho: espelhoBiblioteca ? 'biblioteca' : 'individual',
+      quantidadeImagensEspelho: requestPayload.arquivos_imagens_espelho?.length || 0,
+      espelhoBibliotecaId: requestPayload.metadata.espelhoBibliotecaId,
+      espelhoBibliotecaNome: requestPayload.metadata.espelhoBibliotecaNome,
+      analisesimulado: requestPayload.analisesimulado
+    });
     
     fetch(webhookUrl, {
       method: "POST",
