@@ -375,6 +375,8 @@ model LeadChatwit {
   aguardandoManuscrito Boolean    @default(false) // Indica se está aguardando processamento do manuscrito
   espelhoCorrecao   String?       // Lista de URLs das imagens do espelho em formato JSON
   textoDOEspelho    Json?         // Texto do espelho de correção processado
+  espelhoProcessado Boolean       @default(false) // Indica se o espelho foi processado
+  aguardandoEspelho Boolean       @default(false) // Indica se está aguardando processamento do espelho
   analiseUrl        String?       // URL do PDF de análise da prova
   analiseProcessada Boolean       @default(false) // Indica se a análise foi processada
   aguardandoAnalise Boolean       @default(false) // Indica se está aguardando análise

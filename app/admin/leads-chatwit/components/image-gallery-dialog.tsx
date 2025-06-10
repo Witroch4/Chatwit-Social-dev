@@ -308,10 +308,10 @@ export function ImageGalleryDialog({
                         className="absolute top-2 right-2 z-20"
                         onClick={(e) => toggleImageSelection(imageUrl, e)}
                       >
-                        <div className={`w-6 h-6 rounded-full flex items-center justify-center ${
+                        <div className={`w-6 h-6 rounded-full flex items-center justify-center transition-colors ${
                           selectedImages.includes(imageUrl) 
-                            ? 'bg-primary text-white' 
-                            : 'bg-background/80 border border-gray-300'
+                            ? 'bg-primary text-primary-foreground' 
+                            : 'bg-background/90 border border-border hover:bg-muted'
                         }`}>
                           {selectedImages.includes(imageUrl) && <Check className="h-4 w-4" />}
                         </div>

@@ -832,6 +832,8 @@ export async function POST(request: Request): Promise<Response> {
         // Atualizar o lead com as informações do espelho
         const leadUpdateData: any = {
           textoDOEspelho: textoDOEspelho,
+          espelhoProcessado: true,      // Marcar como processado
+          aguardandoEspelho: false,     // Não está mais aguardando
           updatedAt: new Date()
         };
         
@@ -924,6 +926,8 @@ export async function POST(request: Request): Promise<Response> {
         
         // Atualizar o lead com as informações do espelho de consultoria
         const leadUpdateData: any = {
+          espelhoProcessado: true,      // Marcar como processado
+          aguardandoEspelho: false,     // Não está mais aguardando
           updatedAt: new Date()
         };
         

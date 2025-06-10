@@ -11,10 +11,17 @@ interface EspelhoCellProps extends CellProps {
   isEnviandoEspelho: boolean;
   isUploadingEspelho: boolean;
   refreshKey: number;
+  localEspelhoState: {
+    hasEspelho: boolean;
+    aguardandoEspelho: boolean;
+    espelhoCorrecao: any;
+    textoDOEspelho: any;
+  };
   onContextMenuAction: (action: ContextAction, data?: any) => void;
   onEspelhoClick: () => void;
   onOpenFileUpload: () => void;
   onOpenBiblioteca?: () => void;
+  onOpenEspelhoSeletor?: () => void;
 }
 
 export function EspelhoCell({ 
@@ -25,18 +32,30 @@ export function EspelhoCell({
   isEnviandoEspelho,
   isUploadingEspelho,
   refreshKey,
+  localEspelhoState,
   onContextMenuAction,
   onEspelhoClick,
   onOpenFileUpload,
-  onOpenBiblioteca
+  onOpenBiblioteca,
+  onOpenEspelhoSeletor
 }: EspelhoCellProps) {
   if (!manuscritoProcessadoLocal) {
     return <TableCell className="w-[120px] p-2 align-middle"></TableCell>;
   }
 
+  // Verificar se há espelho processado (database) ou estado local
+  const temEspelhoProcessado = lead.espelhoProcessado || (lead.espelhoCorrecao && lead.textoDOEspelho);
+  const estaAguardandoEspelho = lead.aguardandoEspelho || localEspelhoState.aguardandoEspelho;
+
   const handleButtonClick = () => {
+    // Sempre permitir abrir o diálogo, mesmo quando aguardando
+    if (estaAguardandoEspelho) {
+      onEspelhoClick();
+      return;
+    }
+    
     if (consultoriaAtiva) {
-      if (hasEspelho) {
+      if (temEspelhoProcessado) {
         onEspelhoClick();
       } else {
         if (onOpenBiblioteca) {
@@ -44,10 +63,10 @@ export function EspelhoCell({
         }
       }
     } else {
-      if (hasEspelho) {
+      if (temEspelhoProcessado) {
         onEspelhoClick();
       } else {
-        onEspelhoClick();
+        onOpenEspelhoSeletor?.();
       }
     }
   };
@@ -59,7 +78,8 @@ export function EspelhoCell({
         onAction={onContextMenuAction}
         data={{
           id: lead.id,
-          hasEspelho: hasEspelho
+          hasEspelho: temEspelhoProcessado,
+          aguardandoEspelho: estaAguardandoEspelho
         }}
       >
         <Button
@@ -68,9 +88,18 @@ export function EspelhoCell({
           onClick={handleButtonClick}
           disabled={isEnviandoEspelho || isUploadingEspelho}
           className="whitespace-nowrap w-full"
-          key={`espelho-btn-${refreshKey}-${hasEspelho ? 'edit' : 'select'}-${consultoriaAtiva ? 'consultoria' : 'normal'}`}
+          key={`espelho-btn-${refreshKey}-${temEspelhoProcessado ? 'edit' : 'select'}-${consultoriaAtiva ? 'consultoria' : 'normal'}`}
         >
           {(() => {
+            if (estaAguardandoEspelho) {
+              return (
+                <>
+                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                  Aguardando
+                </>
+              );
+            }
+            
             if (isUploadingEspelho) {
               return (
                 <>
@@ -80,7 +109,7 @@ export function EspelhoCell({
               );
             }
             
-            if (hasEspelho) {
+            if (temEspelhoProcessado) {
               if (consultoriaAtiva) {
                 return (
                   <>

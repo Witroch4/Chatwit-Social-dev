@@ -22,7 +22,9 @@ interface EspelhoDialogProps {
   leadData?: LeadChatwit; // Adicionar dados completos do lead
   textoEspelho: any; // Pode ser null ou um objeto JSON
   imagensEspelho: string[];
+  aguardandoEspelho?: boolean;
   onSave: (texto: any, imagens: string[]) => Promise<void>;
+  onCancelarEspelho?: () => Promise<void>;
 }
 
 export function EspelhoDialog({
@@ -32,12 +34,15 @@ export function EspelhoDialog({
   leadData,
   textoEspelho,
   imagensEspelho,
+  aguardandoEspelho = false,
   onSave,
+  onCancelarEspelho,
 }: EspelhoDialogProps) {
   const [texto, setTexto] = useState<any>(textoEspelho);
   const [imagens, setImagens] = useState<string[]>(imagensEspelho);
   const [isSaving, setIsSaving] = useState(false);
   const [isGeneratingText, setIsGeneratingText] = useState(false);
+  const [isCancelando, setIsCancelando] = useState(false);
   const [showGallery, setShowGallery] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [pendingImages, setPendingImages] = useState<string[]>([]);
@@ -46,12 +51,6 @@ export function EspelhoDialog({
   // Atualiza o texto quando as props mudam
   useEffect(() => {
     if (isOpen) {
-      console.log("Espelho aberto. Formato dos dados:", {
-        tipo: typeof textoEspelho,
-        éArray: Array.isArray(textoEspelho),
-        conteúdo: textoEspelho
-      });
-      
       setTexto(textoEspelho);
       setImagens(imagensEspelho);
     }
@@ -87,9 +86,40 @@ export function EspelhoDialog({
     }
   };
 
+  const handleCancelarEspelho = async () => {
+    console.log("[EspelhoDialog] Botão cancelar clicado!");
+    console.log("[EspelhoDialog] onCancelarEspelho:", !!onCancelarEspelho);
+    
+    if (!onCancelarEspelho) {
+      console.log("[EspelhoDialog] Função onCancelarEspelho não está disponível!");
+      return;
+    }
+    
+    try {
+      console.log("[EspelhoDialog] Iniciando cancelamento...");
+      setIsCancelando(true);
+      await onCancelarEspelho();
+      console.log("[EspelhoDialog] Cancelamento concluído!");
+      toast({
+        title: "Sucesso",
+        description: "Processamento do espelho cancelado com sucesso!",
+      });
+      handleClose();
+    } catch (error: any) {
+      console.error("[EspelhoDialog] Erro ao cancelar:", error);
+      toast({
+        title: "Erro",
+        description: error.message || "Não foi possível cancelar o processamento.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsCancelando(false);
+    }
+  };
+
   // Função para garantir a limpeza correta ao fechar
   const handleClose = () => {
-    if (!isSaving && !isGeneratingText) {
+    if (!isSaving && !isGeneratingText && !isCancelando) {
       // Fecha o diálogo imediatamente para evitar problemas de estado
       onClose();
       
@@ -142,13 +172,15 @@ export function EspelhoDialog({
       
       // Verificar se está editando um espelho da biblioteca
       const isEspelhoBiblioteca = leadData.espelhoBibliotecaId !== undefined;
+      // Verificar se a consultoria está ativa
+      const consultoriaAtiva = leadData.consultoriaFase2 || false;
       
       const payload = {
         leadID: leadId,
         nome: leadData.nomeReal || leadData.name || "Lead sem nome",
         telefone: leadData.phoneNumber,
-        // Usar flag correta dependendo do contexto
-        [isEspelhoBiblioteca ? 'espelhoparabiblioteca' : 'espelhoconsultoriafase2']: true,
+        // Usar flag correta dependendo do contexto da consultoria
+        ...(consultoriaAtiva ? { espelhoparabiblioteca: true } : { espelho: true }),
         arquivos: leadData.arquivos?.map((a: { id: string; dataUrl: string; fileType: string }) => ({
           id: a.id,
           url: a.dataUrl,
@@ -175,8 +207,8 @@ export function EspelhoDialog({
       
       // Adicionar dados específicos da biblioteca se for o caso
       if (isEspelhoBiblioteca) {
-        payload.espelhoBibliotecaId = leadData.espelhoBibliotecaId;
-        payload.usuarioId = leadData.usuarioId;
+        (payload as any).espelhoBibliotecaId = leadData.espelhoBibliotecaId;
+        (payload as any).usuarioId = leadData.usuarioId;
       }
       
       const response = await fetch("/api/admin/leads-chatwit/enviar-manuscrito", {
@@ -279,83 +311,112 @@ export function EspelhoDialog({
             </DialogDescription>
           </DialogHeader>
           <div className="py-4 space-y-4">
-            <>
-              <h3 className="text-lg font-medium">Texto do Espelho</h3>
-              <Textarea
-                value={formatEspelhoTexto()}
-                onChange={(e) => {
-                  const inputValue = e.target.value;
-                  // Tenta preservar o formato original dos dados
-                  try {
-                    // Primeiro tenta considerar como JSON
-                    const parsed = JSON.parse(inputValue);
-                    setTexto(parsed);
-                  } catch {
-                    // Se não for JSON válido, mantém como texto simples
-                    setTexto(inputValue);
-                  }
-                }}
-                className="min-h-[300px] font-mono"
-                placeholder="Texto do espelho de correção..."
-                disabled={isGeneratingText}
-              />
-              {isGeneratingText && (
-                <div className="flex items-center justify-center p-4 bg-muted rounded-lg">
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  <span className="text-sm">Gerando texto automaticamente...</span>
-                </div>
-              )}
-            </>
-            
-            <div className="flex justify-between items-center">
-              <h3 className="text-lg font-medium">Imagens do Espelho</h3>
-              <div className="flex gap-2">
-                <Button variant="outline" onClick={handleOpenImageGallery}>
-                  <ImageIcon className="h-4 w-4 mr-2" />
-                  Gerenciar Imagens
-                </Button>
-                {imagens.length > 0 && (
-                  <Button
-                    variant="outline"
-                    onClick={() => handleGenerateTextFromImages(imagens)}
-                    disabled={isGeneratingText || !leadData}
+            {aguardandoEspelho ? (
+              <div className="flex flex-col items-center justify-center py-16">
+                <Loader2 className="h-16 w-16 text-primary animate-spin mb-4" />
+                <p className="text-lg font-medium">Aguardando Processamento</p>
+                <p className="text-sm text-muted-foreground mt-2 mb-4">
+                  Estamos processando o espelho de correção. Isso pode levar alguns minutos.
+                </p>
+                
+                {onCancelarEspelho && (
+                  <Button 
+                    variant="destructive" 
+                    onClick={handleCancelarEspelho}
+                    disabled={isCancelando}
                   >
-                    {isGeneratingText ? (
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    {isCancelando ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Cancelando...
+                      </>
                     ) : (
-                      <Send className="h-4 w-4 mr-2" />
+                      "Cancelar Processamento"
                     )}
-                    Gerar Texto
                   </Button>
                 )}
               </div>
-            </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-              {imagens.length > 0 ? (
-                imagens.map((url, index) => (
-                  <div key={index} className="border rounded-md overflow-hidden h-32">
-                    <img 
-                      src={url} 
-                      alt={`Espelho ${index + 1}`} 
-                      className="w-full h-full object-contain"
-                    />
+            ) : (
+              <>
+                <h3 className="text-lg font-medium">Texto do Espelho</h3>
+                <Textarea
+                  value={formatEspelhoTexto()}
+                  onChange={(e) => {
+                    const inputValue = e.target.value;
+                    // Tenta preservar o formato original dos dados
+                    try {
+                      // Primeiro tenta considerar como JSON
+                      const parsed = JSON.parse(inputValue);
+                      setTexto(parsed);
+                    } catch {
+                      // Se não for JSON válido, mantém como texto simples
+                      setTexto(inputValue);
+                    }
+                  }}
+                  className="min-h-[300px] font-mono"
+                  placeholder="Texto do espelho de correção..."
+                  disabled={isGeneratingText}
+                />
+                {isGeneratingText && (
+                  <div className="flex items-center justify-center p-4 bg-muted rounded-lg">
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    <span className="text-sm">Gerando texto automaticamente...</span>
                   </div>
-                ))
-              ) : (
-                <div className="col-span-full text-center py-8 text-muted-foreground">
-                  Nenhuma imagem selecionada
+                )}
+                
+                <div className="flex justify-between items-center">
+                  <h3 className="text-lg font-medium">Imagens do Espelho</h3>
+                  <div className="flex gap-2">
+                    <Button variant="outline" onClick={handleOpenImageGallery}>
+                      <ImageIcon className="h-4 w-4 mr-2" />
+                      Gerenciar Imagens
+                    </Button>
+                    {imagens.length > 0 && (
+                      <Button
+                        variant="outline"
+                        onClick={() => handleGenerateTextFromImages(imagens)}
+                        disabled={isGeneratingText || !leadData}
+                      >
+                        {isGeneratingText ? (
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        ) : (
+                          <Send className="h-4 w-4 mr-2" />
+                        )}
+                        Gerar Texto
+                      </Button>
+                    )}
+                  </div>
                 </div>
-              )}
-            </div>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                  {imagens.length > 0 ? (
+                    imagens.map((url, index) => (
+                      <div key={index} className="border rounded-md overflow-hidden h-32">
+                        <img 
+                          src={url} 
+                          alt={`Espelho ${index + 1}`} 
+                          className="w-full h-full object-contain"
+                        />
+                      </div>
+                    ))
+                  ) : (
+                    <div className="col-span-full text-center py-8 text-muted-foreground">
+                      Nenhuma imagem selecionada
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={handleClose} disabled={isSaving || isGeneratingText}>
-              Cancelar
+            <Button variant="outline" onClick={handleClose} disabled={isSaving || isGeneratingText || isCancelando}>
+              Fechar
             </Button>
-            <Button onClick={handleSave} disabled={isSaving || isGeneratingText}>
-              {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Salvar Alterações
-            </Button>
+            {!aguardandoEspelho && (
+              <Button onClick={handleSave} disabled={isSaving || isGeneratingText}>
+                {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Salvar Alterações
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

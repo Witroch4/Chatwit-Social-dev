@@ -8,6 +8,21 @@ export function useLeadState(lead: LeadChatwit) {
   const [hasEspelho, setHasEspelho] = useState(hasEspelhoData(lead));
   const [consultoriaAtiva, setConsultoriaAtiva] = useState(!!lead.consultoriaFase2);
   
+  // Estado para o manuscrito
+  const [localManuscritoState, setLocalManuscritoState] = useState({
+    manuscritoProcessado: !!lead.manuscritoProcessado,
+    aguardandoManuscrito: !!lead.aguardandoManuscrito,
+    provaManuscrita: lead.provaManuscrita
+  });
+
+  // Estado para o espelho
+  const [localEspelhoState, setLocalEspelhoState] = useState({
+    hasEspelho: hasEspelhoData(lead),
+    aguardandoEspelho: !!lead.aguardandoEspelho,
+    espelhoCorrecao: lead.espelhoCorrecao,
+    textoDOEspelho: lead.textoDOEspelho
+  });
+  
   // Estado para a análise
   const [localAnaliseState, setLocalAnaliseState] = useState({
     analiseUrl: lead.analiseUrl,
@@ -20,13 +35,25 @@ export function useLeadState(lead: LeadChatwit) {
   useEffect(() => {
     const novoHasEspelho = hasEspelhoData(lead);
     setHasEspelho(novoHasEspelho);
+    setLocalEspelhoState(prev => ({
+      ...prev,
+      hasEspelho: novoHasEspelho,
+      aguardandoEspelho: !!lead.aguardandoEspelho,
+      espelhoCorrecao: lead.espelhoCorrecao,
+      textoDOEspelho: lead.textoDOEspelho
+    }));
     setRefreshKey(prev => prev + 1);
-  }, [lead.espelhoCorrecao, lead.textoDOEspelho]);
+  }, [lead.espelhoCorrecao, lead.textoDOEspelho, lead.aguardandoEspelho]);
 
   useEffect(() => {
     setManuscritoProcessadoLocal(!!lead.manuscritoProcessado);
+    setLocalManuscritoState({
+      manuscritoProcessado: !!lead.manuscritoProcessado,
+      aguardandoManuscrito: !!lead.aguardandoManuscrito,
+      provaManuscrita: lead.provaManuscrita
+    });
     setRefreshKey(prev => prev + 1);
-  }, [lead.manuscritoProcessado]);
+  }, [lead.manuscritoProcessado, lead.aguardandoManuscrito, lead.provaManuscrita]);
 
   useEffect(() => {
     setLocalAnaliseState({
@@ -45,13 +72,43 @@ export function useLeadState(lead: LeadChatwit) {
     setRefreshKey(prev => prev + 1);
   };
 
-  const updateEspelhoState = (value: boolean) => {
-    setHasEspelho(value);
+  const updateEspelhoState = (updates: any) => {
+    if (typeof updates === 'boolean') {
+      // Mantém compatibilidade com chamadas antigas
+      setHasEspelho(updates);
+      setLocalEspelhoState(prev => ({
+        ...prev,
+        hasEspelho: updates
+      }));
+    } else {
+      setLocalEspelhoState(prev => ({
+        ...prev,
+        ...updates
+      }));
+      if (updates.hasEspelho !== undefined) {
+        setHasEspelho(updates.hasEspelho);
+      }
+    }
     forceRefresh();
   };
 
-  const updateManuscritoState = (value: boolean) => {
-    setManuscritoProcessadoLocal(value);
+  const updateManuscritoState = (updates: any) => {
+    if (typeof updates === 'boolean') {
+      // Mantém compatibilidade com chamadas antigas
+      setManuscritoProcessadoLocal(updates);
+      setLocalManuscritoState(prev => ({
+        ...prev,
+        manuscritoProcessado: updates
+      }));
+    } else {
+      setLocalManuscritoState(prev => ({
+        ...prev,
+        ...updates
+      }));
+      if (updates.manuscritoProcessado !== undefined) {
+        setManuscritoProcessadoLocal(updates.manuscritoProcessado);
+      }
+    }
     forceRefresh();
   };
 
@@ -70,6 +127,8 @@ export function useLeadState(lead: LeadChatwit) {
     manuscritoProcessadoLocal,
     hasEspelho,
     consultoriaAtiva,
+    localManuscritoState,
+    localEspelhoState,
     localAnaliseState,
     forceRefresh,
     updateEspelhoState,

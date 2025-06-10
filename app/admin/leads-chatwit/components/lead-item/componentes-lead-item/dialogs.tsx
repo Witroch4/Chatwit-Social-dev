@@ -78,6 +78,17 @@ interface LeadDialogsProps {
     analisePreliminar?: any;
     analiseValidada: boolean;
   };
+  localManuscritoState: {
+    manuscritoProcessado: boolean;
+    aguardandoManuscrito: boolean;
+    provaManuscrita: any;
+  };
+  localEspelhoState: {
+    hasEspelho: boolean;
+    aguardandoEspelho: boolean;
+    espelhoCorrecao: any;
+    textoDOEspelho: any;
+  };
   
   // Funções de callback
   onEdit: (lead: LeadChatwit) => void;
@@ -85,8 +96,10 @@ interface LeadDialogsProps {
   onSendSelectedImages: (images: string[]) => Promise<void>;
   onEnviarManuscrito: (images: string[]) => Promise<void>;
   onSaveManuscrito: (texto: string) => Promise<void>;
+  onCancelarManuscrito: () => Promise<void>;
   onEnviarEspelho: (images: string[]) => Promise<void>;
   onSaveEspelho: (texto: any, imagens: string[]) => Promise<void>;
+  onCancelarEspelho: () => Promise<void>;
   onExcluirEspelho: () => Promise<void>;
   onSaveAnotacoes: (anotacoes: string) => Promise<void>;
   onEnviarPdf: (sourceId: string) => Promise<void>;
@@ -135,13 +148,17 @@ export function LeadDialogs({
   isDigitando,
   setIsDigitando,
   localAnaliseState,
+  localManuscritoState,
+  localEspelhoState,
   onEdit,
   onDelete,
   onSendSelectedImages,
   onEnviarManuscrito,
   onSaveManuscrito,
+  onCancelarManuscrito,
   onEnviarEspelho,
   onSaveEspelho,
+  onCancelarEspelho,
   onExcluirEspelho,
   onSaveAnotacoes,
   onEnviarPdf,
@@ -227,7 +244,9 @@ export function LeadDialogs({
         onClose={handleCloseManuscritoDialog}
         leadId={lead.id}
         textoManuscrito={lead.provaManuscrita || ""}
+        aguardandoManuscrito={localManuscritoState.aguardandoManuscrito}
         onSave={onSaveManuscrito}
+        onCancelarManuscrito={onCancelarManuscrito}
       />
 
       {/* Confirmação de Exclusão de Manuscrito */}
@@ -281,8 +300,32 @@ export function LeadDialogs({
         leadId={lead.id}
         leadData={lead}
         textoEspelho={lead.textoDOEspelho || null}
-        imagensEspelho={lead.espelhoCorrecao ? JSON.parse(lead.espelhoCorrecao) : []}
+        imagensEspelho={(() => {
+          // Priorizar estado local se disponível, senão usar do lead
+          if (localEspelhoState.espelhoCorrecao && localEspelhoState.espelhoCorrecao !== '[]') {
+            try {
+              const result = typeof localEspelhoState.espelhoCorrecao === 'string' 
+                ? JSON.parse(localEspelhoState.espelhoCorrecao) 
+                : localEspelhoState.espelhoCorrecao;
+              return result;
+            } catch (error) {
+              return [];
+            }
+          }
+          // Fallback para o campo do lead
+          if (lead.espelhoCorrecao && lead.espelhoCorrecao !== '[]') {
+            try {
+              const result = JSON.parse(lead.espelhoCorrecao);
+              return result;
+            } catch (error) {
+              return [];
+            }
+          }
+          return [];
+        })()}
+        aguardandoEspelho={lead.aguardandoEspelho || localEspelhoState.aguardandoEspelho}
         onSave={onSaveEspelho}
+        onCancelarEspelho={onCancelarEspelho}
       />
 
       {/* Confirmação de Exclusão do Espelho */}
@@ -334,10 +377,27 @@ export function LeadDialogs({
       <Dialog open={confirmDeleteAllFiles} onOpenChange={setConfirmDeleteAllFiles}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Confirmar exclusão em massa</DialogTitle>
-            <DialogDescription>
-              Tem certeza que deseja excluir TODOS os arquivos do lead "{displayName}"? 
-              Esta ação não pode ser desfeita e irá remover {lead.arquivos.length} arquivo(s).
+            <DialogTitle>Confirmar exclusão completa de arquivos</DialogTitle>
+            <DialogDescription asChild>
+              <div className="space-y-2">
+                <p>Tem certeza que deseja excluir <strong>TODOS os arquivos</strong> do lead "{displayName}"?</p>
+                <div className="text-sm bg-muted/50 p-3 rounded-md border-l-4 border-destructive/20">
+                  <p className="font-medium text-foreground mb-2">Esta ação irá excluir:</p>
+                  <ul className="text-muted-foreground space-y-1 list-disc list-inside">
+                    <li>{lead.arquivos.length} arquivo(s) individual(is)</li>
+                    {lead.pdfUnificado && <li>PDF unificado</li>}
+                    {(lead.provaManuscrita || lead.manuscritoProcessado) && <li>Manuscrito digitado</li>}
+                    {((lead.espelhoCorrecao && lead.espelhoCorrecao !== '[]') || lead.textoDOEspelho) && <li>Espelho de correção individual</li>}
+                    {(localAnaliseState.analiseUrl || localAnaliseState.analisePreliminar || localAnaliseState.aguardandoAnalise) && <li>Análise da prova</li>}
+                  </ul>
+                  <p className="text-destructive font-medium mt-2">
+                    ⚠️ Esta ação não pode ser desfeita!
+                  </p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Nota: Espelhos da biblioteca não serão afetados.
+                  </p>
+                </div>
+              </div>
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -345,7 +405,7 @@ export function LeadDialogs({
               Cancelar
             </Button>
             <Button variant="destructive" onClick={onExecuteDeleteAllFiles}>
-              Excluir Todos
+              Excluir Todos os Arquivos
             </Button>
           </DialogFooter>
         </DialogContent>

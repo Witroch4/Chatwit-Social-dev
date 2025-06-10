@@ -2,6 +2,7 @@ import { useToast } from "@/hooks/use-toast";
 import { getConvertedImages } from "@/app/admin/leads-chatwit/components/lead-item/componentes-lead-item/utils";
 import { LeadChatwit } from "@/app/admin/leads-chatwit/types";
 import { ContextAction } from "@/app/admin/leads-chatwit/components/lead-context-menu";
+import { Prisma } from "@prisma/client";
 
 interface UseLeadHandlersProps {
   lead: LeadChatwit;
@@ -54,10 +55,21 @@ interface UseLeadHandlersProps {
     analisePreliminar?: any;
     analiseValidada: boolean;
   };
+  localManuscritoState: {
+    manuscritoProcessado: boolean;
+    aguardandoManuscrito: boolean;
+    provaManuscrita: any;
+  };
+  localEspelhoState: {
+    hasEspelho: boolean;
+    aguardandoEspelho: boolean;
+    espelhoCorrecao: any;
+    textoDOEspelho: any;
+  };
   
   // Métodos de atualização de estado
-  updateEspelhoState: (value: boolean) => void;
-  updateManuscritoState: (value: boolean) => void;
+  updateEspelhoState: (value: boolean | any) => void;
+  updateManuscritoState: (value: boolean | any) => void;
   updateAnaliseState: (updates: any) => void;
   updateConsultoriaState: (value: boolean) => void;
   forceRefresh: () => void;
@@ -104,6 +116,8 @@ export function useLeadHandlers({
   hasEspelho,
   consultoriaAtiva,
   localAnaliseState,
+  localManuscritoState,
+  localEspelhoState,
   updateEspelhoState,
   updateManuscritoState,
   updateAnaliseState,
@@ -296,6 +310,11 @@ export function useLeadHandlers({
     setShowManuscritoImageSeletor(false);
     setIsDigitando(true);
     
+    // Definir estado aguardando manuscrito
+    updateManuscritoState({
+      aguardandoManuscrito: true
+    });
+    
     try {
       const payload = {
         leadID: lead.id,
@@ -339,18 +358,27 @@ export function useLeadHandlers({
         throw new Error(data.error || "Erro ao enviar manuscrito para processamento");
       }
 
+      // A API já salva aguardandoManuscrito = true automaticamente
+
       toast({
-        title: "Manuscrito processado com sucesso",
-        description: "Você já pode editar o manuscrito.",
+        title: "Manuscrito enviado para processamento",
+        description: "Aguarde o processamento do manuscrito. Você será notificado quando estiver pronto.",
         variant: "default",
       });
       
-      updateManuscritoState(true);
+      // Manter apenas aguardandoManuscrito = true
+      // NÃO marcar como processado ainda
       forceRefresh();
       setIsDigitando(false);
     } catch (error: any) {
       console.error("Erro ao enviar manuscrito:", error);
       setIsDigitando(false);
+      
+      // Resetar estado em caso de erro
+      updateManuscritoState({
+        aguardandoManuscrito: false
+      });
+      
       toast({
         title: "Erro",
         description: error.message || "Não foi possível processar o manuscrito. Tente novamente.",
@@ -415,13 +443,19 @@ export function useLeadHandlers({
         description: "Manuscrito excluído com sucesso!",
       });
 
-      updateManuscritoState(false);
+      // Resetar todos os campos relacionados ao manuscrito
+      updateManuscritoState({
+        manuscritoProcessado: false,
+        aguardandoManuscrito: false,
+        provaManuscrita: Prisma.JsonNull
+      });
       
-      if (typeof onEdit === 'function') {
+              if (typeof onEdit === 'function') {
         onEdit({
           ...lead,
-          provaManuscrita: null,
+          provaManuscrita: Prisma.JsonNull,
           manuscritoProcessado: false,
+          aguardandoManuscrito: false,
           _skipDialog: true,
         });
       }
@@ -442,19 +476,8 @@ export function useLeadHandlers({
 
   // Handlers de espelho
   const handleEspelhoClick = () => {
-    if (consultoriaAtiva) {
-      if (hasEspelho) {
-        setShowEspelhoDialog(true);
-      } else {
-        handleOpenFileUpload();
-      }
-    } else {
-      if (hasEspelho) {
-        setShowEspelhoDialog(true);
-      } else {
-        setShowEspelhoSeletor(true);
-      }
-    }
+    // Sempre abrir o diálogo, independente do estado
+    setShowEspelhoDialog(true);
   };
 
   const handleOpenFileUpload = () => {
@@ -504,23 +527,70 @@ export function useLeadHandlers({
         throw new Error('Nenhuma imagem foi processada');
       }
       
-      await onEdit({
+      // Definir estado aguardando espelho
+      updateEspelhoState({
+        aguardandoEspelho: true
+      });
+
+      // Salvar as imagens localmente para não perder
+      const updatedLead = {
         ...lead,
+        aguardandoEspelho: true,
         espelhoCorrecao: JSON.stringify(imageUrls),
         _skipDialog: true
+      };
+
+      // Atualizar o lead localmente primeiro
+      await onEdit(updatedLead);
+
+      // Preparar payload para envio ao sistema externo
+      const payload = {
+        leadID: lead.id,
+        nome: lead.nomeReal || lead.name || "Lead sem nome",
+        telefone: lead.phoneNumber,
+        // Usar flag correta dependendo do estado da consultoria
+        ...(consultoriaAtiva ? { espelhoparabiblioteca: true } : { espelho: true }),
+        arquivos: lead.arquivos.map((a: { id: string; dataUrl: string; fileType: string }) => ({
+          id: a.id,
+          url: a.dataUrl,
+          tipo: a.fileType,
+          nome: a.fileType
+        })),
+        arquivos_pdf: lead.pdfUnificado ? [{
+          id: `${lead.id}-pdf-unificado`,
+          url: lead.pdfUnificado,
+          nome: "PDF Unificado"
+        }] : [],
+        arquivos_imagens_espelho: imageUrls.map((url: string, index: number) => ({
+          id: `${lead.id}-espelho-${index}`,
+          url: url,
+          nome: `Espelho ${index + 1}`
+        })),
+        metadata: {
+          leadUrl: lead.leadUrl,
+          sourceId: lead.sourceId,
+          concluido: lead.concluido,
+          fezRecurso: lead.fezRecurso
+        }
+      };
+      
+      const espelhoResponse = await fetch("/api/admin/leads-chatwit/enviar-manuscrito", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
       });
       
-      updateEspelhoState(true);
-      forceRefresh();
+      if (!espelhoResponse.ok) {
+        const espelhoData = await espelhoResponse.json();
+        throw new Error(espelhoData.error || "Erro ao enviar espelho para sistema externo");
+      }
       
       toast({
-        title: "Upload concluído",
-        description: `${data.file_type === 'pdf' ? 'PDF convertido em' : 'Processada'} ${imageUrls.length} imagem(ns) para o espelho.`,
+        title: "Espelho enviado",
+        description: "Espelho enviado para o sistema externo com sucesso! Aguarde o processamento.",
       });
-      
-      if (consultoriaAtiva) {
-        await handleEnviarEspelhoAuto(imageUrls);
-      }
       
     } catch (error: any) {
       console.error("Erro no upload do espelho:", error);
@@ -541,7 +611,8 @@ export function useLeadHandlers({
         leadID: lead.id,
         nome: lead.nomeReal || lead.name || "Lead sem nome",
         telefone: lead.phoneNumber,
-        espelhoconsultoriafase2: true,
+        // Usar flag correta dependendo do estado da consultoria
+        ...(consultoriaAtiva ? { espelhoparabiblioteca: true } : { espelho: true }),
         arquivos: lead.arquivos.map((a: { id: string; dataUrl: string; fileType: string }) => ({
           id: a.id,
           url: a.dataUrl,
@@ -576,7 +647,7 @@ export function useLeadHandlers({
       
       if (!espelhoResponse.ok) {
         const espelhoData = await espelhoResponse.json();
-        throw new Error(espelhoData.error || "Erro ao enviar espelho para processamento");
+        throw new Error(espelhoData.error || "Erro ao enviar espelho para sistema externo");
       }
       
       toast({
@@ -742,6 +813,9 @@ export function useLeadHandlers({
           });
         }
         break;
+      case 'cancelarEspelho':
+        handleCancelarEspelho();
+        break;
       case 'excluirAnalise':
         handleExcluirAnalise();
         break;
@@ -824,6 +898,8 @@ export function useLeadHandlers({
         ...lead,
         textoDOEspelho: "",
         espelhoCorrecao: JSON.stringify([]),
+        espelhoProcessado: false,
+        aguardandoEspelho: false,
       };
       
       try {
@@ -947,29 +1023,129 @@ export function useLeadHandlers({
       
       // Mostrar toast de carregamento
       toast({
-        title: "Excluindo arquivos",
-        description: "Aguarde enquanto excluímos todos os arquivos...",
+        title: "Excluindo todos os arquivos",
+        description: "Aguarde enquanto excluímos todos os arquivos do lead (arquivos, PDF, manuscrito, espelho e análise)...",
       });
       
-      // Criar um array com as promessas de exclusão para cada arquivo
-      const deletePromises = lead.arquivos.map(arquivo => 
-        handleDeleteFile(arquivo.id, "arquivo")
-      );
+      const deletePromises = [];
+      
+      // 1. Excluir todos os arquivos individuais
+      if (lead.arquivos && lead.arquivos.length > 0) {
+        deletePromises.push(
+          ...lead.arquivos.map(arquivo => 
+            handleDeleteFile(arquivo.id, "arquivo")
+          )
+        );
+      }
+      
+      // 2. Excluir PDF unificado se existir
+      if (lead.pdfUnificado) {
+        deletePromises.push(
+          handleDeleteFile(lead.id, "pdf")
+        );
+      }
+      
+      // 3. Excluir imagens convertidas se existirem
+      if (lead.arquivos && lead.arquivos.some(a => a.pdfConvertido)) {
+        deletePromises.push(
+          handleDeleteFile(lead.id, "imagem")
+        );
+      }
+      
+      // 4. Excluir manuscrito se existir
+      if (lead.provaManuscrita || lead.manuscritoProcessado) {
+        deletePromises.push(
+          fetch(`/api/admin/leads-chatwit/manuscrito?leadId=${lead.id}`, {
+            method: "DELETE",
+          }).then(response => {
+            if (!response.ok) {
+              throw new Error("Erro ao excluir manuscrito");
+            }
+            return response.json();
+          })
+        );
+      }
+      
+      // 5. Excluir análise se existir
+      if (localAnaliseState.analiseUrl || localAnaliseState.analisePreliminar || localAnaliseState.aguardandoAnalise) {
+        deletePromises.push(
+          fetch("/api/admin/leads-chatwit/leads", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              id: lead.id,
+              analiseUrl: "",
+              analiseProcessada: false,
+              aguardandoAnalise: false,
+              analisePreliminar: false,
+              analiseValidada: false,
+            }),
+          }).then(response => {
+            if (!response.ok) {
+              throw new Error("Erro ao excluir análise");
+            }
+            return response.json();
+          })
+        );
+      }
+      
+      // 6. Excluir espelho (mas não da biblioteca) se existir
+      const temEspelhoIndividual = (lead.espelhoCorrecao && lead.espelhoCorrecao !== '[]') || 
+                                   (lead.textoDOEspelho && lead.textoDOEspelho !== '');
+      
+      if (temEspelhoIndividual) {
+        deletePromises.push(
+          onEdit({
+            ...lead,
+            textoDOEspelho: "",
+            espelhoCorrecao: JSON.stringify([]),
+            _skipDialog: true,
+            _internal: true
+          })
+        );
+      }
       
       // Executar todas as promessas em paralelo
       await Promise.all(deletePromises);
       
+      // Atualizar estados locais
+      updateManuscritoState(false);
+      updateEspelhoState(false);
+      updateAnaliseState({
+        analiseUrl: undefined,
+        aguardandoAnalise: false,
+        analisePreliminar: false,
+        analiseValidada: false
+      });
+      
       // Atualizar o lead após todas as exclusões
-      onEdit({
+      await onEdit({
         ...lead,
         arquivos: [],
+        pdfUnificado: undefined,
+        provaManuscrita: undefined,
+        manuscritoProcessado: false,
+        aguardandoManuscrito: false,
+        // Não limpar espelhoBibliotecaId para manter associação com biblioteca
+        textoDOEspelho: "",
+        espelhoCorrecao: JSON.stringify([]),
+        analiseUrl: undefined,
+        analiseProcessada: false,
+        aguardandoAnalise: false,
+        analisePreliminar: false,
+        analiseValidada: false,
         _skipDialog: true,
         _forceUpdate: true
       });
       
+      // Forçar refresh
+      forceRefresh();
+      
       toast({
         title: "Sucesso",
-        description: "Todos os arquivos foram excluídos com sucesso!",
+        description: "Todos os arquivos do lead foram excluídos com sucesso! (Arquivos, PDF, manuscrito, espelho individual e análise)",
       });
     } catch (error: any) {
       console.error("Erro ao excluir todos os arquivos:", error);
@@ -1113,25 +1289,89 @@ export function useLeadHandlers({
       setShowEspelhoSeletor(false);
       setIsEnviandoEspelho(true);
 
-      // Atualizar o lead com as imagens do espelho
-      await onEdit({
+      // Definir estado aguardando espelho
+      updateEspelhoState({
+        aguardandoEspelho: true
+      });
+
+      // Salvar as imagens localmente para não perder
+      const updatedLead = {
         ...lead,
+        aguardandoEspelho: true,
         espelhoCorrecao: JSON.stringify(images),
         _skipDialog: true
+      };
+
+      // Atualizar o lead localmente primeiro
+      await onEdit(updatedLead);
+
+      // Preparar payload para envio ao sistema externo
+      const payload = {
+        leadID: lead.id,
+        nome: lead.nomeReal || lead.name || "Lead sem nome",
+        telefone: lead.phoneNumber,
+        // Usar flag correta dependendo do estado da consultoria
+        ...(consultoriaAtiva ? { espelhoparabiblioteca: true } : { espelho: true }),
+        arquivos: lead.arquivos.map((a: { id: string; dataUrl: string; fileType: string }) => ({
+          id: a.id,
+          url: a.dataUrl,
+          tipo: a.fileType,
+          nome: a.fileType
+        })),
+        arquivos_pdf: lead.pdfUnificado ? [{
+          id: `${lead.id}-pdf-unificado`,
+          url: lead.pdfUnificado,
+          nome: "PDF Unificado"
+        }] : [],
+        arquivos_imagens_espelho: images.map((url: string, index: number) => ({
+          id: `${lead.id}-espelho-${index}`,
+          url: url,
+          nome: `Espelho ${index + 1}`
+        })),
+        metadata: {
+          leadUrl: lead.leadUrl,
+          sourceId: lead.sourceId,
+          concluido: lead.concluido,
+          fezRecurso: lead.fezRecurso
+        }
+      };
+
+      const response = await fetch("/api/admin/leads-chatwit/enviar-manuscrito", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
       });
 
-      updateEspelhoState(true);
-      forceRefresh();
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || "Erro ao enviar espelho para processamento");
+      }
+
+      // A API já salva aguardandoEspelho = true automaticamente
 
       toast({
-        title: "Espelho enviado",
-        description: `${images.length} imagem(ns) enviada(s) para o espelho de correção.`,
+        title: "Espelho enviado para processamento",
+        description: "Aguarde o processamento do espelho. Você será notificado quando estiver pronto.",
+        variant: "default",
       });
+      
+      // Manter apenas aguardandoEspelho = true
+      // NÃO marcar como processado ainda
+      forceRefresh();
     } catch (error: any) {
       console.error("Erro ao enviar espelho:", error);
+      setIsEnviandoEspelho(false);
+      
+      // Resetar estado em caso de erro
+      updateEspelhoState({
+        aguardandoEspelho: false
+      });
+      
       toast({
         title: "Erro",
-        description: error.message || "Não foi possível enviar o espelho.",
+        description: error.message || "Não foi possível processar o espelho. Tente novamente.",
         variant: "destructive",
       });
     } finally {
@@ -1273,6 +1513,163 @@ export function useLeadHandlers({
     }
   };
 
+  // Handler para cancelar processamento do manuscrito
+  const handleCancelarManuscrito = async () => {
+    try {
+      // Atualizar estado local imediatamente para feedback visual instantâneo
+      updateManuscritoState({
+        aguardandoManuscrito: false
+      });
+      
+      // Forçar atualização do botão
+      forceRefresh();
+      
+      // Prepara o payload para envio
+      const payload = {
+        id: lead.id,
+        aguardandoManuscrito: false,
+      };
+      
+      const response = await fetch("/api/admin/leads-chatwit/leads", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+      
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || "Erro ao cancelar processamento do manuscrito");
+      }
+      
+      // Atualizar o lead localmente
+      const updatedLead = {
+        ...lead,
+        aguardandoManuscrito: false,
+        _skipDialog: true,
+        _forceUpdate: true, // Forçar atualização completa
+      };
+      
+      // Chamar o método de edição
+      await onEdit(updatedLead);
+      
+      toast({
+        title: "Sucesso",
+        description: "Processamento do manuscrito cancelado com sucesso!",
+      });
+      
+      // Forçar nova atualização após pequeno delay para garantir sincronização
+      setTimeout(() => {
+        forceRefresh();
+      }, 100);
+      
+    } catch (error: any) {
+      console.error("Erro ao cancelar processamento do manuscrito:", error);
+      toast({
+        title: "Erro",
+        description: error.message || "Não foi possível cancelar o processamento. Tente novamente.",
+        variant: "destructive",
+      });
+      
+      // Restaurar estado em caso de erro
+      updateManuscritoState({
+        aguardandoManuscrito: !!lead.aguardandoManuscrito
+      });
+      
+      // Forçar atualização do botão
+      forceRefresh();
+    }
+  };
+
+  // Handler para cancelar processamento do espelho
+  const handleCancelarEspelho = async () => {
+    try {
+      console.log("[Cancelar Espelho] Iniciando cancelamento...");
+      
+      // Fechar o diálogo antes de cancelar
+      setShowEspelhoDialog(false);
+      
+      // Atualizar estado local imediatamente para feedback visual instantâneo
+      updateEspelhoState({
+        aguardandoEspelho: false
+      });
+      
+      // Forçar atualização do botão
+      forceRefresh();
+      
+      // Prepara o payload para envio
+      const payload = {
+        id: lead.id,
+        aguardandoEspelho: false,
+        espelhoProcessado: false,
+      };
+      
+      console.log("[Cancelar Espelho] Enviando payload:", payload);
+      console.log("[Cancelar Espelho] Lead atual antes da atualização:", {
+        id: lead.id,
+        aguardandoEspelho: lead.aguardandoEspelho,
+        espelhoProcessado: lead.espelhoProcessado
+      });
+      
+      const response = await fetch("/api/admin/leads-chatwit/leads", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+      
+      if (!response.ok) {
+        const data = await response.json();
+        console.error("[Cancelar Espelho] Erro na resposta:", data);
+        throw new Error(data.error || "Erro ao cancelar processamento do espelho");
+      }
+      
+      console.log("[Cancelar Espelho] Resposta OK, atualizando lead...");
+      
+      // Atualizar o lead localmente
+      const updatedLead = {
+        ...lead,
+        aguardandoEspelho: false,
+        espelhoProcessado: false,
+        _skipDialog: true,
+        _forceUpdate: true, // Forçar atualização completa
+      };
+      
+      // Chamar o método de edição
+      await onEdit(updatedLead);
+      
+      console.log("[Cancelar Espelho] Lead atualizado com sucesso!");
+      
+      toast({
+        title: "Sucesso",
+        description: "Processamento do espelho cancelado com sucesso!",
+      });
+      
+      // Forçar nova atualização após pequeno delay para garantir sincronização
+      setTimeout(() => {
+        forceRefresh();
+      }, 100);
+      
+    } catch (error: any) {
+      console.error("Erro ao cancelar processamento do espelho:", error);
+      toast({
+        title: "Erro",
+        description: error.message || "Não foi possível cancelar o processamento. Tente novamente.",
+        variant: "destructive",
+      });
+      
+      // Restaurar estado em caso de erro
+      updateEspelhoState({
+        aguardandoEspelho: !!lead.aguardandoEspelho
+      });
+      
+      // Forçar atualização do botão
+      forceRefresh();
+    }
+  };
+
   return {
     handleEditLead,
     handleDelete,
@@ -1287,7 +1684,9 @@ export function useLeadHandlers({
     handleEnviarManuscrito,
     handleSaveManuscrito,
     handleExcluirManuscrito,
+    handleCancelarManuscrito,
     handleEspelhoClick,
+    handleCancelarEspelho,
     handleExcluirEspelho,
     handleOpenFileUpload,
     handleEspelhoFileUpload,

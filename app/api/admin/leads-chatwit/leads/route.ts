@@ -93,7 +93,14 @@ export async function POST(request: Request): Promise<Response> {
       aguardandoAnalise,
       analisePreliminar,
       analiseValidada,
-      consultoriaFase2
+      consultoriaFase2,
+      // Campos relacionados ao manuscrito
+      aguardandoManuscrito,
+      manuscritoProcessado,
+      provaManuscrita,
+      // Campos relacionados ao espelho
+      aguardandoEspelho,
+      espelhoProcessado
     } = await request.json();
     
     // Valide os dados recebidos
@@ -111,6 +118,11 @@ export async function POST(request: Request): Promise<Response> {
       ...(analisePreliminar !== undefined && { analisePreliminar: "Presente" }),
       ...(analiseValidada !== undefined && { analiseValidada }),
       ...(consultoriaFase2 !== undefined && { consultoriaFase2 }),
+      ...(aguardandoManuscrito !== undefined && { aguardandoManuscrito }),
+      ...(manuscritoProcessado !== undefined && { manuscritoProcessado }),
+      ...(provaManuscrita !== undefined && { provaManuscrita: "Presente" }),
+      ...(aguardandoEspelho !== undefined && { aguardandoEspelho }),
+      ...(espelhoProcessado !== undefined && { espelhoProcessado }),
     });
 
     // Verificar quais campos foram enviados e montar o objeto de update
@@ -130,6 +142,11 @@ export async function POST(request: Request): Promise<Response> {
     if (analisePreliminar !== undefined) updateData.analisePreliminar = analisePreliminar;
     if (analiseValidada !== undefined) updateData.analiseValidada = analiseValidada;
     if (consultoriaFase2 !== undefined) updateData.consultoriaFase2 = consultoriaFase2;
+    if (aguardandoManuscrito !== undefined) updateData.aguardandoManuscrito = aguardandoManuscrito;
+    if (manuscritoProcessado !== undefined) updateData.manuscritoProcessado = manuscritoProcessado;
+    if (provaManuscrita !== undefined) updateData.provaManuscrita = provaManuscrita;
+    if (aguardandoEspelho !== undefined) updateData.aguardandoEspelho = aguardandoEspelho;
+    if (espelhoProcessado !== undefined) updateData.espelhoProcessado = espelhoProcessado;
 
     // Atualize o lead
     const lead = await prisma.leadChatwit.update({

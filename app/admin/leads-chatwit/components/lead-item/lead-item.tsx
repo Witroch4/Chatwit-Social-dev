@@ -127,6 +127,7 @@ export function LeadItem({
           manuscritoProcessadoLocal={leadState.manuscritoProcessadoLocal}
           isDigitando={dialogState.isDigitando}
           refreshKey={leadState.refreshKey}
+          localManuscritoState={leadState.localManuscritoState}
           onContextMenuAction={handlers.handleContextMenuAction}
           onDigitarClick={handlers.handleDigitarClick}
         />
@@ -141,10 +142,12 @@ export function LeadItem({
           isEnviandoEspelho={dialogState.isEnviandoEspelho}
           isUploadingEspelho={dialogState.isUploadingEspelho}
           refreshKey={leadState.refreshKey}
+          localEspelhoState={leadState.localEspelhoState}
           onContextMenuAction={handlers.handleContextMenuAction}
           onEspelhoClick={handlers.handleEspelhoClick}
           onOpenFileUpload={handlers.handleOpenFileUpload}
           onOpenBiblioteca={handleOpenBiblioteca}
+          onOpenEspelhoSeletor={() => dialogState.setShowEspelhoSeletor(true)}
         />
         
         {/* Célula de Análise */}
@@ -189,8 +192,10 @@ export function LeadItem({
         onSendSelectedImages={handlers.handleSendSelectedImages}
         onEnviarManuscrito={handlers.handleEnviarManuscrito}
         onSaveManuscrito={handlers.handleSaveManuscrito}
+        onCancelarManuscrito={handlers.handleCancelarManuscrito}
         onEnviarEspelho={handlers.handleEnviarEspelho}
         onSaveEspelho={handlers.handleSaveEspelho}
+        onCancelarEspelho={handlers.handleCancelarEspelho}
         onExcluirEspelho={handlers.handleExcluirEspelho}
         onSaveAnotacoes={handlers.handleSaveAnotacoes}
         onEnviarPdf={handlers.handleEnviarPdf}

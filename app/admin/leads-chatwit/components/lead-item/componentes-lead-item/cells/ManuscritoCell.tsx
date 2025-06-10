@@ -8,6 +8,11 @@ interface ManuscritoCellExtendedProps extends ManuscritoCellProps {
   manuscritoProcessadoLocal: boolean;
   isDigitando: boolean;
   refreshKey: number;
+  localManuscritoState: {
+    manuscritoProcessado: boolean;
+    aguardandoManuscrito: boolean;
+    provaManuscrita: any;
+  };
   onContextMenuAction: (action: ContextAction, data?: any) => void;
   onDigitarClick: () => void;
 }
@@ -17,6 +22,7 @@ export function ManuscritoCell({
   manuscritoProcessadoLocal,
   isDigitando,
   refreshKey,
+  localManuscritoState,
   onContextMenuAction,
   onDigitarClick
 }: ManuscritoCellExtendedProps) {
@@ -27,19 +33,24 @@ export function ManuscritoCell({
         onAction={onContextMenuAction}
         data={{
           id: lead.id,
-          manuscritoProcessado: manuscritoProcessadoLocal,
-          aguardandoManuscrito: !!lead.aguardandoManuscrito
+          manuscritoProcessado: localManuscritoState.manuscritoProcessado,
+          aguardandoManuscrito: localManuscritoState.aguardandoManuscrito
         }}
       >
         <Button
           variant="outline"
           size="sm"
           onClick={onDigitarClick}
-          disabled={isDigitando}
+          disabled={isDigitando || localManuscritoState.aguardandoManuscrito}
           className="whitespace-nowrap w-full"
           key={`manuscrito-btn-${refreshKey}`}
         >
-          {manuscritoProcessadoLocal ? (
+          {localManuscritoState.aguardandoManuscrito ? (
+            <>
+              <Edit3 className="h-4 w-4 mr-1 animate-spin" />
+              Aguardando
+            </>
+          ) : localManuscritoState.manuscritoProcessado ? (
             <>
               <Edit3 className="h-4 w-4 mr-1" />
               Editar Manuscrito

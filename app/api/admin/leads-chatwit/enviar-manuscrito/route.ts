@@ -23,7 +23,7 @@ export async function POST(request: Request): Promise<Response> {
     
     // Determinar o tipo de documento
     const isManuscrito = payload.manuscrito === true;
-    const isEspelho = payload.espelho === true;
+    const isEspelho = payload.espelho === true || payload.espelhoconsultoriafase2 === true || payload.espelhoparabiblioteca === true;
     const isProva = payload.prova === true;
     
     // Obter o tipo do documento para logs
@@ -34,17 +34,25 @@ export async function POST(request: Request): Promise<Response> {
     
     if (leadId) {
       if (isManuscrito && !isEspelho && !isProva) {
-        // ALTERAÇÃO PRINCIPAL: Marcar o manuscrito como processado IMEDIATAMENTE
-        // Em vez de "aguardandoManuscrito", marcamos como "manuscritoProcessado"
+        // Marcar manuscrito como AGUARDANDO processamento
         await prisma.leadChatwit.update({
           where: { id: leadId },
           data: { 
-            manuscritoProcessado: true,
-            provaManuscrita: "", // Inicializa vazio para edição
-            aguardandoManuscrito: false
+            manuscritoProcessado: false,  // NÃO processado ainda
+            aguardandoManuscrito: true    // Aguardando processamento
           }
         });
-        console.log("[Enviar Manuscrito] Lead marcado como processado com sucesso");
+        console.log("[Enviar Manuscrito] Lead marcado como aguardando processamento");
+      } else if (isEspelho && !isManuscrito && !isProva) {
+        // Marcar espelho como AGUARDANDO processamento
+        await prisma.leadChatwit.update({
+          where: { id: leadId },
+          data: { 
+            espelhoProcessado: false,     // NÃO processado ainda
+            aguardandoEspelho: true       // Aguardando processamento
+          }
+        });
+        console.log("[Enviar Espelho] Lead marcado como aguardando processamento");
       }
     }
     

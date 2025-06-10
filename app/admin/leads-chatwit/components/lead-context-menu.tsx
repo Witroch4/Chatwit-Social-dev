@@ -31,6 +31,7 @@ export type ContextAction =
   | 'selecionarEspelho'
   | 'verEspelho'
   | 'excluirEspelho'
+  | 'cancelarEspelho'
   | 'excluirAnalise'
   | 'verAnalise'
   | 'verAnaliseValidada'
@@ -122,10 +123,38 @@ export function LeadContextMenu({ contextType, onAction, children, data }: LeadC
         {/* Opções para espelho de correção */}
         {contextType === 'espelho' && (
           <>
-            {data.hasEspelho ? (
-              <ContextMenuItem onClick={() => onAction('verEspelho', data)}>
-                Editar Espelho
-              </ContextMenuItem>
+            {data.aguardandoEspelho ? (
+              <>
+                <ContextMenuItem onClick={() => onAction('verEspelho', data)}>
+                  Ver Espelho (Aguardando)
+                </ContextMenuItem>
+                <ContextMenuSeparator />
+                <ContextMenuItem 
+                  onClick={() => onAction('cancelarEspelho', data)}
+                  className="text-orange-500 focus:text-orange-500 focus:bg-orange-50"
+                >
+                  Cancelar Processamento
+                </ContextMenuItem>
+                <ContextMenuItem 
+                  onClick={() => onAction('excluirEspelho', data)}
+                  className="text-red-500 focus:text-red-500 focus:bg-red-50"
+                >
+                  Excluir Espelho
+                </ContextMenuItem>
+              </>
+            ) : data.hasEspelho ? (
+              <>
+                <ContextMenuItem onClick={() => onAction('verEspelho', data)}>
+                  Editar Espelho
+                </ContextMenuItem>
+                <ContextMenuSeparator />
+                <ContextMenuItem 
+                  onClick={() => onAction('excluirEspelho', data)}
+                  className="text-red-500 focus:text-red-500 focus:bg-red-50"
+                >
+                  Excluir Espelho
+                </ContextMenuItem>
+              </>
             ) : (
               <>
                 <ContextMenuItem onClick={() => onAction('selecionarEspelho', data)}>
@@ -133,17 +162,6 @@ export function LeadContextMenu({ contextType, onAction, children, data }: LeadC
                 </ContextMenuItem>
                 <ContextMenuItem onClick={() => onAction('enviarEspelhoUpload', data)}>
                   Upload Espelho
-                </ContextMenuItem>
-              </>
-            )}
-            {data.hasEspelho && (
-              <>
-                <ContextMenuSeparator />
-                <ContextMenuItem 
-                  onClick={() => onAction('excluirEspelho', data)}
-                  className="text-red-500 focus:text-red-500 focus:bg-red-50"
-                >
-                  Excluir Espelho
                 </ContextMenuItem>
               </>
             )}

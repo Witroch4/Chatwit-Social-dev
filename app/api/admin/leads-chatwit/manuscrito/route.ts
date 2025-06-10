@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, Prisma } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
@@ -18,6 +18,7 @@ export async function PUT(request: Request) {
       where: { id: leadId },
       data: {
         provaManuscrita: texto,
+        manuscritoProcessado: true,
       },
     });
 
@@ -50,8 +51,9 @@ export async function DELETE(request: Request) {
     const lead = await prisma.leadChatwit.update({
       where: { id: leadId },
       data: {
-        provaManuscrita: undefined,
-        manuscritoProcessado: false
+        provaManuscrita: Prisma.JsonNull,
+        manuscritoProcessado: false,
+        aguardandoManuscrito: false
       },
     });
 
