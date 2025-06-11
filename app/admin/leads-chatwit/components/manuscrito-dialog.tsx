@@ -10,9 +10,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2 } from "lucide-react";
+import { Loader2, ArrowRight, FileText } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { ToastAction } from "@/components/ui/toast";
+import { Badge } from "@/components/ui/badge";
 
 interface ManuscritoDialogProps {
   isOpen: boolean;
@@ -22,6 +23,15 @@ interface ManuscritoDialogProps {
   aguardandoManuscrito?: boolean;
   onSave: (texto: string) => Promise<void>;
   onCancelarManuscrito?: () => Promise<void>;
+  // Props para modo batch
+  batchMode?: boolean;
+  batchInfo?: {
+    current: number;
+    total: number;
+    leadName: string;
+  };
+  onBatchNext?: () => void;
+  onBatchSkip?: () => void;
 }
 
 export function ManuscritoDialog({
@@ -32,6 +42,10 @@ export function ManuscritoDialog({
   aguardandoManuscrito = false,
   onSave,
   onCancelarManuscrito,
+  batchMode = false,
+  batchInfo,
+  onBatchNext,
+  onBatchSkip,
 }: ManuscritoDialogProps) {
   const [texto, setTexto] = useState(textoManuscrito || '');
   const [isSaving, setIsSaving] = useState(false);
@@ -67,7 +81,12 @@ export function ManuscritoDialog({
           </ToastAction>
         ),
       });
-      handleClose();
+      
+      if (batchMode && onBatchNext) {
+        onBatchNext();
+      } else {
+        handleClose();
+      }
     } catch (error: any) {
       toast({
         title: "Erro",
@@ -106,6 +125,12 @@ export function ManuscritoDialog({
     }
   };
 
+  const handleSkip = () => {
+    if (batchMode && onBatchSkip) {
+      onBatchSkip();
+    }
+  };
+
   // Função para garantir a limpeza correta ao fechar
   const handleClose = () => {
     if (!isSaving && !isCancelando) {
@@ -121,9 +146,33 @@ export function ManuscritoDialog({
     <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
       <DialogContent className="max-w-4xl">
         <DialogHeader>
-          <DialogTitle>Editar Manuscrito</DialogTitle>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              <DialogTitle>
+                {batchMode ? "Manuscrito em Lote" : "Editar Manuscrito"}
+              </DialogTitle>
+            </div>
+            {batchMode && batchInfo && (
+              <Badge variant="secondary" className="text-xs">
+                {batchInfo.current} de {batchInfo.total}
+              </Badge>
+            )}
+          </div>
           <DialogDescription>
-            Faça as alterações necessárias no texto do manuscrito.
+            {batchMode && batchInfo ? (
+              <div className="space-y-2">
+                <div>
+                  Processando manuscrito para: <strong>{batchInfo.leadName}</strong>
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  💡 Selecione as imagens que serão enviadas para digitação automática. 
+                  Este processo pode levar alguns minutos após o envio.
+                </div>
+              </div>
+            ) : (
+              "Faça as alterações necessárias no texto do manuscrito."
+            )}
           </DialogDescription>
         </DialogHeader>
         <div className="py-4">
@@ -161,15 +210,40 @@ export function ManuscritoDialog({
             />
           )}
         </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={handleClose} disabled={isSaving || isCancelando}>
-            Fechar
-          </Button>
-          {!aguardandoManuscrito && (
-            <Button onClick={handleSave} disabled={isSaving}>
-              {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Salvar Alterações
-            </Button>
+        <DialogFooter className="gap-2">
+          {batchMode ? (
+            <>
+              <Button variant="outline" onClick={handleClose} disabled={isSaving || isCancelando}>
+                Cancelar Lote
+              </Button>
+              <Button variant="ghost" onClick={handleSkip} disabled={isSaving || isCancelando}>
+                Pular Este Lead
+              </Button>
+              {!aguardandoManuscrito && (
+                <Button onClick={handleSave} disabled={isSaving}>
+                  {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  <span>Salvar</span>
+                  {batchInfo && batchInfo.current < batchInfo.total && (
+                    <>
+                      <ArrowRight className="ml-2 h-4 w-4" />
+                      <span>Próximo</span>
+                    </>
+                  )}
+                </Button>
+              )}
+            </>
+          ) : (
+            <>
+              <Button variant="outline" onClick={handleClose} disabled={isSaving || isCancelando}>
+                Fechar
+              </Button>
+              {!aguardandoManuscrito && (
+                <Button onClick={handleSave} disabled={isSaving}>
+                  {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Salvar Alterações
+                </Button>
+              )}
+            </>
           )}
         </DialogFooter>
       </DialogContent>

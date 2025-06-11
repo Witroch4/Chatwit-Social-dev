@@ -425,14 +425,14 @@ export async function POST(request: NextRequest) {
         await atualizarStatusArquivos(leadId, true);
         
         // Armazenar URLs das imagens no campo imagensConvertidas
-        await prisma.leadChatwit.update({
+        const updateResult = await prisma.leadChatwit.update({
           where: { id: leadId },
           data: {
             imagensConvertidas: JSON.stringify(convertedUrls) 
           }
         });
         
-        log.info(`Lead atualizado com URLs das imagens convertidas`);
+        log.info(`Lead atualizado com URLs das imagens convertidas: ${JSON.stringify(convertedUrls)}`);
       } catch (updateError) {
         log.error(`Erro ao atualizar lead: ${updateError}`);
       }
@@ -442,7 +442,8 @@ export async function POST(request: NextRequest) {
 
     const response = {
       success: convertedUrls.length > 0,
-      convertedUrls,
+      imageUrls: convertedUrls, // Garantir compatibilidade
+      convertedUrls, // Manter compatibilidade
       failedUrls,
       message: `${convertedUrls.length} PDFs convertidos com sucesso. ${failedUrls.length} falhas.`
     };

@@ -9,11 +9,40 @@ const prisma = new PrismaClient();
 export async function GET(request: Request): Promise<Response> {
   try {
     const url = new URL(request.url);
+    const leadId = url.searchParams.get("id");
     const usuarioId = url.searchParams.get("usuarioId");
     const searchTerm = url.searchParams.get("search");
     const page = parseInt(url.searchParams.get("page") || "1");
     const limit = parseInt(url.searchParams.get("limit") || "10");
     const skip = (page - 1) * limit;
+
+    // Se um ID específico foi fornecido, buscar apenas esse lead
+    if (leadId) {
+      const lead = await prisma.leadChatwit.findUnique({
+        where: { id: leadId },
+        include: {
+          usuario: true,
+          arquivos: {
+            select: {
+              id: true,
+              fileType: true,
+              dataUrl: true,
+              pdfConvertido: true,
+              createdAt: true,
+            },
+          },
+        },
+      });
+
+      if (!lead) {
+        return NextResponse.json(
+          { error: "Lead não encontrado" },
+          { status: 404 }
+        );
+      }
+
+      return NextResponse.json(lead);
+    }
 
     // Construir a cláusula where baseada nos parâmetros
     const where: any = {};
@@ -87,6 +116,9 @@ export async function POST(request: Request): Promise<Response> {
       datasRecurso, 
       textoDOEspelho, 
       espelhoCorrecao,
+      // Campos de processamento
+      pdfUnificado,
+      imagensConvertidas,
       // Campos relacionados à análise
       analiseUrl,
       analiseProcessada,
@@ -112,6 +144,8 @@ export async function POST(request: Request): Promise<Response> {
     }
 
     console.log("[API Leads] Atualizando lead:", id, {
+      ...(pdfUnificado !== undefined && { pdfUnificado }),
+      ...(imagensConvertidas !== undefined && { imagensConvertidas }),
       ...(aguardandoAnalise !== undefined && { aguardandoAnalise }),
       ...(analiseProcessada !== undefined && { analiseProcessada }),
       ...(analiseUrl !== undefined && { analiseUrl }),
@@ -121,7 +155,7 @@ export async function POST(request: Request): Promise<Response> {
       ...(aguardandoManuscrito !== undefined && { aguardandoManuscrito }),
       ...(manuscritoProcessado !== undefined && { manuscritoProcessado }),
       ...(provaManuscrita !== undefined && { provaManuscrita: "Presente" }),
-      ...(aguardandoEspelho !== undefined && { aguardandoEspelho }),
+      ...(aguardandoEspelho !== undefined && { aguardandoEspelho }),      
       ...(espelhoProcessado !== undefined && { espelhoProcessado }),
     });
 
@@ -136,6 +170,8 @@ export async function POST(request: Request): Promise<Response> {
     if (datasRecurso !== undefined) updateData.datasRecurso = datasRecurso;
     if (textoDOEspelho !== undefined) updateData.textoDOEspelho = textoDOEspelho;
     if (espelhoCorrecao !== undefined) updateData.espelhoCorrecao = espelhoCorrecao;
+    if (pdfUnificado !== undefined) updateData.pdfUnificado = pdfUnificado;
+    if (imagensConvertidas !== undefined) updateData.imagensConvertidas = imagensConvertidas;
     if (analiseUrl !== undefined) updateData.analiseUrl = analiseUrl;
     if (analiseProcessada !== undefined) updateData.analiseProcessada = analiseProcessada;
     if (aguardandoAnalise !== undefined) updateData.aguardandoAnalise = aguardandoAnalise;

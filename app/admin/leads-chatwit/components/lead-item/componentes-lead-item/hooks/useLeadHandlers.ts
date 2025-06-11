@@ -198,10 +198,27 @@ export function useLeadHandlers({
       const data = await response.json();
       
       if (response.ok) {
-        // Atualiza o estado local imediatamente
+        // Atualiza o estado local imediatamente com base no tipo de exclusão
         if (typeof onEdit === 'function') {
+          const updatedLead = { ...lead };
+          
+          // Limpar campos específicos com base no tipo de exclusão
+          if (type === "pdf") {
+            updatedLead.pdfUnificado = undefined;
+          } else if (type === "imagem") {
+            // Limpar as referências de imagens convertidas
+            updatedLead.arquivos = updatedLead.arquivos.map(arquivo => ({
+              ...arquivo,
+              pdfConvertido: undefined
+            }));
+            updatedLead.imagensConvertidas = '[]';
+          } else if (type === "arquivo") {
+            // Remover o arquivo específico da lista
+            updatedLead.arquivos = updatedLead.arquivos.filter(arquivo => arquivo.id !== fileId);
+          }
+          
           onEdit({
-            ...lead,
+            ...updatedLead,
             _skipDialog: true, // Adiciona flag para evitar abrir o dialog
             _internal: true // Evita reabrir o dialog
           });
@@ -223,19 +240,14 @@ export function useLeadHandlers({
   };
 
   const reloadAfterDelete = () => {
-    if (typeof onEdit === 'function') {
-      onEdit({
-        ...lead,
-        _skipDialog: true
-      });
+    // Forçar recarga da lista sem passar dados antigos
+    if (typeof forceRefresh === 'function') {
+      forceRefresh();
     }
     
     window.setTimeout(() => {
-      if (typeof onEdit === 'function') {
-        onEdit({
-          ...lead,
-          _skipDialog: true
-        });
+      if (typeof forceRefresh === 'function') {
+        forceRefresh();
       }
       
       toast({

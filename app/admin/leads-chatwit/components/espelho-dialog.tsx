@@ -10,9 +10,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Image as ImageIcon, Send } from "lucide-react";
+import { Loader2, Image as ImageIcon, Send, ArrowRight, Eye } from "lucide-react";
 import { ImageGalleryDialog } from "./image-gallery-dialog";
 import { ToastAction } from "@/components/ui/toast";
+import { Badge } from "@/components/ui/badge";
 import { LeadChatwit } from "../types";
 
 interface EspelhoDialogProps {
@@ -25,6 +26,15 @@ interface EspelhoDialogProps {
   aguardandoEspelho?: boolean;
   onSave: (texto: any, imagens: string[]) => Promise<void>;
   onCancelarEspelho?: () => Promise<void>;
+  // Props para modo batch
+  batchMode?: boolean;
+  batchInfo?: {
+    current: number;
+    total: number;
+    leadName: string;
+  };
+  onBatchNext?: () => void;
+  onBatchSkip?: () => void;
 }
 
 export function EspelhoDialog({
@@ -37,6 +47,10 @@ export function EspelhoDialog({
   aguardandoEspelho = false,
   onSave,
   onCancelarEspelho,
+  batchMode = false,
+  batchInfo,
+  onBatchNext,
+  onBatchSkip,
 }: EspelhoDialogProps) {
   const [texto, setTexto] = useState<any>(textoEspelho);
   const [imagens, setImagens] = useState<string[]>(imagensEspelho);
@@ -69,7 +83,12 @@ export function EspelhoDialog({
           </ToastAction>
         ),
       });
-      handleClose();
+      
+      if (batchMode && onBatchNext) {
+        onBatchNext();
+      } else {
+        handleClose();
+      }
     } catch (error: any) {
       toast({
         title: "Erro",
@@ -117,10 +136,19 @@ export function EspelhoDialog({
     }
   };
 
+  const handleSkip = () => {
+    if (batchMode && onBatchSkip) {
+      onBatchSkip();
+    }
+  };
+
   // Função para garantir a limpeza correta ao fechar
   const handleClose = () => {
+    console.log("[EspelhoDialog] handleClose chamado - estado:", { isSaving, isGeneratingText, isCancelando });
+    
     if (!isSaving && !isGeneratingText && !isCancelando) {
       // Fecha o diálogo imediatamente para evitar problemas de estado
+      console.log("[EspelhoDialog] Fechando diálogo normalmente");
       onClose();
       
       // Reseta o estado local após fechar
@@ -128,6 +156,8 @@ export function EspelhoDialog({
       setImagens(imagensEspelho);
       setShowConfirmDialog(false);
       setPendingImages([]);
+    } else {
+      console.log("[EspelhoDialog] Não pode fechar agora - operação em andamento");
     }
   };
 
@@ -305,9 +335,33 @@ export function EspelhoDialog({
       <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
         <DialogContent className="max-w-4xl">
           <DialogHeader>
-            <DialogTitle>Editar Espelho de Correção</DialogTitle>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Eye className="h-5 w-5" />
+                <DialogTitle>
+                  {batchMode ? "Espelho em Lote" : "Editar Espelho de Correção"}
+                </DialogTitle>
+              </div>
+              {batchMode && batchInfo && (
+                <Badge variant="secondary" className="text-xs">
+                  {batchInfo.current} de {batchInfo.total}
+                </Badge>
+              )}
+            </div>
             <DialogDescription>
-              Visualize e edite as informações do espelho de correção.
+              {batchMode && batchInfo ? (
+                <div className="space-y-2">
+                  <div>
+                    Processando espelho para: <strong>{batchInfo.leadName}</strong>
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    💡 Selecione as imagens que serão usadas como espelho de correção. 
+                    O texto pode ser gerado automaticamente após selecionar as imagens.
+                  </div>
+                </div>
+              ) : (
+                "Visualize e edite as informações do espelho de correção."
+              )}
             </DialogDescription>
           </DialogHeader>
           <div className="py-4 space-y-4">
@@ -407,15 +461,40 @@ export function EspelhoDialog({
               </>
             )}
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={handleClose} disabled={isSaving || isGeneratingText || isCancelando}>
-              Fechar
-            </Button>
-            {!aguardandoEspelho && (
-              <Button onClick={handleSave} disabled={isSaving || isGeneratingText}>
-                {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Salvar Alterações
-              </Button>
+          <DialogFooter className="gap-2">
+            {batchMode ? (
+              <>
+                <Button variant="outline" onClick={handleClose} disabled={isSaving || isGeneratingText || isCancelando}>
+                  Cancelar Lote
+                </Button>
+                <Button variant="ghost" onClick={handleSkip} disabled={isSaving || isGeneratingText || isCancelando}>
+                  Pular Este Lead
+                </Button>
+                {!aguardandoEspelho && (
+                  <Button onClick={handleSave} disabled={isSaving || isGeneratingText}>
+                    {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    <span>Salvar</span>
+                    {batchInfo && batchInfo.current < batchInfo.total && (
+                      <>
+                        <ArrowRight className="ml-2 h-4 w-4" />
+                        <span>Próximo</span>
+                      </>
+                    )}
+                  </Button>
+                )}
+              </>
+            ) : (
+              <>
+                <Button variant="outline" onClick={handleClose} disabled={isSaving || isGeneratingText || isCancelando}>
+                  Fechar
+                </Button>
+                {!aguardandoEspelho && (
+                  <Button onClick={handleSave} disabled={isSaving || isGeneratingText}>
+                    {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Salvar Alterações
+                  </Button>
+                )}
+              </>
             )}
           </DialogFooter>
         </DialogContent>
