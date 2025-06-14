@@ -45,6 +45,8 @@ interface EspelhoBiblioteca {
   espelhoCorrecao?: string;
   isAtivo: boolean;
   totalUsos: number;
+  espelhoBibliotecaProcessado: boolean;
+  aguardandoEspelhoBiblioteca: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -84,6 +86,52 @@ export function BibliotecaEspelhosDrawer({
       fetchEspelhos();
     }
   }, [isOpen, usuarioId]);
+
+  // Verificar periodicamente se o texto foi gerado para espelhos aguardando processamento
+  useEffect(() => {
+    const espelhosAguardando = espelhos.filter(e => e.aguardandoEspelhoBiblioteca);
+    
+    if (espelhosAguardando.length > 0) {
+      const interval = setInterval(async () => {
+        try {
+          const response = await fetch(`/api/admin/leads-chatwit/biblioteca-espelhos?usuarioId=${usuarioId}`);
+          if (response.ok) {
+            const data = await response.json();
+            const espelhosAtualizados: EspelhoBiblioteca[] = data.espelhos || [];
+            
+            // Verificar quais espelhos foram processados (têm texto e não estão mais aguardando)
+            const idsProcessados: string[] = [];
+            espelhosAguardando.forEach(espelhoAnterior => {
+              const espelhoAtual = espelhosAtualizados.find(e => e.id === espelhoAnterior.id);
+              if (espelhoAtual && espelhoAtual.textoDOEspelho && !espelhoAtual.aguardandoEspelhoBiblioteca) {
+                idsProcessados.push(espelhoAtual.id);
+              }
+            });
+            
+            // Atualizar a lista de espelhos
+            setEspelhos(espelhosAtualizados);
+            
+            // Mostrar toast de sucesso para espelhos processados
+            if (idsProcessados.length > 0) {
+              idsProcessados.forEach(id => {
+                const espelho = espelhosAtualizados.find(e => e.id === id);
+                if (espelho) {
+                  toast({
+                    title: "Texto gerado!",
+                    description: `O texto para "${espelho.nome}" foi gerado com sucesso!`,
+                  });
+                }
+              });
+            }
+          }
+        } catch (error) {
+          console.error('Erro ao verificar status dos espelhos:', error);
+        }
+      }, 3000); // Verificar a cada 3 segundos
+
+      return () => clearInterval(interval);
+    }
+  }, [espelhos, usuarioId, toast]);
 
   const fetchEspelhos = async () => {
     try {
@@ -319,16 +367,38 @@ export function BibliotecaEspelhosDrawer({
         throw new Error(errorData.error || "Erro ao enviar espelho para processamento");
       }
       
+      // Marcar espelho como aguardando processamento no banco
+      await fetch('/api/admin/leads-chatwit/biblioteca-espelhos', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          id: espelhoId,
+          aguardandoEspelhoBiblioteca: true
+        }),
+      });
+      
+      // Atualizar estado local
+      setEspelhos(prev => prev.map(esp => 
+        esp.id === espelhoId 
+          ? { ...esp, aguardandoEspelhoBiblioteca: true }
+          : esp
+      ));
+      
+      const nomeEspelho = espelhos.find(e => e.id === espelhoId)?.nome || "Espelho";
+      
       toast({
-        title: "Espelho enviado",
-        description: "Espelho enviado para o sistema externo! O texto será gerado automaticamente.",
+        title: "Processando...",
+        description: `"${nomeEspelho}" foi enviado para processamento! O texto será gerado automaticamente e aparecerá em breve.`,
       });
       
     } catch (error: any) {
       console.error("Erro ao enviar espelho para sistema externo:", error);
+      const nomeEspelho = espelhos.find(e => e.id === espelhoId)?.nome || "Espelho";
       toast({
-        title: "Erro",
-        description: error.message || "Não foi possível enviar para o sistema externo.",
+        title: "Erro no processamento",
+        description: `Não foi possível processar "${nomeEspelho}". Tente novamente.`,
         variant: "destructive",
       });
     } finally {
@@ -616,14 +686,19 @@ export function BibliotecaEspelhosDrawer({
                                     const imagens = JSON.parse(espelho.espelhoCorrecao || '[]');
                                     handleEnviarParaSistemaExterno(espelho.id, imagens, true);
                                   }}
-                                  disabled={enviandoSistemaExterno}
+                                  disabled={espelho.aguardandoEspelhoBiblioteca || enviandoSistemaExterno}
                                 >
-                                  {enviandoSistemaExterno ? (
-                                    <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                                  {espelho.aguardandoEspelhoBiblioteca ? (
+                                    <>
+                                      <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                                      Processando...
+                                    </>
                                   ) : (
-                                    <Send className="h-4 w-4 mr-1" />
+                                    <>
+                                      <Send className="h-4 w-4 mr-1" />
+                                      Gerar Texto
+                                    </>
                                   )}
-                                  Gerar Texto
                                 </Button>
                               )}
                               

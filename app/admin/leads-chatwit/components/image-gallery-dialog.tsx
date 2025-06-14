@@ -23,6 +23,9 @@ interface ImageGalleryDialogProps {
   leadId?: string;
   onSend?: (selectedImages: string[]) => Promise<void>;
   selectionMode?: boolean;
+  mode?: 'manuscrito' | 'espelho' | 'ambos';
+  onSendManuscrito?: (selectedImages: string[]) => Promise<void>;
+  onSendEspelho?: (selectedImages: string[]) => Promise<void>;
 }
 
 export function ImageGalleryDialog({
@@ -33,7 +36,10 @@ export function ImageGalleryDialog({
   description = "Selecione as imagens da prova para enviar. Clique em uma miniatura para ver a imagem completa.",
   leadId,
   onSend,
-  selectionMode = false
+  selectionMode = false,
+  mode = 'ambos',
+  onSendManuscrito,
+  onSendEspelho
 }: ImageGalleryDialogProps) {
   const { toast } = useToast();
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
@@ -109,8 +115,6 @@ export function ImageGalleryDialog({
 
   // Função para enviar imagens selecionadas
   const handleSendImages = async () => {
-    if (!onSend) return;
-    
     if (selectedImages.length === 0) {
       toast({
         title: "Aviso",
@@ -122,13 +126,46 @@ export function ImageGalleryDialog({
     
     setIsSending(true);
     try {
-      await onSend(selectedImages);
-      
-      toast({
-        title: "Sucesso",
-        description: "Imagens enviadas com sucesso!",
-        variant: "default",
-      });
+      if (mode === 'ambos') {
+        // Dividir imagens entre manuscrito e espelho
+        const midPoint = Math.ceil(selectedImages.length / 2);
+        const manuscritoImages = selectedImages.slice(0, midPoint);
+        const espelhoImages = selectedImages.slice(midPoint);
+
+        if (onSendManuscrito && manuscritoImages.length > 0) {
+          await onSendManuscrito(manuscritoImages);
+          toast({
+            title: "Manuscrito Enviado",
+            description: `${manuscritoImages.length} imagem(ns) do manuscrito enviada(s) com sucesso!`,
+          });
+        }
+
+        if (onSendEspelho && espelhoImages.length > 0) {
+          await onSendEspelho(espelhoImages);
+          toast({
+            title: "Espelho Enviado",
+            description: `${espelhoImages.length} imagem(ns) do espelho enviada(s) com sucesso!`,
+          });
+        }
+      } else if (mode === 'manuscrito' && onSendManuscrito) {
+        await onSendManuscrito(selectedImages);
+        toast({
+          title: "Manuscrito Enviado",
+          description: `${selectedImages.length} imagem(ns) do manuscrito enviada(s) com sucesso!`,
+        });
+      } else if (mode === 'espelho' && onSendEspelho) {
+        await onSendEspelho(selectedImages);
+        toast({
+          title: "Espelho Enviado",
+          description: `${selectedImages.length} imagem(ns) do espelho enviada(s) com sucesso!`,
+        });
+      } else if (onSend) {
+        await onSend(selectedImages);
+        toast({
+          title: "Sucesso",
+          description: "Imagens enviadas com sucesso!",
+        });
+      }
       
       // Fechar o diálogo após envio bem-sucedido
       onClose();
@@ -257,7 +294,14 @@ export function ImageGalleryDialog({
         >
           <DialogHeader>
             <DialogTitle>{title}</DialogTitle>
-            <DialogDescription>{description}</DialogDescription>
+            <DialogDescription>
+              {description}
+              {mode === 'ambos' && (
+                <div className="mt-2 text-sm text-muted-foreground">
+                  💡 Selecione as imagens na ordem correta: primeiro as do manuscrito, depois as do espelho.
+                </div>
+              )}
+            </DialogDescription>
           </DialogHeader>
           
           <div className="py-4">
@@ -389,23 +433,18 @@ export function ImageGalleryDialog({
             )}
             
             <div className="flex gap-2">
-              {selectionMode && onSend && (
+              {selectionMode && (
                 <Button
                   variant="default"
                   onClick={handleSendImages}
                   disabled={selectedImages.length === 0 || isSending}
                 >
                   {isSending ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Enviando...
-                    </>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                   ) : (
-                    <>
-                      <Send className="h-4 w-4 mr-2" />
-                      Enviar Selecionadas
-                    </>
+                    <Send className="h-4 w-4 mr-2" />
                   )}
+                  {mode === 'ambos' ? 'Enviar Manuscrito e Espelho' : 'Enviar Imagens'}
                 </Button>
               )}
               <Button variant="outline" onClick={onClose}>

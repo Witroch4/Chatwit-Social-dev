@@ -183,6 +183,9 @@ export async function POST(request: Request): Promise<Response> {
             textoDOEspelho: textoDOEspelho,
             // Manter as imagens existentes se não foram fornecidas novas
             ...(urlsEspelho.length > 0 && { espelhoCorrecao: JSON.stringify(urlsEspelho) }),
+            // Marcar como processado e remover estado de aguardando
+            espelhoBibliotecaProcessado: true,
+            aguardandoEspelhoBiblioteca: false,
             updatedAt: new Date()
           }
         });

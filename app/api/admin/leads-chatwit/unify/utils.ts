@@ -71,73 +71,141 @@ function isPdf(url: string): boolean {
 
 /**
  * Unifies multiple files (PDFs and images) into a single PDF using pdf-lib.
- * @param fileUrls An array of URLs for the files to merge.
+ * @param files An array of objects containing the URL and name of the files to merge.
  * @returns A Promise that resolves to the merged PDF as a Buffer.
  */
-export async function unifyFilesToPdf(fileUrls: string[]): Promise<Buffer> {
-    console.log(`[PDF-Lib] Starting unification for ${fileUrls.length} files.`);
-    const pdfDoc = await PDFDocument.create();
+export async function unifyFilesToPdf(files: { url: string; name: string }[]): Promise<Buffer> {
+    try {
+        console.log("[PDF-Lib] Starting unification for", files.length, "files.");
+        
+        // Validar e filtrar arquivos
+        const validFiles = files.filter(file => {
+            if (!file || !file.url) {
+                console.log(`[PDF-Lib] Arquivo inválido:`, file);
+                return false;
+            }
 
-    for (const url of fileUrls) {
-        try {
-            if (isImage(url)) {
-                console.log(`[PDF-Lib] Processing and embedding image file: ${url}`);
-                const imageBuffer = await downloadUrlAsBuffer(url);
-                const extension = url.split('.').pop()?.toLowerCase() || '';
+            // URLs do Facebook/Instagram são sempre válidas para processamento
+            if (file.url.includes('fbsbx.com') || file.url.includes('instagram.com')) {
+                console.log(`[PDF-Lib] URL do Facebook/Instagram detectada: ${file.url}`);
+                return true;
+            }
 
-                let embeddedImage;
-                if (extension === 'jpg' || extension === 'jpeg') {
-                    embeddedImage = await pdfDoc.embedJpg(imageBuffer);
-                } else if (extension === 'png') {
-                    embeddedImage = await pdfDoc.embedPng(imageBuffer);
-                } else {
-                    console.warn(`[PDF-Lib] Skipping unsupported image type: ${extension}`);
+            const url = file.url.toLowerCase();
+            const isPdf = url.endsWith('.pdf') || 
+                         url.includes('application/pdf') ||
+                         url.includes('pdf');
+            
+            const isImage = url.endsWith('.jpg') || 
+                           url.endsWith('.jpeg') || 
+                           url.endsWith('.png') ||
+                           url.includes('image/');
+            
+            if (!isPdf && !isImage) {
+                console.log(`[PDF-Lib] Tipo de arquivo não suportado: ${file.url}`);
+                return false;
+            }
+
+            return true;
+        });
+
+        if (validFiles.length === 0) {
+            throw new Error("Nenhum arquivo válido encontrado para unificação.");
+        }
+
+        const mergedPdf = await PDFDocument.create();
+        
+        for (const file of validFiles) {
+            try {
+                console.log(`[PDF-Lib] Processando arquivo: ${file.name}`);
+                
+                // Tratar URLs do Facebook/Instagram
+                let fileUrl = file.url;
+                if (fileUrl.includes('fbsbx.com')) {
+                    console.log(`[PDF-Lib] Processando URL do Facebook: ${fileUrl}`);
+                    // Tentar extrair o ID do asset
+                    const assetIdMatch = fileUrl.match(/asset_id=(\d+)/);
+                    if (assetIdMatch) {
+                        const assetId = assetIdMatch[1];
+                        fileUrl = `https://www.facebook.com/messenger_media/?thread_id=${assetId}`;
+                        console.log(`[PDF-Lib] URL convertida: ${fileUrl}`);
+                    }
+                }
+
+                console.log(`[PDF-Lib] Buscando arquivo em: ${fileUrl}`);
+                const response = await fetch(fileUrl);
+                if (!response.ok) {
+                    console.error(`[PDF-Lib] Falha ao buscar arquivo: ${response.statusText}`);
                     continue;
                 }
 
-                const page = pdfDoc.addPage(PageSizes.A4);
-                const { width: pageWidth, height: pageHeight } = page.getSize();
-                const { width: imgWidth, height: imgHeight } = embeddedImage.scale(1);
-
-                const widthRatio = pageWidth / imgWidth;
-                const heightRatio = pageHeight / imgHeight;
-                const ratio = Math.min(widthRatio, heightRatio);
-
-                const scaledWidth = imgWidth * ratio;
-                const scaledHeight = imgHeight * ratio;
+                const fileBuffer = await response.arrayBuffer();
+                const contentType = response.headers.get('content-type') || '';
+                console.log(`[PDF-Lib] Content-Type do arquivo: ${contentType}`);
                 
-                page.drawImage(embeddedImage, {
-                    x: (pageWidth - scaledWidth) / 2,
-                    y: (pageHeight - scaledHeight) / 2,
-                    width: scaledWidth,
-                    height: scaledHeight,
-                });
+                // Verificar se é imagem ou PDF
+                if (contentType.includes('image/') || 
+                    file.url.toLowerCase().match(/\.(jpg|jpeg|png)$/) || 
+                    file.url.includes('fbsbx.com')) {
+                    console.log(`[PDF-Lib] Processando como imagem: ${file.name}`);
+                    
+                    let embeddedImage;
+                    try {
+                        if (contentType.includes('jpeg') || file.url.toLowerCase().endsWith('.jpg') || file.url.toLowerCase().endsWith('.jpeg')) {
+                            embeddedImage = await mergedPdf.embedJpg(fileBuffer);
+                        } else {
+                            embeddedImage = await mergedPdf.embedPng(fileBuffer);
+                        }
 
-                console.log(`[PDF-Lib] Successfully embedded image from: ${url}`);
+                        const page = mergedPdf.addPage([595.28, 841.89]); // A4
+                        const { width, height } = page.getSize();
+                        const { width: imgWidth, height: imgHeight } = embeddedImage.scale(1);
 
-            } else if (isPdf(url)) {
-                console.log(`[PDF-Lib] Merging PDF file: ${url}`);
-                const pdfBuffer = await downloadUrlAsBuffer(url);
-                const donorPdfDoc = await PDFDocument.load(pdfBuffer);
-                const copiedPages = await pdfDoc.copyPages(donorPdfDoc, donorPdfDoc.getPageIndices());
-                copiedPages.forEach((page) => pdfDoc.addPage(page));
-                console.log(`[PDF-Lib] Successfully merged PDF from: ${url}`);
-            } else {
-                console.warn(`[PDF-Lib] Skipping unsupported file type: ${url}`);
+                        const widthRatio = width / imgWidth;
+                        const heightRatio = height / imgHeight;
+                        const ratio = Math.min(widthRatio, heightRatio);
+
+                        const scaledWidth = imgWidth * ratio;
+                        const scaledHeight = imgHeight * ratio;
+
+                        page.drawImage(embeddedImage, {
+                            x: (width - scaledWidth) / 2,
+                            y: (height - scaledHeight) / 2,
+                            width: scaledWidth,
+                            height: scaledHeight,
+                        });
+                    } catch (error) {
+                        console.error(`[PDF-Lib] Erro ao processar imagem: ${error}`);
+                        continue;
+                    }
+                } else {
+                    console.log(`[PDF-Lib] Processando como PDF: ${file.name}`);
+                    try {
+                        const pdf = await PDFDocument.load(fileBuffer);
+                        const copiedPages = await mergedPdf.copyPages(pdf, pdf.getPageIndices());
+                        copiedPages.forEach(page => mergedPdf.addPage(page));
+                    } catch (error) {
+                        console.error(`[PDF-Lib] Erro ao processar PDF: ${error}`);
+                        continue;
+                    }
+                }
+                
+                console.log(`[PDF-Lib] Arquivo processado com sucesso: ${file.name}`);
+            } catch (error) {
+                console.error(`[PDF-Lib] Erro ao processar arquivo ${file.name}:`, error);
+                continue;
             }
-
-        } catch (error) {
-            console.error(`[PDF-Lib] Failed to process file ${url}:`, error);
         }
-    }
 
-    if (pdfDoc.getPageCount() === 0) {
-        throw new Error("Could not process any of the provided files into a PDF.");
+        if (mergedPdf.getPageCount() === 0) {
+            throw new Error("Não foi possível processar nenhum dos arquivos fornecidos.");
+        }
+
+        return Buffer.from(await mergedPdf.save());
+    } catch (error) {
+        console.error("[PDF-Lib] Erro em unifyFilesToPdf:", error);
+        throw error;
     }
-    
-    const mergedPdfBytes = await pdfDoc.save();
-    console.log(`[PDF-Lib] Unification complete. Final PDF size: ${mergedPdfBytes.length} bytes.`);
-    return Buffer.from(mergedPdfBytes);
 }
 
 /**

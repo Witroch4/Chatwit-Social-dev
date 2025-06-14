@@ -612,6 +612,8 @@ model EspelhoBiblioteca {
   espelhoCorrecao   String?       // Lista de URLs das imagens do espelho em formato JSON
   isAtivo           Boolean       @default(true) // Se o espelho está ativo na biblioteca
   totalUsos         Int           @default(0) // Contador de quantas vezes foi usado
+  espelhoBibliotecaProcessado Boolean @default(false) // Indica se o espelho da biblioteca foi processado
+  aguardandoEspelhoBiblioteca Boolean @default(false) // Indica se está aguardando processamento do espelho
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
 

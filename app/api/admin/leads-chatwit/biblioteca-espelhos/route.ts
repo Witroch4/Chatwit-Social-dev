@@ -83,7 +83,15 @@ export async function POST(request: Request) {
 export async function PUT(request: Request) {
   try {
     const payload = await request.json();
-    const { id, nome, descricao, textoDOEspelho, espelhoCorrecao } = payload;
+    const { 
+      id, 
+      nome, 
+      descricao, 
+      textoDOEspelho, 
+      espelhoCorrecao, 
+      espelhoBibliotecaProcessado,
+      aguardandoEspelhoBiblioteca 
+    } = payload;
     
     if (!id) {
       return NextResponse.json({ error: "ID do espelho é obrigatório" }, { status: 400 });
@@ -96,6 +104,8 @@ export async function PUT(request: Request) {
         ...(descricao !== undefined && { descricao }),
         ...(textoDOEspelho !== undefined && { textoDOEspelho }),
         ...(espelhoCorrecao !== undefined && { espelhoCorrecao }),
+        ...(espelhoBibliotecaProcessado !== undefined && { espelhoBibliotecaProcessado }),
+        ...(aguardandoEspelhoBiblioteca !== undefined && { aguardandoEspelhoBiblioteca }),
         updatedAt: new Date()
       }
     });

@@ -109,10 +109,10 @@ export function useBatchProcessor({
         });
 
         // --- ETAPA 1: Unificar PDF ---
-        if (!leadAtualizado.pdfUnificado) {
-          console.log(`[BatchProcessor] ETAPA 1: Unificando PDF para ${displayName}...`);
+        if (!leadAtualizado.pdfUnificado && leadAtualizado.arquivos && leadAtualizado.arquivos.length > 0) {
+          console.log(`[BatchProcessor] ETAPA 1: Unificando PDFs para ${displayName}`);
           updateState({
-            currentStep: `Unificando PDF para "${displayName}"`,
+            currentStep: `Unificando PDFs para "${displayName}"`,
           });
           
           try {
@@ -126,7 +126,7 @@ export function useBatchProcessor({
             
             if (response.ok) {
               leadAtualizado.pdfUnificado = data.pdfUrl || 'sim_presente';
-              console.log(`[BatchProcessor] ETAPA 1 CONCLUÍDA: PDF unificado para ${displayName} - URL: ${leadAtualizado.pdfUnificado}`);
+              console.log(`[BatchProcessor] ETAPA 1 CONCLUÍDA: PDF unificado gerado para ${displayName} - URL: ${leadAtualizado.pdfUnificado}`);
               
               // Salvar atualização no banco
               await fetch('/api/admin/leads-chatwit/leads', {
@@ -143,13 +143,13 @@ export function useBatchProcessor({
                 description: `PDF de "${displayName}" unificado com sucesso.`,
               });
             } else {
-              throw new Error(data.error || "Erro ao unificar PDF");
+              throw new Error(data.error || "Erro ao unificar PDFs");
             }
           } catch (error: any) {
-            console.error(`[BatchProcessor] ERRO ETAPA 1: Erro ao unificar PDF para ${displayName}:`, error);
+            console.error(`[BatchProcessor] ERRO ETAPA 1: Erro ao unificar PDFs para ${displayName}:`, error);
             toast({
               title: "Erro na Unificação",
-              description: `Erro ao unificar PDF de "${displayName}": ${error.message}`,
+              description: `Erro ao unificar PDFs de "${displayName}": ${error.message}`,
               variant: "destructive",
             });
             continue; // Pula para o próximo lead
@@ -443,10 +443,265 @@ export function useBatchProcessor({
     await processarLeadsEmLote(leadsSelecionados);
   }, [processarLeadsEmLote]);
 
+  // Função para enviar manuscrito
+  const handleSendManuscrito = async (lead: LeadChatwit, selectedImages: string[]) => {
+    try {
+      const displayName = lead.nomeReal || lead.name || "Lead sem nome";
+      console.log(`[BatchProcessor] Enviando ${selectedImages.length} imagens do manuscrito para ${displayName}`);
+
+      const response = await fetch("/api/admin/leads-chatwit/enviar-manuscrito", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          leadID: lead.id,
+          nome: lead.name || "Lead sem nome",
+          telefone: lead.phoneNumber,
+          arquivos: lead.arquivos?.map((a: any) => ({
+            id: a.id,
+            url: a.dataUrl,
+            tipo: a.fileType,
+            nome: a.fileType
+          })) || [],
+          arquivos_pdf: lead.pdfUnificado ? [{
+            id: lead.id,
+            url: lead.pdfUnificado,
+            nome: "PDF Unificado"
+          }] : [],
+          arquivos_imagens_manuscrito: selectedImages.map((url: string, index: number) => ({
+            id: `${lead.id}-manuscrito-${index}`,
+            url: url,
+            nome: `Manuscrito ${index + 1}`
+          })),
+          metadata: {
+            leadUrl: lead.leadUrl,
+            sourceId: lead.sourceId,
+            concluido: lead.concluido,
+            fezRecurso: lead.fezRecurso
+          }
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Erro ao enviar manuscrito");
+      }
+
+      console.log(`[BatchProcessor] Manuscrito enviado com sucesso para ${displayName}`);
+    } catch (error: any) {
+      console.error(`[BatchProcessor] Erro ao enviar manuscrito:`, error);
+      throw error;
+    }
+  };
+
+  // Função para enviar espelho
+  const handleSendEspelho = async (lead: LeadChatwit, selectedImages: string[]) => {
+    try {
+      const displayName = lead.nomeReal || lead.name || "Lead sem nome";
+      console.log(`[BatchProcessor] Enviando ${selectedImages.length} imagens do espelho para ${displayName}`);
+
+      const response = await fetch("/api/admin/leads-chatwit/enviar-manuscrito", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          leadID: lead.id,
+          nome: lead.name || "Lead sem nome",
+          telefone: lead.phoneNumber,
+          arquivos: lead.arquivos?.map((a: any) => ({
+            id: a.id,
+            url: a.dataUrl,
+            tipo: a.fileType,
+            nome: a.fileType
+          })) || [],
+          arquivos_pdf: lead.pdfUnificado ? [{
+            id: lead.id,
+            url: lead.pdfUnificado,
+            nome: "PDF Unificado"
+          }] : [],
+          arquivos_imagens_espelho: selectedImages.map((url: string, index: number) => ({
+            id: `${lead.id}-espelho-${index}`,
+            url: url,
+            nome: `Espelho ${index + 1}`
+          })),
+          metadata: {
+            leadUrl: lead.leadUrl,
+            sourceId: lead.sourceId,
+            concluido: lead.concluido,
+            fezRecurso: lead.fezRecurso
+          }
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Erro ao enviar espelho");
+      }
+
+      console.log(`[BatchProcessor] Espelho enviado com sucesso para ${displayName}`);
+    } catch (error: any) {
+      console.error(`[BatchProcessor] Erro ao enviar espelho:`, error);
+      throw error;
+    }
+  };
+
+  // Função para verificar se o lead está pronto para pré-análise
+  const verificarProntoParaAnalise = (lead: LeadChatwit) => {
+    const temManuscrito = lead.provaManuscrita && 
+      (typeof lead.provaManuscrita === 'string' ? lead.provaManuscrita.length > 0 : 
+       Array.isArray(lead.provaManuscrita) ? lead.provaManuscrita.length > 0 : 
+       typeof lead.provaManuscrita === 'object' && lead.provaManuscrita !== null);
+
+    const temEspelho = lead.textoDOEspelho && 
+      (typeof lead.textoDOEspelho === 'string' ? lead.textoDOEspelho.length > 0 : 
+       Array.isArray(lead.textoDOEspelho) ? lead.textoDOEspelho.length > 0 : 
+       typeof lead.textoDOEspelho === 'object' && lead.textoDOEspelho !== null);
+
+    return temManuscrito && temEspelho;
+  };
+
+  // Função para processar um lead
+  const processarLead = async (lead: LeadChatwit) => {
+    try {
+      console.log(`[BatchProcessor] Iniciando processamento do lead: ${lead.name}`);
+      updateState({
+        currentStep: 'Processando lead',
+        currentLead: lead.id,
+      });
+      
+      // ETAPA 1: Unificar PDFs (se necessário)
+      if (!lead.pdfUnificado && lead.arquivos && lead.arquivos.length > 0) {
+        console.log(`[BatchProcessor] ETAPA 1: Unificando PDFs para ${lead.name}`);
+        updateState({
+          currentStep: 'Unificando PDFs',
+        });
+        
+        const response = await fetch("/api/admin/leads-chatwit/unify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ leadId: lead.id }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || "Erro ao unificar PDFs");
+        }
+
+        const data = await response.json();
+        lead.pdfUnificado = data.pdfUrl;
+        console.log(`[BatchProcessor] ETAPA 1 CONCLUÍDA: PDF unificado gerado para ${lead.name}`);
+      }
+
+      // ETAPA 2: Gerar imagens (se necessário)
+      if (!lead.imagensConvertidas && lead.pdfUnificado) {
+        console.log(`[BatchProcessor] ETAPA 2: Gerando imagens para ${lead.name}`);
+        updateState({
+          currentStep: 'Gerando imagens',
+        });
+        
+        const response = await fetch("/api/admin/leads-chatwit/convert-to-images", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ leadId: lead.id }),
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          const imageUrls = data.imageUrls || data.convertedUrls || [];
+          lead.imagensConvertidas = JSON.stringify(imageUrls);
+          console.log(`[BatchProcessor] ETAPA 2 CONCLUÍDA: ${imageUrls.length} imagens geradas para ${lead.name}`);
+          
+          // Salvar atualização no banco
+          const saveResponse = await fetch('/api/admin/leads-chatwit/leads', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              id: lead.id,
+              imagensConvertidas: lead.imagensConvertidas
+            })
+          });
+          
+          if (!saveResponse.ok) {
+            console.error(`[BatchProcessor] Erro ao salvar imagensConvertidas no banco para ${lead.name}`);
+          }
+        } else {
+          const errorData = await response.json();
+          throw new Error(errorData.error || "Erro ao gerar imagens");
+        }
+      }
+
+      // ETAPA 3: Verificar se manuscrito e espelho já foram digitados
+      const prontoParaAnalise = verificarProntoParaAnalise(lead);
+
+      if (!prontoParaAnalise) {
+        console.log(`[BatchProcessor] ETAPA 3: Aguardando digitação do manuscrito/espelho para ${lead.name}`);
+        updateState({
+          currentStep: 'Aguardando digitação',
+        });
+        
+        // Abrir diálogo para seleção de imagens
+        // Implemente a lógica para abrir o diálogo de seleção de imagens
+        
+        // Aguardar até que o usuário selecione e envie as imagens
+        await new Promise<void>((resolve) => {
+          const checkInterval = setInterval(async () => {
+            // Buscar lead atualizado
+            const response = await fetch(`/api/admin/leads-chatwit/leads?id=${lead.id}`);
+            if (response.ok) {
+              const data = await response.json();
+              const leadAtualizado = data.lead;
+              
+              if (verificarProntoParaAnalise(leadAtualizado)) {
+                clearInterval(checkInterval);
+                resolve();
+              }
+            }
+          }, 2000); // Verificar a cada 2 segundos
+        });
+      }
+
+      // ETAPA 4: Enviar para pré-análise (apenas se tiver manuscrito e espelho)
+      if (verificarProntoParaAnalise(lead)) {
+        console.log(`[BatchProcessor] ETAPA 4: Enviando para pré-análise ${lead.name}`);
+        updateState({
+          currentStep: 'Enviando para pré-análise',
+        });
+        
+        const response = await fetch("/api/admin/leads-chatwit/enviar-analise", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            leadId: lead.id,
+            sourceId: lead.sourceId
+          }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || "Erro ao enviar para pré-análise");
+        }
+
+        console.log(`[BatchProcessor] ETAPA 4 CONCLUÍDA: Lead enviado para pré-análise ${lead.name}`);
+      } else {
+        console.log(`[BatchProcessor] Lead ${lead.name} não está pronto para pré-análise`);
+        throw new Error("Lead não está pronto para pré-análise - manuscrito ou espelho não digitados");
+      }
+
+      return true;
+    } catch (error: any) {
+      console.error(`[BatchProcessor] Erro ao processar lead ${lead.name}:`, error);
+      throw error;
+    }
+  };
+
   return {
     state,
     processarLeadsEmLote,
     cancelarProcessamento,
     continuarProcessamento,
+    handleSendManuscrito,
+    handleSendEspelho,
   };
 } 
