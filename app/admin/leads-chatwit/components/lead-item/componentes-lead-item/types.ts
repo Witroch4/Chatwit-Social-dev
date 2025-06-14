@@ -9,6 +9,7 @@ export interface LeadItemProps {
   onUnificar: (id: string) => void;
   onConverter: (id: string) => void;
   onDigitarManuscrito: (lead: LeadChatwit) => void;
+  onRefresh?: () => void;
   isUnifying: boolean;
   isConverting: string | null;
 }

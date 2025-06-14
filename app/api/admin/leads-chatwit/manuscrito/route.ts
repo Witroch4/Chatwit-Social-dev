@@ -48,14 +48,37 @@ export async function DELETE(request: Request) {
       );
     }
 
+    console.log(`[API Manuscrito] Iniciando exclusão do manuscrito para lead: ${leadId}`);
+
+    // Resetar completamente todas as informações relacionadas ao manuscrito
     const lead = await prisma.leadChatwit.update({
       where: { id: leadId },
       data: {
+        // Campos específicos do manuscrito
         provaManuscrita: Prisma.JsonNull,
         manuscritoProcessado: false,
-        aguardandoManuscrito: false
+        aguardandoManuscrito: false,
+        
+        // Resetar campos de análise que dependem do manuscrito
+        analiseUrl: null,
+        analiseProcessada: false,
+        aguardandoAnalise: false,
+        analisePreliminar: Prisma.JsonNull,
+        analiseValidada: false,
+        
+        // Resetar consultoria já que depende da análise
+        consultoriaFase2: false,
+        
+        // Resetar campos de espelho que podem depender do manuscrito
+        aguardandoEspelho: false,
+        espelhoProcessado: false,
+        
+        // Atualizar timestamp
+        updatedAt: new Date()
       },
     });
+
+    console.log(`[API Manuscrito] Manuscrito e campos relacionados resetados com sucesso para lead: ${leadId}`);
 
     return NextResponse.json({
       success: true,

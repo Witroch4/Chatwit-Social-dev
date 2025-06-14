@@ -147,19 +147,30 @@ export function ImageGalleryDialog({
             description: `${espelhoImages.length} imagem(ns) do espelho enviada(s) com sucesso!`,
           });
         }
-      } else if (mode === 'manuscrito' && onSendManuscrito) {
-        await onSendManuscrito(selectedImages);
+      } else if (mode === 'manuscrito') {
+        // Usar onSend primeiro, depois onSendManuscrito como fallback
+        if (onSend) {
+          await onSend(selectedImages);
+        } else if (onSendManuscrito) {
+          await onSendManuscrito(selectedImages);
+        }
         toast({
           title: "Manuscrito Enviado",
           description: `${selectedImages.length} imagem(ns) do manuscrito enviada(s) com sucesso!`,
         });
-      } else if (mode === 'espelho' && onSendEspelho) {
-        await onSendEspelho(selectedImages);
+      } else if (mode === 'espelho') {
+        // Usar onSend primeiro, depois onSendEspelho como fallback
+        if (onSend) {
+          await onSend(selectedImages);
+        } else if (onSendEspelho) {
+          await onSendEspelho(selectedImages);
+        }
         toast({
           title: "Espelho Enviado",
           description: `${selectedImages.length} imagem(ns) do espelho enviada(s) com sucesso!`,
         });
       } else if (onSend) {
+        // Fallback genérico
         await onSend(selectedImages);
         toast({
           title: "Sucesso",
@@ -444,7 +455,10 @@ export function ImageGalleryDialog({
                   ) : (
                     <Send className="h-4 w-4 mr-2" />
                   )}
-                  {mode === 'ambos' ? 'Enviar Manuscrito e Espelho' : 'Enviar Imagens'}
+                  {mode === 'ambos' ? 'Enviar Manuscrito e Espelho' : 
+                   mode === 'manuscrito' ? 'Enviar para Digitação' :
+                   mode === 'espelho' ? 'Enviar Espelho' : 
+                   'Enviar Imagens'}
                 </Button>
               )}
               <Button variant="outline" onClick={onClose}>

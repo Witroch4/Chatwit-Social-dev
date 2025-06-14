@@ -1,6 +1,6 @@
 "use client";
 
-import { TableRow } from "@/components/ui/table";
+import { TableRow, TableCell } from "@/components/ui/table";
 import { LeadItemProps } from "./componentes-lead-item/types";
 import { useLeadState, useDialogState, useLeadHandlers } from "./componentes-lead-item/hooks";
 import { 
@@ -18,6 +18,7 @@ import {
 } from "./componentes-lead-item/cells";
 import { LeadDialogs } from "./componentes-lead-item/dialogs";
 import { BibliotecaEspelhosDrawer } from "../biblioteca-espelhos-drawer";
+import { SSEStatusIndicator } from "../sse-status-indicator";
 import { useState } from "react";
 
 export function LeadItem({
@@ -29,18 +30,26 @@ export function LeadItem({
   onUnificar,
   onConverter,
   onDigitarManuscrito,
+  onRefresh,
   isUnifying,
   isConverting,
 }: LeadItemProps) {
   
   // Estados do lead
-  const leadState = useLeadState(lead);
+  const leadState = useLeadState(lead, onRefresh);
   
   // Estados dos diálogos
   const dialogState = useDialogState();
   
   // Estado da biblioteca de espelhos
   const [showBibliotecaEspelhos, setShowBibliotecaEspelhos] = useState(false);
+
+  // Verificar se o lead está aguardando processamento (para mostrar indicador)
+  const isAwaitingProcessing = Boolean(
+    lead.aguardandoManuscrito || 
+    lead.aguardandoEspelho || 
+    lead.aguardandoAnalise
+  );
   
   // Handlers e lógica
   const handlers = useLeadHandlers({
@@ -170,6 +179,17 @@ export function LeadItem({
           isUploadingEspelho={dialogState.isUploadingEspelho}
           onConsultoriaToggle={handlers.handleConsultoriaToggle}
         />
+        
+        {/* Célula de Status - mostrar apenas se está aguardando processamento */}
+        {isAwaitingProcessing && (
+          <TableCell className="w-[120px] p-2 align-middle">
+            <SSEStatusIndicator 
+              isConnected={true} 
+              error={null}
+              className="w-full justify-center"
+            />
+          </TableCell>
+        )}
         
         {/* Célula de Ações */}
         <RowActionsCell

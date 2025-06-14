@@ -1,12 +1,25 @@
-# dockerfile.n8n Use a imagem oficial do n8n como base
-FROM n8nio/n8n:1.85.0
+# Dockerfile.n8n
 
-# Usuário root para instalar pacotes
+# Etapa 1: Use a imagem oficial do n8n como base.
+# Fixar a versão é uma boa prática para garantir a consistência do ambiente.
+FROM n8nio/n8n:1.98.1
+
+# Etapa 2: Mude para o usuário 'root' temporariamente.
+# Apenas o usuário root tem permissão para instalar pacotes globalmente.
 USER root
 
-# Instale o axios ou axios-ntlm
-RUN npm install axios axios-ntlm
+# Etapa 3: Instale todos os módulos externos necessários de uma só vez.
+# O 'npm install -g' torna os pacotes globalmente disponíveis no contêiner.
+# Agrupar em um único comando RUN otimiza as camadas da imagem Docker.
+RUN npm install -g moment lodash axios axios-ntlm
 
-# Retorne ao usuário 'node' por razões de segurança
+# Etapa 4: Retorne ao usuário 'node' padrão.
+# Executar o contêiner como um usuário não-root é uma prática de segurança crucial.
 USER node
 
+
+# comando para buildar a imagem 
+#docker build -t witrocha/n8n-axios:1.98.1 -f dockerfile.n8n .
+#comando pra fazer o push, loguin depois push.
+#docker login
+#docker push witrocha/n8n-axios:1.98.1

@@ -20,6 +20,7 @@ import { BatchProgressDialog } from "./batch-progress-dialog";
 import { ManuscritoDialog } from "./manuscrito-dialog";
 import { EspelhoDialog } from "./espelho-dialog";
 import { ImageGalleryDialog } from "./image-gallery-dialog";
+import { SSEConnectionManager } from "./sse-connection-manager";
 import { useBatchProcessor } from "./lead-item/componentes-lead-item/hooks/useBatchProcessor";
 import { LeadChatwit } from "../types";
 
@@ -608,8 +609,8 @@ export function LeadsList({ searchQuery, onRefresh, initialLoading, refreshCount
     // Se não houver imagens no campo imagensConvertidas, buscar dos arquivos
     if (!imagensConvertidas || imagensConvertidas.length === 0) {
       imagensConvertidas = lead.arquivos
-        .filter((a: { pdfConvertido: string | null }) => a.pdfConvertido)
-        .map((a: { pdfConvertido: string }) => a.pdfConvertido)
+        .filter((a: { pdfConvertido?: string | null | undefined }) => a.pdfConvertido)
+        .map((a: { pdfConvertido?: string | null | undefined }) => a.pdfConvertido as string)
         .filter((url: string | null) => url && url.length > 0);
     }
 
@@ -618,6 +619,12 @@ export function LeadsList({ searchQuery, onRefresh, initialLoading, refreshCount
 
   return (
     <div className="space-y-4">
+      {/* Gerenciador de Conexões SSE */}
+      <SSEConnectionManager 
+        leads={leads}
+        onLeadUpdate={handleEditLead}
+      />
+      
       {selectedLeads.length > 0 && (
         <div className="flex items-center justify-between bg-muted p-2 rounded-md">
           <div className="flex items-center gap-3">
@@ -713,6 +720,7 @@ export function LeadsList({ searchQuery, onRefresh, initialLoading, refreshCount
                   onUnificar={handleUnificarArquivos}
                   onConverter={handleConverterEmImagens}
                   onDigitarManuscrito={handleDigitarManuscrito}
+                  onRefresh={fetchLeads}
                   isUnifying={isUnifying}
                   isConverting={isConverting}
                 />

@@ -44,7 +44,7 @@ export function EspelhoCell({
   }
 
   // Verificar se há espelho processado (database) ou estado local
-  const temEspelhoProcessado = lead.espelhoProcessado || (lead.espelhoCorrecao && lead.textoDOEspelho);
+  const temEspelhoProcessado = lead.espelhoProcessado || localEspelhoState.hasEspelho;
   const estaAguardandoEspelho = lead.aguardandoEspelho || localEspelhoState.aguardandoEspelho;
 
   const handleButtonClick = () => {

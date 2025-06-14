@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import { addManuscritoJob } from '@/lib/queue/manuscrito.queue';
-// Função SSE desabilitada
+import { sseManager } from '@/lib/sse-manager';
 
 // Criando uma instância do Prisma fora do escopo da rota
 const prisma = new PrismaClient();
@@ -107,8 +107,14 @@ export async function POST(request: Request): Promise<Response> {
         
         console.log("[Webhook] Pré-análise de prova armazenada para o lead:", leadID);
         
-        // SSE desabilitado
-        console.log("[Webhook] Notificação SSE desabilitada");
+        // Enviar notificação SSE
+        sseManager.sendNotification(leadID, {
+          type: 'analise_preliminar',
+          message: 'Pré-análise da sua prova foi processada com sucesso!',
+          leadId: leadID,
+          status: 'analise_preliminar_recebida',
+          timestamp: new Date().toISOString()
+        });
         
         return NextResponse.json({
           success: true,
@@ -192,8 +198,14 @@ export async function POST(request: Request): Promise<Response> {
         
         console.log("[Webhook] Espelho da biblioteca atualizado com texto:", espelhoAtualizado.id);
         
-        // SSE desabilitado
-        console.log("[Webhook] Notificação SSE desabilitada");
+        // Enviar notificação SSE (para biblioteca geral)
+        sseManager.sendNotification('biblioteca_geral', {
+          type: 'espelho_biblioteca_processado',
+          message: 'Novo espelho foi adicionado à biblioteca!',
+          espelhoId: espelhoAtualizado.id,
+          status: 'espelho_biblioteca_processado',
+          timestamp: new Date().toISOString()
+        });
         
         return NextResponse.json({
           success: true,
@@ -261,8 +273,14 @@ export async function POST(request: Request): Promise<Response> {
         
         console.log("[Webhook] Pré-análise de simulado armazenada para o lead:", leadID);
         
-        // SSE desabilitado
-        console.log("[Webhook] Notificação SSE desabilitada");
+        // Enviar notificação SSE
+        sseManager.sendNotification(leadID, {
+          type: 'analise_simulado_preliminar',
+          message: 'Pré-análise do seu simulado foi processada com sucesso!',
+          leadId: leadID,
+          status: 'analise_simulado_preliminar_recebida',
+          timestamp: new Date().toISOString()
+        });
         
         return NextResponse.json({
           success: true,
@@ -343,8 +361,15 @@ export async function POST(request: Request): Promise<Response> {
         
         console.log("[Webhook] Análise validada processada para o lead:", leadID);
         
-        // SSE desabilitado
-        console.log("[Webhook] Notificação SSE desabilitada");
+        // Enviar notificação SSE
+        sseManager.sendNotification(leadID, {
+          type: 'analise_validada',
+          message: 'Sua análise foi validada e está pronta!',
+          leadId: leadID,
+          status: 'analise_validada',
+          analiseUrl: analiseUrl,
+          timestamp: new Date().toISOString()
+        });
         
         return NextResponse.json({
           success: true,
@@ -425,8 +450,15 @@ export async function POST(request: Request): Promise<Response> {
         
         console.log("[Webhook] Consultoria fase 2 processada para o lead:", leadID);
         
-        // SSE desabilitado
-        console.log("[Webhook] Notificação SSE desabilitada");
+        // Enviar notificação SSE
+        sseManager.sendNotification(leadID, {
+          type: 'consultoria_fase2',
+          message: 'Sua consultoria fase 2 foi processada e está pronta!',
+          leadId: leadID,
+          status: 'consultoria_fase2_pronta',
+          analiseUrl: analiseUrl,
+          timestamp: new Date().toISOString()
+        });
         
         return NextResponse.json({
           success: true,
@@ -506,8 +538,15 @@ export async function POST(request: Request): Promise<Response> {
         
         console.log("[Webhook] Análise de prova processada para o lead:", leadID);
         
-        // SSE desabilitado
-        console.log("[Webhook] Notificação SSE desabilitada");
+        // Enviar notificação SSE
+        sseManager.sendNotification(leadID, {
+          type: 'analise_prova',
+          message: 'Análise da sua prova foi processada com sucesso!',
+          leadId: leadID,
+          status: 'analise_prova_processada',
+          analiseUrl: analiseUrl,
+          timestamp: new Date().toISOString()
+        });
         
         return NextResponse.json({
           success: true,
@@ -587,8 +626,15 @@ export async function POST(request: Request): Promise<Response> {
         
         console.log("[Webhook] Análise de simulado processada para o lead:", leadID);
         
-        // SSE desabilitado
-        console.log("[Webhook] Notificação SSE desabilitada");
+        // Enviar notificação SSE
+        sseManager.sendNotification(leadID, {
+          type: 'analise_simulado',
+          message: 'Análise do seu simulado foi processada com sucesso!',
+          leadId: leadID,
+          status: 'analise_simulado_processada',
+          analiseUrl: analiseUrl,
+          timestamp: new Date().toISOString()
+        });
         
         return NextResponse.json({
           success: true,
@@ -669,8 +715,15 @@ export async function POST(request: Request): Promise<Response> {
         
         console.log("[Webhook] Análise de simulado validada processada para o lead:", leadID);
         
-        // SSE desabilitado
-        console.log("[Webhook] Notificação SSE desabilitada");
+        // Enviar notificação SSE
+        sseManager.sendNotification(leadID, {
+          type: 'analise_simulado_validada',
+          message: 'Análise do seu simulado foi validada e está pronta!',
+          leadId: leadID,
+          status: 'analise_simulado_validada',
+          analiseUrl: analiseUrl,
+          timestamp: new Date().toISOString()
+        });
         
         return NextResponse.json({
           success: true,
@@ -751,8 +804,15 @@ export async function POST(request: Request): Promise<Response> {
         
         console.log("[Webhook] Análise de simulado validada (camelCase) processada para o lead:", leadID);
         
-        // SSE desabilitado
-        console.log("[Webhook] Notificação SSE desabilitada");
+        // Enviar notificação SSE
+        sseManager.sendNotification(leadID, {
+          type: 'analise_simulado_validada',
+          message: 'Análise do seu simulado foi validada e está pronta!',
+          leadId: leadID,
+          status: 'analise_simulado_validada',
+          analiseUrl: analiseUrl,
+          timestamp: new Date().toISOString()
+        });
         
         return NextResponse.json({
           success: true,
@@ -856,8 +916,16 @@ export async function POST(request: Request): Promise<Response> {
         
         console.log("[Webhook] Espelho de correção processado para o lead:", leadID);
         
-        // SSE desabilitado
-        console.log("[Webhook] Notificação SSE desabilitada");
+        // Enviar notificação SSE
+        sseManager.sendNotification(leadID, {
+          type: 'espelho_correcao',
+          message: 'Espelho de correção da sua prova foi processado!',
+          leadId: leadID,
+          status: 'espelho_processado',
+          textoDOEspelho: textoDOEspelho,
+          temImagens: urlsEspelho.length > 0,
+          timestamp: new Date().toISOString()
+        });
         
         return NextResponse.json({
           success: true,
@@ -955,8 +1023,16 @@ export async function POST(request: Request): Promise<Response> {
         
         console.log("[Webhook] Espelho de consultoria fase 2 processado para o lead:", leadID);
         
-        // SSE desabilitado
-        console.log("[Webhook] Notificação SSE desabilitada");
+        // Enviar notificação SSE
+        sseManager.sendNotification(leadID, {
+          type: 'espelho_consultoria_fase2',
+          message: 'Espelho de consultoria fase 2 foi processado!',
+          leadId: leadID,
+          status: 'espelho_consultoria_fase2_processado',
+          textoDOEspelho: textoDOEspelho,
+          temImagens: urlsEspelho.length > 0,
+          timestamp: new Date().toISOString()
+        });
         
         return NextResponse.json({
           success: true,
@@ -1033,8 +1109,33 @@ export async function POST(request: Request): Promise<Response> {
       
       console.log("[Webhook] Manuscrito adicionado à fila de processamento");
       
-      // SSE desabilitado
-      console.log("[Webhook] Notificação SSE desabilitada");
+      // Verificar se há conexões ativas antes de enviar notificação
+      const conexoesAtivas = sseManager.getConnectionsForLead(leadID);
+      console.log(`[SSE] Verificando conexões ativas para leadId ${leadID}: ${conexoesAtivas} conexões`);
+      
+      // Enviar notificação SSE com dados completos do lead atualizado
+      const notificationData = {
+        type: 'leadUpdate',
+        leadData: {
+          ...leadUpdate,
+          // Garantir que os campos essenciais estão presentes
+          id: leadID,
+          provaManuscrita: conteudoUnificado,
+          manuscritoProcessado: true,
+          aguardandoManuscrito: false,
+        },
+        message: 'O manuscrito da sua prova foi processado com sucesso!',
+        timestamp: new Date().toISOString()
+      };
+      
+      console.log(`[SSE] Enviando notificação para leadId ${leadID}:`, notificationData);
+      const totalSent = sseManager.sendNotification(leadID, notificationData);
+      
+      if (totalSent === 0) {
+        console.log(`[SSE] ⚠️ Notificação não pôde ser entregue imediatamente para ${leadID}. Sistema de retry ativo.`);
+      } else {
+        console.log(`[SSE] ✅ Notificação entregue com sucesso para ${leadID} (${totalSent} conexões)`);
+      }
       
       return NextResponse.json({
         success: true,

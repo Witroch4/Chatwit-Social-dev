@@ -10,7 +10,9 @@ export async function POST(req: Request) {
     const body = await req.json();
     console.log("[Enviar Análise] Dados recebidos:", body);
 
-    const { leadId, sourceId } = body;
+    // Aceitar tanto leadId quanto leadID
+    const leadId = body.leadId || body.leadID;
+    const sourceId = body.sourceId;
 
     if (!leadId) {
       console.error("[Enviar Análise] leadId não fornecido");
@@ -20,19 +22,25 @@ export async function POST(req: Request) {
       );
     }
 
+    console.log("[Enviar Análise] Processando lead:", leadId);
+
     // Buscar dados do lead no banco
     const lead = await prisma.leadChatwit.findUnique({
       where: { id: leadId },
       select: {
         id: true,
         name: true,
+        nomeReal: true,
         phoneNumber: true,
         arquivos: true,
         pdfUnificado: true,
         leadUrl: true,
         sourceId: true,
         concluido: true,
-        fezRecurso: true
+        fezRecurso: true,
+        provaManuscrita: true,
+        textoDOEspelho: true,
+        espelhoCorrecao: true
       }
     });
 
@@ -44,11 +52,19 @@ export async function POST(req: Request) {
       );
     }
 
+    console.log("[Enviar Análise] Lead encontrado:", {
+      id: lead.id,
+      name: lead.name,
+      temManuscrito: !!lead.provaManuscrita,
+      temEspelho: !!(lead.textoDOEspelho || lead.espelhoCorrecao)
+    });
+
     // Preparar payload para o sistema externo
     const payload = {
       leadID: lead.id,
-      nome: lead.name || "Lead sem nome",
+      nome: lead.nomeReal || lead.name || "Lead sem nome",
       telefone: lead.phoneNumber,
+      analise: true, // Flag para indicar que é análise
       arquivos: lead.arquivos?.map((a: any) => ({
         id: a.id,
         url: a.dataUrl,
@@ -60,6 +76,17 @@ export async function POST(req: Request) {
         url: lead.pdfUnificado,
         nome: "PDF Unificado"
       }] : [],
+      // Incluir dados do manuscrito se existir
+      textoManuscrito: lead.provaManuscrita || "",
+      // Incluir dados do espelho se existir
+      textoEspelho: lead.textoDOEspelho || "",
+      ...(lead.espelhoCorrecao && {
+        arquivos_imagens_espelho: JSON.parse(lead.espelhoCorrecao).map((url: string, index: number) => ({
+          id: `${lead.id}-espelho-${index}`,
+          url: url,
+          nome: `Espelho ${index + 1}`
+        }))
+      }),
       metadata: {
         leadUrl: lead.leadUrl,
         sourceId: lead.sourceId || sourceId,
@@ -69,12 +96,15 @@ export async function POST(req: Request) {
     };
 
     // Enviar para o sistema externo
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL;
-    if (!apiUrl) {
-      throw new Error("URL da API não configurada no ambiente");
+    const webhookUrl = process.env.WEBHOOK_URL;
+    if (!webhookUrl) {
+      throw new Error("URL do webhook não configurada no ambiente");
     }
 
-    const response = await fetch(`${apiUrl}/api/leads/analise`, {
+    console.log("[Enviar Análise] Enviando para webhook:", webhookUrl);
+    console.log("[Enviar Análise] Payload:", JSON.stringify(payload, null, 2));
+
+    const response = await fetch(webhookUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -87,7 +117,22 @@ export async function POST(req: Request) {
       throw new Error(errorData.error || "Erro ao enviar análise");
     }
 
-    return NextResponse.json({ success: true });
+    console.log("[Enviar Análise] Enviado com sucesso para o sistema externo");
+
+    // Marcar o lead como aguardando análise
+    await prisma.leadChatwit.update({
+      where: { id: leadId },
+      data: {
+        aguardandoAnalise: true
+      }
+    });
+
+    console.log("[Enviar Análise] Lead marcado como aguardando análise");
+
+    return NextResponse.json({ 
+      success: true,
+      message: "Lead enviado para análise com sucesso"
+    });
   } catch (error: any) {
     console.error("[Enviar Análise] Erro ao enviar solicitação:", error);
     return NextResponse.json(

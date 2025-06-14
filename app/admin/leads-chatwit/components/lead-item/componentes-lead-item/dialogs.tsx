@@ -278,6 +278,7 @@ export function LeadDialogs({
         title="Selecionar Imagens para Manuscrito"
         description="Selecione as imagens que serão usadas para o processo de digitação do manuscrito."
         selectionMode={true}
+        mode="manuscrito"
         onSend={onEnviarManuscrito}
       />
 
@@ -290,6 +291,7 @@ export function LeadDialogs({
         title="Selecionar Espelho de Correção"
         description="Selecione as imagens que serão utilizadas como espelho de correção. Você pode selecionar mais de uma imagem."
         selectionMode={true}
+        mode="espelho"
         onSend={onEnviarEspelho}
       />
 

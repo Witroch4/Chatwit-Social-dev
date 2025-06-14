@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { LeadChatwit } from "../../../../types";
 import { hasEspelhoData } from "../utils";
 
-export function useLeadState(lead: LeadChatwit) {
+export function useLeadState(lead: LeadChatwit, onRefresh?: () => void) {
   const [refreshKey, setRefreshKey] = useState(0);
   const [manuscritoProcessadoLocal, setManuscritoProcessadoLocal] = useState(!!lead.manuscritoProcessado);
   const [hasEspelho, setHasEspelho] = useState(hasEspelhoData(lead));
@@ -70,6 +70,10 @@ export function useLeadState(lead: LeadChatwit) {
 
   const forceRefresh = () => {
     setRefreshKey(prev => prev + 1);
+    // Se há uma função de refresh externa, chamá-la para recarregar a lista do servidor
+    if (onRefresh) {
+      onRefresh();
+    }
   };
 
   const updateEspelhoState = (updates: any) => {

@@ -159,12 +159,15 @@ export async function POST(request: Request): Promise<Response> {
     }
     
     // Continuar com unificação normal para múltiplos arquivos ou cenário de usuário
-    const fileUrls = arquivos.map((arquivo: ArquivoLeadChatwit) => arquivo.dataUrl);
+    const fileObjects = arquivos.map((arquivo: ArquivoLeadChatwit) => ({
+      url: arquivo.dataUrl,
+      name: `arquivo_${arquivo.id}.${arquivo.fileType}`
+    }));
     
-    console.log(`[API Unify] Unificando ${fileUrls.length} arquivos...`);
+    console.log(`[API Unify] Unificando ${fileObjects.length} arquivos...`);
     
     // Unificar os PDFs
-    const pdfBuffer = await unifyFilesToPdf(fileUrls);
+    const pdfBuffer = await unifyFilesToPdf(fileObjects);
     
     // Salvar o PDF no MinIO
     const pdfUrl = await savePdfToMinIO(pdfBuffer, fileName, process.env.S3Bucket || "chatwit", process.env.NODE_ENV || "development");
@@ -183,7 +186,7 @@ export async function POST(request: Request): Promise<Response> {
       success: true,
       message: "Arquivos unificados com sucesso",
       pdfUrl,
-      filesProcessed: fileUrls.length,
+      filesProcessed: fileObjects.length,
     });
   } catch (error: any) {
     console.error("[API Unify] Erro ao unificar arquivos:", error);
