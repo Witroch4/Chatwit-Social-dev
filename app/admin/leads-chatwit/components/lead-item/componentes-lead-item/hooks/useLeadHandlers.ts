@@ -322,8 +322,6 @@ export function useLeadHandlers({
         throw new Error(data.error || "Erro ao enviar manuscrito para processamento");
       }
 
-      toast("Manuscrito enviado para processamento", { description: "Aguarde o processamento do manuscrito. Você será notificado quando estiver pronto." });
-      
       console.log('🔄 [Post-Send] Atualizando lead local para aguardandoManuscrito: true');
       if (typeof onEdit === 'function') {
         onEdit({
@@ -600,22 +598,35 @@ export function useLeadHandlers({
         ? "/api/admin/leads-chatwit/enviar-consultoriafase2"
         : "/api/admin/leads-chatwit/enviar-analise";
       
-      console.log('📤 [Envio] Enviando análise para processamento...');
-      const response = await fetch(apiEndpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ leadID: lead.id })
+            console.log('📤 [Envio] Enviando análise para processamento...');
+      
+      // Promise para o toast da análise
+      const analisePromise = async () => {
+        const response = await fetch(apiEndpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ leadID: lead.id })
+        });
+        
+        if (!response.ok) {
+          const data = await response.json();
+          throw new Error(data.error || "Erro ao solicitar análise");
+        }
+        
+        return { type: consultoriaAtiva ? 'consultoria' : 'analise' };
+      };
+
+      // Executar o toast promise e aguardar o resultado
+      await toast.promise(analisePromise, {
+        loading: consultoriaAtiva ? '🔍 Enviando consultoria para processamento...' : '📊 Enviando análise para processamento...',
+        success: (data) => {
+          return data.type === 'consultoria' 
+            ? '🎉 Consultoria fase 2 enviada com sucesso!'
+            : '🎉 Análise enviada com sucesso!';
+        },
+        error: 'Erro ao enviar para processamento',
       });
-      
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || "Erro ao solicitar análise");
-      }
-      
-      toast(consultoriaAtiva ? "Consultoria solicitada" : "Análise solicitada", { description: consultoriaAtiva 
-        ? "A solicitação de consultoria fase 2 foi enviada com sucesso! Aguarde o processamento..."
-        : "A solicitação de análise foi enviada com sucesso! Aguarde o processamento..." });
-      
+
       console.log('🔄 [Post-Send] Atualizando lead local para aguardandoAnalise: true');
       if (typeof onEdit === 'function') {
         onEdit({
@@ -1123,8 +1134,6 @@ export function useLeadHandlers({
         throw new Error(data.error || "Erro ao enviar espelho para processamento");
       }
 
-      toast("Espelho enviado para processamento", { description: "Aguarde o processamento do espelho. Você será notificado quando estiver pronto." });
-      
       console.log('🔄 [Post-Send] Atualizando lead local para aguardandoEspelho: true');
       if (typeof onEdit === 'function') {
         onEdit({

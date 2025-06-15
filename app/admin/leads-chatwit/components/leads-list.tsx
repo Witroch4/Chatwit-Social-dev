@@ -99,6 +99,59 @@ export function LeadsList({ searchQuery, onRefresh, initialLoading, refreshCount
     fetchLeads();
   }, [searchQuery, pagination.page, pagination.limit, refreshCounter]);
 
+  // Listener para o evento de destacar lead
+  useEffect(() => {
+    console.log('🔧 Registrando listener para evento highlightLead');
+    
+    const handleHighlightLead = (event: CustomEvent) => {
+      const { leadId } = event.detail;
+      console.log('🎯 Evento highlightLead recebido para lead:', leadId);
+      
+      // Encontrar o lead na lista atual
+      const leadElement = document.querySelector(`[data-lead-id="${leadId}"]`);
+      
+      if (leadElement) {
+        console.log('✅ Lead encontrado na página atual, destacando...');
+        
+        // Scroll suave até o elemento
+        leadElement.scrollIntoView({ 
+          behavior: 'smooth', 
+          block: 'center' 
+        });
+        
+        // Adicionar classe de destaque temporariamente
+        leadElement.classList.add('bg-yellow-100', 'dark:bg-yellow-900/30', 'border-yellow-400');
+        
+        // Remover o destaque após 3 segundos
+        setTimeout(() => {
+          leadElement.classList.remove('bg-yellow-100', 'dark:bg-yellow-900/30', 'border-yellow-400');
+        }, 3000);
+        
+        toast.success('Lead destacado!', {
+          description: `Lead ${leadId} foi destacado na lista.`,
+          duration: 2000
+        });
+      } else {
+        console.log('⚠️ Lead não encontrado na página atual');
+        toast.info('Lead não visível', {
+          description: 'O lead pode estar em outra página. Atualizando lista...',
+          duration: 3000
+        });
+        
+        // Tentar recarregar a lista para encontrar o lead
+        fetchLeads();
+      }
+    };
+
+    // Adicionar o listener
+    window.addEventListener('highlightLead', handleHighlightLead as EventListener);
+    
+    // Cleanup
+    return () => {
+      window.removeEventListener('highlightLead', handleHighlightLead as EventListener);
+    };
+  }, [leads]);
+
   const fetchLeads = async () => {
     setIsLoading(true);
     try {

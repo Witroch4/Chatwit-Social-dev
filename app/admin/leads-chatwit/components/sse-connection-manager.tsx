@@ -106,8 +106,23 @@ export function SSEConnectionManager({ leads, onLeadUpdate }: SSEConnectionManag
             });
           } else if (isManuscritoUpdate && notificationData.leadData.manuscritoProcessado && !notificationData.leadData.aguardandoManuscrito) {
             toast(`🎉 Manuscrito de "${leadName}" processado!`, {
-              description: "O texto foi extraído e está disponível para visualização. Clique no botão abaixo para destacar o lead na lista.",
-              duration: 10000,
+              description: "O texto foi extraído e está disponível para visualização.",
+              duration: 20000,
+              action: {
+                label: 'Destacar Lead',
+                onClick: () => {
+                  console.log('🔥 Botão "Destacar Lead" clicado!');
+                  console.log('📍 Lead ID:', leadId);
+                  
+                  // Disparar evento para destacar o lead na lista
+                  const highlightEvent = new CustomEvent('highlightLead', {
+                    detail: { leadId: leadId }
+                  });
+                  
+                  console.log('📡 Disparando evento highlightLead:', highlightEvent.detail);
+                  window.dispatchEvent(highlightEvent);
+                }
+              },
             });
           }
         }

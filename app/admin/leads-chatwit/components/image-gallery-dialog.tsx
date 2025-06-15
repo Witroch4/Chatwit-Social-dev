@@ -130,24 +130,40 @@ export function ImageGalleryDialog({
           });
         }
       } else if (mode === 'manuscrito') {
-        // Usar onSend primeiro, depois onSendManuscrito como fallback
-        if (onSend) {
-          await onSend(selectedImages);
-        } else if (onSendManuscrito) {
-          await onSendManuscrito(selectedImages);
-        }
-        toast("Manuscrito Enviado", {
-          description: `${selectedImages.length} imagem(ns) do manuscrito enviada(s) com sucesso!`,
+        // Promise para o toast do manuscrito
+        const manuscritoPromise = async () => {
+          if (onSend) {
+            await onSend(selectedImages);
+          } else if (onSendManuscrito) {
+            await onSendManuscrito(selectedImages);
+          }
+          return { count: selectedImages.length, type: 'manuscrito' };
+        };
+
+        toast.promise(manuscritoPromise, {
+          loading: '📝 Enviando manuscrito para processamento...',
+          success: (data) => {
+            return `🎉 ${data.count} imagem(ns) do manuscrito enviada(s) com sucesso!`;
+          },
+          error: 'Erro ao enviar manuscrito',
         });
       } else if (mode === 'espelho') {
-        // Usar onSend primeiro, depois onSendEspelho como fallback
-        if (onSend) {
-          await onSend(selectedImages);
-        } else if (onSendEspelho) {
-          await onSendEspelho(selectedImages);
-        }
-        toast("Espelho Enviado", {
-          description: `${selectedImages.length} imagem(ns) do espelho enviada(s) com sucesso!`,
+        // Promise para o toast do espelho
+        const espelhoPromise = async () => {
+          if (onSend) {
+            await onSend(selectedImages);
+          } else if (onSendEspelho) {
+            await onSendEspelho(selectedImages);
+          }
+          return { count: selectedImages.length, type: 'espelho' };
+        };
+
+        toast.promise(espelhoPromise, {
+          loading: '📋 Enviando espelho para processamento...',
+          success: (data) => {
+            return `🎉 ${data.count} imagem(ns) do espelho enviada(s) com sucesso!`;
+          },
+          error: 'Erro ao enviar espelho',
         });
       } else if (onSend) {
         // Fallback genérico
