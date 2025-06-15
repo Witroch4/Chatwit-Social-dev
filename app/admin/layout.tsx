@@ -6,7 +6,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import { Loader2, Bell, Users, LayoutDashboard, ShieldAlert, MessageSquare, Headphones, HelpCircle, User } from 'lucide-react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import LoginBadge from '@/components/auth/login-badge';
 import {
   DropdownMenu,
@@ -22,7 +22,6 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
   const { data: session, status } = useSession();
   const router = useRouter();
   const pathname = usePathname();
-  const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
 
@@ -31,49 +30,40 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
       if (status === 'loading') return;
 
       if (!session?.user) {
-        toast({
-          variant: "destructive",
-          title: "Acesso negado",
+        toast.error("Acesso negado", {
           description: "Você precisa estar logado para acessar esta página",
         });
         router.push('/auth/login');
         return;
       }
 
-      try {
-        toast({
-          title: "Verificando permissões",
-          description: "Verificando permissões de administrador...",
-        });
+              try {
+          toast("Verificando permissões", { description: "Verificando permissões de administrador...",
+           });
 
-        const response = await fetch('/api/admin/notifications');
+          const response = await fetch('/api/admin/notifications');
 
-        if (response.status === 403) {
-          toast({
-            variant: "destructive",
-            title: "Acesso negado",
-            description: "Você não tem permissão para acessar esta área.",
+          if (response.status === 403) {
+            toast.error("Acesso negado", {
+              description: "Você não tem permissão para acessar esta área.",
+            });
+            router.push('/');
+            return;
+          }
+
+          if (response.ok) {
+            setIsAdmin(true);
+            toast.success("Acesso permitido", {
+              description: "Acesso de administrador verificado",
+            });
+          }
+        } catch (error) {
+          console.error('Erro ao verificar acesso de administrador:', error);
+          toast.error("Erro", {
+            description: "Erro ao verificar permissões. Tente novamente mais tarde.",
           });
           router.push('/');
-          return;
-        }
-
-        if (response.ok) {
-          setIsAdmin(true);
-          toast({
-            title: "Acesso permitido",
-            description: "Acesso de administrador verificado",
-          });
-        }
-      } catch (error) {
-        console.error('Erro ao verificar acesso de administrador:', error);
-        toast({
-          variant: "destructive",
-          title: "Erro",
-          description: "Erro ao verificar permissões. Tente novamente mais tarde.",
-        });
-        router.push('/');
-      } finally {
+        } finally {
         setLoading(false);
       }
     };
@@ -103,8 +93,7 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
 
       // Não exibir toast na primeira carga da página principal
       if (!(pathname === '/admin' && loading)) {
-        toast({
-          title: "Área administrativa",
+        toast("Área administrativa", {
           description: `Área de ${pageTitle}`,
         });
       }

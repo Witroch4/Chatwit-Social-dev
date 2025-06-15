@@ -8,8 +8,8 @@ import {
   DialogFooter
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { toast, useToast } from "@/hooks/use-toast";
-import { ToastAction } from "@/components/ui/toast";
+import { toast } from "sonner";
+
 import { Download, ExternalLink, ChevronLeft, ChevronRight, RefreshCw, X, Check, Loader2, Send } from "lucide-react";
 import { downloadImagesAsZip } from "../utils/download-zip";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -41,7 +41,7 @@ export function ImageGalleryDialog({
   onSendManuscrito,
   onSendEspelho
 }: ImageGalleryDialogProps) {
-  const { toast } = useToast();
+  
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [selectedIndex, setSelectedIndex] = useState<number>(-1);
   const [isDownloading, setIsDownloading] = useState(false);
@@ -56,21 +56,14 @@ export function ImageGalleryDialog({
   // Função para fazer download de todas as imagens como ZIP
   const handleDownloadAllImages = async () => {
     if (images.length === 0) {
-      toast({
-        title: "Erro",
-        description: "Não há imagens para baixar",
-        variant: "destructive",
-      });
+      toast.error("Erro", { description: "Não há imagens para baixar" });
       return;
     }
     
     setIsDownloading(true);
     
     try {
-      toast({
-        title: "Preparando download",
-        description: "Aguarde enquanto preparamos suas imagens...",
-      });
+      toast("Preparando download", { description: "Aguarde enquanto preparamos suas imagens..." });
       
       const result = await downloadImagesAsZip(
         images, 
@@ -78,8 +71,7 @@ export function ImageGalleryDialog({
       );
       
       if (result && typeof result === 'object' && result.success) {
-        toast({
-          title: "Download concluído",
+        toast("Download concluído", {
           description: `${result.success} de ${result.total} imagens baixadas com sucesso.`,
         });
       } else {
@@ -87,11 +79,7 @@ export function ImageGalleryDialog({
       }
     } catch (error: any) {
       console.error("Erro ao baixar imagens:", error);
-      toast({
-        title: "Erro",
-        description: error.message || "Não foi possível baixar as imagens",
-        variant: "destructive",
-      });
+      toast.error("Erro", { description: error.message || "Não foi possível baixar as imagens" });
     } finally {
       setIsDownloading(false);
     }
@@ -116,11 +104,7 @@ export function ImageGalleryDialog({
   // Função para enviar imagens selecionadas
   const handleSendImages = async () => {
     if (selectedImages.length === 0) {
-      toast({
-        title: "Aviso",
-        description: "Selecione pelo menos uma imagem para enviar.",
-        variant: "default",
-      });
+      toast("Aviso", { description: "Selecione pelo menos uma imagem para enviar." });
       return;
     }
     
@@ -134,16 +118,14 @@ export function ImageGalleryDialog({
 
         if (onSendManuscrito && manuscritoImages.length > 0) {
           await onSendManuscrito(manuscritoImages);
-          toast({
-            title: "Manuscrito Enviado",
-            description: `${manuscritoImages.length} imagem(ns) do manuscrito enviada(s) com sucesso!`,
-          });
+                  toast("Manuscrito Enviado", {
+          description: `${manuscritoImages.length} imagem(ns) do manuscrito enviada(s) com sucesso!`,
+        });
         }
 
         if (onSendEspelho && espelhoImages.length > 0) {
           await onSendEspelho(espelhoImages);
-          toast({
-            title: "Espelho Enviado",
+          toast("Espelho Enviado", {
             description: `${espelhoImages.length} imagem(ns) do espelho enviada(s) com sucesso!`,
           });
         }
@@ -154,8 +136,7 @@ export function ImageGalleryDialog({
         } else if (onSendManuscrito) {
           await onSendManuscrito(selectedImages);
         }
-        toast({
-          title: "Manuscrito Enviado",
+        toast("Manuscrito Enviado", {
           description: `${selectedImages.length} imagem(ns) do manuscrito enviada(s) com sucesso!`,
         });
       } else if (mode === 'espelho') {
@@ -165,28 +146,20 @@ export function ImageGalleryDialog({
         } else if (onSendEspelho) {
           await onSendEspelho(selectedImages);
         }
-        toast({
-          title: "Espelho Enviado",
+        toast("Espelho Enviado", {
           description: `${selectedImages.length} imagem(ns) do espelho enviada(s) com sucesso!`,
         });
       } else if (onSend) {
         // Fallback genérico
         await onSend(selectedImages);
-        toast({
-          title: "Sucesso",
-          description: "Imagens enviadas com sucesso!",
-        });
+        toast("Sucesso", { description: "Imagens enviadas com sucesso!" });
       }
       
       // Fechar o diálogo após envio bem-sucedido
       onClose();
     } catch (error: any) {
       console.error("Erro ao enviar imagens:", error);
-      toast({
-        title: "Erro",
-        description: error.message || "Não foi possível enviar as imagens. Tente novamente.",
-        variant: "destructive",
-      });
+      toast.error("Erro", { description: error.message || "Não foi possível enviar as imagens. Tente novamente." });
     } finally {
       setIsSending(false);
     }
@@ -482,6 +455,9 @@ export function ImageGalleryDialog({
                 <X className="h-4 w-4" />
               </Button>
             </div>
+            <DialogDescription>
+              Use as setas do teclado ou os botões para navegar entre as imagens
+            </DialogDescription>
           </DialogHeader>
           
           <div className="flex-grow flex items-center justify-center relative overflow-hidden">

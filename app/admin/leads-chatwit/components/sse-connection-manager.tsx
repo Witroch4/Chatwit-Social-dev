@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useCallback } from 'react';
 import { LeadChatwit } from '../types';
-import { toast } from 'sonner';
+import { toast } from "sonner";
 
 interface SSEConnectionManagerProps {
   leads: LeadChatwit[];
@@ -51,9 +51,65 @@ export function SSEConnectionManager({ leads, onLeadUpdate }: SSEConnectionManag
           return;
         }
         
-        if (data.type === 'leadUpdate' && data.leadData) {
-          console.log(`[SSE Manager] 🔄 Atualizando lead ${leadId} com dados:`, data.leadData);
-          onLeadUpdate(data.leadData);
+        // Tratar estrutura correta da notificação
+        const notificationData = data.data || data; // Compatibilidade com ambas estruturas
+        
+        if (notificationData.type === 'leadUpdate' && notificationData.leadData) {
+          console.log(`[SSE Manager] 🔄 Atualizando lead ${leadId} com dados:`, notificationData.leadData);
+          onLeadUpdate(notificationData.leadData);
+          
+          // 🎉 Feedback visual melhorado com toast de sucesso
+          const leadName = notificationData.leadData.name || notificationData.leadData.nome || 'Lead';
+          
+          // 🔍 Debug detalhado para identificar o tipo de processamento
+          console.log(`[SSE Manager] 🔍 Debug toast - Lead: ${leadName}`, {
+            manuscritoProcessado: notificationData.leadData.manuscritoProcessado,
+            aguardandoManuscrito: notificationData.leadData.aguardandoManuscrito,
+            espelhoProcessado: notificationData.leadData.espelhoProcessado,
+            aguardandoEspelho: notificationData.leadData.aguardandoEspelho,
+            analiseProcessada: notificationData.leadData.analiseProcessada,
+            aguardandoAnalise: notificationData.leadData.aguardandoAnalise,
+            message: notificationData.message
+          });
+          
+          // 🎯 Determinar o tipo de processamento baseado na mensagem do worker
+          const isManuscritoUpdate = notificationData.message?.includes('manuscrito');
+          const isEspelhoUpdate = notificationData.message?.includes('espelho');
+          const isAnaliseUpdate = notificationData.message?.includes('análise') || notificationData.message?.includes('pré-análise');
+          
+          console.log(`[SSE Manager] 🔍 Tipo de update detectado:`, {
+            isManuscritoUpdate,
+            isEspelhoUpdate, 
+            isAnaliseUpdate,
+            originalMessage: notificationData.message
+          });
+          
+          // Verificar análise primeiro (baseado na mensagem)
+          if (isAnaliseUpdate && notificationData.leadData.analiseProcessada && !notificationData.leadData.aguardandoAnalise) {
+            // Verificar se é análise preliminar ou final
+            const isAnalisePreliminar = notificationData.leadData.analisePreliminar && !notificationData.leadData.analiseUrl;
+            const title = isAnalisePreliminar 
+              ? `📋 Pré-análise de "${leadName}" processada!`
+              : `📊 Análise de "${leadName}" processada!`;
+            const description = isAnalisePreliminar
+              ? "A pré-análise foi concluída e está disponível para consulta."
+              : "A análise foi concluída e os resultados estão disponíveis.";
+            
+            toast(title, {
+              description,
+              duration: 8000,
+            });
+          } else if (isEspelhoUpdate && notificationData.leadData.espelhoProcessado && !notificationData.leadData.aguardandoEspelho) {
+            toast(`📋 Espelho de "${leadName}" processado!`, {
+              description: "A correção foi finalizada e está disponível para consulta.",
+              duration: 8000,
+            });
+          } else if (isManuscritoUpdate && notificationData.leadData.manuscritoProcessado && !notificationData.leadData.aguardandoManuscrito) {
+            toast(`🎉 Manuscrito de "${leadName}" processado!`, {
+              description: "O texto foi extraído e está disponível para visualização. Clique no botão abaixo para destacar o lead na lista.",
+              duration: 10000,
+            });
+          }
         }
       } catch (error) {
         console.error(`[SSE Manager] ❌ Erro ao processar notificação para ${leadId}:`, error);

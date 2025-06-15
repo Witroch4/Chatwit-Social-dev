@@ -9,7 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from "sonner";
 import { Loader2, RefreshCw, Send, Bell, CheckCircle, Zap, List, Eye, EyeOff, Search, X, Filter } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import AutoNotifications from './auto-notifications';
@@ -54,7 +54,7 @@ type ActiveTabType = 'manual' | 'auto' | 'list';
 const AdminNotificationsPage = () => {
   const router = useRouter();
   const { data: session, status } = useSession();
-  const { toast } = useToast();
+  
   const [users, setUsers] = useState<User[]>([]);
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
   const [title, setTitle] = useState('');
@@ -74,11 +74,8 @@ const AdminNotificationsPage = () => {
       if (status === 'loading') return;
 
       if (!session?.user) {
-        toast({
-          variant: "destructive",
-          title: "Acesso negado",
-          description: "Você precisa estar logado para acessar esta página",
-        });
+        toast.error("Acesso negado", { description: "Você precisa estar logado para acessar esta página",
+         });
         router.push('/auth/login');
         return;
       }
@@ -88,11 +85,8 @@ const AdminNotificationsPage = () => {
         const response = await fetch('/api/admin/notifications');
 
         if (response.status === 403) {
-          toast({
-            variant: "destructive",
-            title: "Acesso negado",
-            description: "Você não tem permissão para acessar esta página.",
-          });
+          toast.error("Acesso negado", { description: "Você não tem permissão para acessar esta página.",
+           });
           router.push('/');
           return;
         }
@@ -100,24 +94,17 @@ const AdminNotificationsPage = () => {
         if (response.ok) {
           const data = await response.json();
           setUsers(data);
-          toast({
-            title: "Usuários carregados",
+          toast("Usuários carregados", {
             description: `${data.length} usuários carregados com sucesso`,
           });
         } else {
-          toast({
-            variant: "destructive",
-            title: "Erro",
-            description: "Erro ao carregar usuários",
-          });
+          toast.error("Erro", { description: "Erro ao carregar usuários",
+           });
         }
       } catch (error) {
         console.error('Erro ao verificar acesso de administrador:', error);
-        toast({
-          variant: "destructive",
-          title: "Erro",
-          description: "Erro ao verificar permissões",
-        });
+        toast.error("Erro", { description: "Erro ao verificar permissões",
+         });
       } finally {
         setLoading(false);
       }
@@ -136,34 +123,24 @@ const AdminNotificationsPage = () => {
     try {
       setRefreshing(true);
 
-      toast({
-        title: "Atualizando",
-        description: "Atualizando lista de usuários...",
-      });
+      toast("Atualizando", { description: "Atualizando lista de usuários..."  });
 
       const response = await fetch('/api/admin/notifications');
 
       if (response.ok) {
         const data = await response.json();
         setUsers(data);
-        toast({
-          title: "Usuários atualizados",
+        toast("Usuários atualizados", {
           description: `${data.length} usuários carregados com sucesso`,
         });
       } else {
-        toast({
-          variant: "destructive",
-          title: "Erro",
-          description: "Erro ao carregar usuários",
-        });
+        toast.error("Erro", { description: "Erro ao carregar usuários",
+         });
       }
     } catch (error) {
       console.error('Erro ao buscar usuários:', error);
-      toast({
-        variant: "destructive",
-        title: "Erro",
-        description: "Erro ao carregar usuários",
-      });
+      toast.error("Erro", { description: "Erro ao carregar usuários",
+       });
     } finally {
       setRefreshing(false);
     }
@@ -173,34 +150,24 @@ const AdminNotificationsPage = () => {
     try {
       setLoadingNotifications(true);
 
-      toast({
-        title: "Carregando notificações",
-        description: "Buscando todas as notificações...",
-      });
+      toast("Carregando notificações", { description: "Buscando todas as notificações..."  });
 
       const response = await fetch('/api/admin/notifications/all');
 
       if (response.ok) {
         const data = await response.json();
         setAllNotifications(data);
-        toast({
-          title: "Notificações carregadas",
+        toast("Notificações carregadas", {
           description: `${data.length} notificações carregadas com sucesso`,
         });
       } else {
-        toast({
-          variant: "destructive",
-          title: "Erro",
-          description: "Erro ao carregar notificações",
-        });
+        toast.error("Erro", { description: "Erro ao carregar notificações",
+         });
       }
     } catch (error) {
       console.error('Erro ao buscar notificações:', error);
-      toast({
-        variant: "destructive",
-        title: "Erro",
-        description: "Erro ao carregar notificações",
-      });
+      toast.error("Erro", { description: "Erro ao carregar notificações",
+       });
     } finally {
       setLoadingNotifications(false);
     }
@@ -229,38 +196,27 @@ const AdminNotificationsPage = () => {
           )
         );
 
-        toast({
-          title: "Status atualizado",
+        toast("Status atualizado", {
           description: `Notificação marcada como ${!currentStatus ? 'lida' : 'não lida'}`,
         });
       } else {
-        toast({
-          variant: "destructive",
-          title: "Erro",
-          description: "Erro ao atualizar status da notificação",
-        });
+        toast.error("Erro", { description: "Erro ao atualizar status da notificação",
+         });
       }
     } catch (error) {
       console.error('Erro ao atualizar status da notificação:', error);
-      toast({
-        variant: "destructive",
-        title: "Erro",
-        description: "Erro ao atualizar status da notificação",
-      });
+      toast.error("Erro", { description: "Erro ao atualizar status da notificação",
+       });
     }
   };
 
   const handleSelectAll = () => {
     if (selectAll) {
       setSelectedUsers([]);
-      toast({
-        title: "Seleção removida",
-        description: "Todos os usuários foram desmarcados",
-      });
+      toast("Seleção removida", { description: "Todos os usuários foram desmarcados"  });
     } else {
       setSelectedUsers(users.map(user => user.id));
-      toast({
-        title: "Todos selecionados",
+      toast("Todos selecionados", {
         description: `${users.length} usuários selecionados`,
       });
     }
@@ -283,28 +239,21 @@ const AdminNotificationsPage = () => {
     e.preventDefault();
 
     if (selectedUsers.length === 0) {
-      toast({
-        variant: "destructive",
-        title: "Erro",
-        description: "Selecione pelo menos um usuário",
-      });
+      toast.error("Erro", { description: "Selecione pelo menos um usuário",
+       });
       return;
     }
 
     if (!title.trim() || !message.trim()) {
-      toast({
-        variant: "destructive",
-        title: "Erro",
-        description: "Título e mensagem são obrigatórios",
-      });
+      toast.error("Erro", { description: "Título e mensagem são obrigatórios",
+       });
       return;
     }
 
     try {
       setSending(true);
 
-      toast({
-        title: "Enviando notificação",
+      toast("Enviando notificação", {
         description: `Enviando para ${selectedUsers.length} usuário(s)...`,
       });
 
@@ -323,10 +272,7 @@ const AdminNotificationsPage = () => {
       if (response.ok) {
         const data = await response.json();
 
-        toast({
-          title: "Notificação enviada",
-          description: data.message,
-        });
+        toast("Notificação enviada", { description: data.message  });
 
         setTitle('');
         setMessage('');
@@ -334,19 +280,13 @@ const AdminNotificationsPage = () => {
         setSelectAll(false);
       } else {
         const error = await response.json();
-        toast({
-          variant: "destructive",
-          title: "Erro",
-          description: error.message || "Erro ao enviar notificações",
-        });
+        toast.error("Erro", { description: error.message || "Erro ao enviar notificações",
+         });
       }
     } catch (error) {
       console.error('Erro ao enviar notificações:', error);
-      toast({
-        variant: "destructive",
-        title: "Erro",
-        description: "Erro ao enviar notificações",
-      });
+      toast.error("Erro", { description: "Erro ao enviar notificações",
+       });
     } finally {
       setSending(false);
     }

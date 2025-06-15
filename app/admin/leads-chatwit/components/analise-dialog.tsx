@@ -9,9 +9,9 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { Loader2, FileText, ExternalLink, Send, AlertOctagon, Key } from "lucide-react";
-import { ToastAction } from "@/components/ui/toast";
+
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
@@ -48,7 +48,6 @@ export function AnaliseDialog({
   const [isEnviando, setIsEnviando] = useState(false);
   const [isCancelando, setIsCancelando] = useState(false);
   const [isSavingToken, setIsSavingToken] = useState(false);
-  const { toast } = useToast();
 
   // Mensagem padrão para enviar com o PDF
   const MENSAGEM_PADRAO = "Segue a nossa Análise, qualquer dúvidas estamos a disposição";
@@ -85,21 +84,9 @@ export function AnaliseDialog({
     try {
       setIsSaving(true);
       await onSaveAnotacoes(textoAnotacoes);
-      toast({
-        title: "Sucesso",
-        description: "Mensagem salva com sucesso!",
-      });
+      toast("Sucesso", { description: "Mensagem salva com sucesso!"  });
     } catch (error: any) {
-      toast({
-        title: "Erro",
-        description: error.message || "Não foi possível salvar a mensagem.",
-        variant: "destructive",
-        action: (
-          <ToastAction altText="Tentar novamente" onClick={handleSaveAnotacoes}>
-            Tentar novamente
-          </ToastAction>
-        ),
-      });
+      toast.error("Erro", { description: error.message || "Não foi possível salvar a mensagem." });
     } finally {
       setIsSaving(false);
     }
@@ -126,16 +113,9 @@ export function AnaliseDialog({
         throw new Error(data.error || "Erro ao salvar token");
       }
       
-      toast({
-        title: "Sucesso",
-        description: "Token de acesso salvo com sucesso!",
-      });
+      toast("Sucesso", { description: "Token de acesso salvo com sucesso!"  });
     } catch (error: any) {
-      toast({
-        title: "Erro",
-        description: error.message || "Não foi possível salvar o token de acesso.",
-        variant: "destructive",
-      });
+      toast("Erro", { description: error.message || "Não foi possível salvar o token de acesso."  });
     } finally {
       setIsSavingToken(false);
     }
@@ -143,11 +123,7 @@ export function AnaliseDialog({
 
   const handleEnviarPdf = async () => {
     if (!analiseUrl) {
-      toast({
-        title: "Erro",
-        description: "Não há análise disponível para enviar.",
-        variant: "destructive",
-      });
+      toast("Erro", { description: "Não há análise disponível para enviar."  });
       return;
     }
 
@@ -176,21 +152,9 @@ export function AnaliseDialog({
         throw new Error(data.error || "Não foi possível enviar o PDF");
       }
       
-      toast({
-        title: "Sucesso",
-        description: "PDF de análise enviado com sucesso!",
-      });
+      toast("Sucesso", { description: "PDF de análise enviado com sucesso!"  });
     } catch (error: any) {
-      toast({
-        title: "Erro",
-        description: error.message || "Não foi possível enviar o PDF.",
-        variant: "destructive",
-        action: (
-          <ToastAction altText="Tentar novamente" onClick={handleEnviarPdf}>
-            Tentar novamente
-          </ToastAction>
-        ),
-      });
+      toast.error("Erro", { description: error.message || "Não foi possível enviar o PDF." });
     } finally {
       setIsEnviando(false);
     }
@@ -202,17 +166,10 @@ export function AnaliseDialog({
     try {
       setIsCancelando(true);
       await onCancelarAnalise();
-      toast({
-        title: "Sucesso",
-        description: "Solicitação de análise cancelada com sucesso!",
-      });
+      toast("Sucesso", { description: "Solicitação de análise cancelada com sucesso!"  });
       onClose(); // Fechar o diálogo após cancelamento
     } catch (error: any) {
-      toast({
-        title: "Erro",
-        description: error.message || "Não foi possível cancelar a análise.",
-        variant: "destructive",
-      });
+      toast("Erro", { description: error.message || "Não foi possível cancelar a análise."  });
     } finally {
       setIsCancelando(false);
     }

@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect } from "react";
 import { useDropzone } from "react-dropzone";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import axios from "axios";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -52,7 +52,7 @@ interface WhatsAppConfig {
 }
 
 export default function AtendimentoPage() {
-  const { toast } = useToast();
+  
   const [csvData, setCsvData] = useState<string | null>(null);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [templates, setTemplates] = useState<Template[]>([]);
@@ -101,11 +101,8 @@ export default function AtendimentoPage() {
           setTemplates(response.data.templates);
         }
       } catch (error) {
-        toast({
-          variant: "destructive",
-          title: "Erro ao carregar templates",
-          description: "Não foi possível obter a lista de templates do WhatsApp."
-        });
+        toast.error("Erro ao carregar templates", { description: "Não foi possível obter a lista de templates do WhatsApp."
+         });
         console.error("Erro ao buscar templates:", error);
       } finally {
         setLoading(false);
@@ -126,11 +123,8 @@ export default function AtendimentoPage() {
           setIsEnvConfig(response.data.isEnvConfig);
         }
       } catch (error) {
-        toast({
-          variant: "destructive",
-          title: "Erro ao carregar configurações",
-          description: "Não foi possível obter as configurações da API do WhatsApp."
-        });
+        toast.error("Erro ao carregar configurações", { description: "Não foi possível obter as configurações da API do WhatsApp."
+         });
         console.error("Erro ao buscar configurações do WhatsApp:", error);
       } finally {
         setLoadingConfig(false);
@@ -185,20 +179,14 @@ export default function AtendimentoPage() {
   // Função para enviar mensagens
   const enviarMensagens = async () => {
     if (!csvData) {
-      toast({
-        variant: "destructive",
-        title: "Arquivo CSV não carregado",
-        description: "Por favor, faça upload de um arquivo CSV com os contatos."
-      });
+      toast.error("Arquivo CSV não carregado", { description: "Por favor, faça upload de um arquivo CSV com os contatos."
+       });
       return;
     }
 
     if (!selectedTemplate) {
-      toast({
-        variant: "destructive",
-        title: "Template não selecionado",
-        description: "Por favor, selecione um template para enviar as mensagens."
-      });
+      toast.error("Template não selecionado", { description: "Por favor, selecione um template para enviar as mensagens."
+       });
       return;
     }
 
@@ -219,16 +207,13 @@ export default function AtendimentoPage() {
       setProgresso(100);
       setResultado(response.data);
       
-      toast({
-        title: "Disparo concluído",
+      toast("Disparo concluído", {
+        
         description: `${response.data.results.enviados} mensagens enviadas de ${response.data.results.total}.`
       });
     } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Erro ao enviar mensagens",
-        description: error.response?.data?.error || "Ocorreu um erro ao enviar as mensagens."
-      });
+      toast.error("Erro ao enviar mensagens", { description: error.response?.data?.error || "Ocorreu um erro ao enviar as mensagens."
+       });
     } finally {
       setEnviando(false);
     }
@@ -266,16 +251,12 @@ export default function AtendimentoPage() {
         resposta: JSON.stringify(response.data, null, 2)
       }));
       
-      toast({
-        title: "Webhook testado",
+      toast("Webhook testado", {
         description: `Intenção ${webhook.intencao} processada com sucesso.`
       });
     } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Erro ao testar webhook",
-        description: error.response?.data?.error || "Ocorreu um erro ao testar o webhook."
-      });
+      toast.error("Erro ao testar webhook", { description: error.response?.data?.error || "Ocorreu um erro ao testar o webhook."
+       });
       setWebhook(prev => ({ 
         ...prev, 
         resposta: error.response?.data ? JSON.stringify(error.response.data, null, 2) : "Erro na requisição"
@@ -292,29 +273,21 @@ export default function AtendimentoPage() {
       
       // Validação básica
       if (!whatsappConfig.fbGraphApiBase || !whatsappConfig.whatsappBusinessAccountId || !whatsappConfig.whatsappToken) {
-        toast({
-          variant: "destructive",
-          title: "Campos obrigatórios",
-          description: "Todos os campos de configuração são obrigatórios."
-        });
+        toast.error("Campos obrigatórios", { description: "Todos os campos de configuração são obrigatórios."
+         });
         return;
       }
       
       const response = await axios.post('/api/admin/atendimento/config', whatsappConfig);
       
       if (response.data.success) {
-        toast({
-          title: "Configurações salvas",
-          description: "As configurações da API do WhatsApp foram salvas com sucesso."
-        });
+        toast("Configurações salvas", { description: "As configurações da API do WhatsApp foram salvas com sucesso."
+          });
         setIsEnvConfig(false);
       }
     } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Erro ao salvar configurações",
-        description: error.response?.data?.error || "Ocorreu um erro ao salvar as configurações."
-      });
+      toast.error("Erro ao salvar configurações", { description: error.response?.data?.error || "Ocorreu um erro ao salvar as configurações."
+       });
     } finally {
       setSavingConfig(false);
     }
@@ -499,10 +472,8 @@ export default function AtendimentoPage() {
                     valorAnalise: "R$ 27,90",
                     chavePix: "atendimento@amandasousaprev.adv.br"
                   });
-                  toast({
-                    title: "Configurações redefinidas",
-                    description: "As configurações foram redefinidas para os valores padrão."
-                  });
+                  toast("Configurações redefinidas", { description: "As configurações foram redefinidas para os valores padrão."
+                    });
                 }}
                 variant="outline"
                 className="mr-2"
@@ -510,10 +481,8 @@ export default function AtendimentoPage() {
                 Redefinir
               </Button>
               <Button onClick={() => {
-                toast({
-                  title: "Configurações salvas",
-                  description: "As configurações foram salvas com sucesso."
-                });
+                toast("Configurações salvas", { description: "As configurações foram salvas com sucesso."
+                  });
               }}>
                 Salvar Configurações
               </Button>
@@ -616,10 +585,8 @@ export default function AtendimentoPage() {
                     whatsappBusinessAccountId: process.env.WHATSAPP_BUSINESS_ID || '',
                     whatsappToken: process.env.WHATSAPP_TOKEN || ''
                   });
-                  toast({
-                    title: "Configurações redefinidas",
-                    description: "As configurações foram redefinidas para os valores padrão."
-                  });
+                  toast("Configurações redefinidas", { description: "As configurações foram redefinidas para os valores padrão."
+                    });
                 }}
                 disabled={loadingConfig || savingConfig}
               >
@@ -707,8 +674,7 @@ export default function AtendimentoPage() {
               <Button
                 disabled={!csvData}
                 onClick={() => {
-                  toast({
-                    title: "Lista salva",
+                  toast("Lista salva", {
                     description: `${contacts.length} contatos foram salvos para disparo.`
                   });
                 }}

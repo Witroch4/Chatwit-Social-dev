@@ -25,7 +25,7 @@ import PalavraExpressaoSelection from "../components/WIT-EQ/PalavraExpressaoSele
 import PreviewPhoneMockup from "../components/PreviewPhoneMockup";
 import ToggleActions from "../components/WIT-EQ/ToggleActions";
 
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { useParams } from "next/navigation";
 
 export interface InstagramUserData {
@@ -48,7 +48,7 @@ export interface InstagramMediaItem {
 
 export default function UserPage() {
   const { data: session, status } = useSession();
-  const { toast } = useToast();
+  
   const router = useRouter();
   const params = useParams<{ accountid: string }>();
   const providerAccountId = params?.accountid ?? '';
@@ -203,47 +203,27 @@ export default function UserPage() {
 
   function validarEtapas(): boolean {
     if (!anyMediaSelected && !selectedPost) {
-      toast({
-        title: "Erro",
-        description: "Selecione uma publicação específica ou escolha 'Qualquer Publicação'",
-        variant: "destructive",
-      });
+      toast("Erro", { description: "Selecione uma publicação específica ou escolha 'Qualquer Publicação'"  });
       return false;
     }
     // Validação de palavra/expressão:
     // Se anyword for false (ou seja, "específica"), o input não pode estar vazio
     if (anyword === false && inputPalavra.trim() === "") {
-      toast({
-        title: "Erro",
-        description: "Preencha as palavras-chave ou selecione 'qualquer'.",
-        variant: "destructive",
-      });
+      toast("Erro", { description: "Preencha as palavras-chave ou selecione 'qualquer'."  });
       return false;
     }
 
     if (dmWelcomeMessage.trim() === "" || dmQuickReply.trim() === "") {
-      toast({
-        title: "Erro",
-        description: "Preencha a DM de boas-vindas e o Quick Reply.",
-        variant: "destructive",
-      });
+      toast("Erro", { description: "Preencha a DM de boas-vindas e o Quick Reply."  });
       return false;
     }
     if (dmSecondMessage.trim() === "" || dmLink.trim() === "" || dmButtonLabel.trim() === "") {
-      toast({
-        title: "Erro",
-        description: "Preencha a mensagem, o link e a legenda do botão da Etapa 3.",
-        variant: "destructive",
-      });
+      toast.error("Erro", { description: "Preencha a mensagem antes de continuar." });
       return false;
     }
     if (switchResponderComentario) {
       if (publicReply1.trim() === "" || publicReply2.trim() === "" || publicReply3.trim() === "") {
-        toast({
-          title: "Erro",
-          description: "Preencha as 3 respostas públicas antes de ativar.",
-          variant: "destructive",
-        });
+        toast("Erro", { description: "Preencha as 3 respostas públicas antes de ativar."  });
         return false;
       }
     }
@@ -292,19 +272,11 @@ export default function UserPage() {
       }
       const data = await res.json();
       console.log("Automação salva:", data);
-      toast({
-        title: "Sucesso",
-        description: "Automação criada com sucesso!",
-        variant: "default",
-      });
+      toast("Sucesso", { description: "Automação criada com sucesso!"  });
       router.push(`/${providerAccountId}/dashboard/automacao/guiado-facil/${data.id}`);
     } catch (error: any) {
       console.error("Erro ao salvar automação:", error.message);
-      toast({
-        title: "Falha",
-        description: "Erro ao salvar automação: " + error.message,
-        variant: "destructive",
-      });
+      toast("Falha", { description: "Erro ao salvar automação: " + error.message  });
     }
   }
 

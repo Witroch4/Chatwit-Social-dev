@@ -17,10 +17,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import FileUpload, { UploadedFile } from "@/components/custom/FileUpload";
 import MetaMediaUpload, { MetaMediaFile } from "@/components/custom/MetaMediaUpload";
-import { toast } from "sonner";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -32,8 +31,7 @@ import { CreateTemplateComponent } from "../components/template-preview";
 // Componente para criar um novo template de WhatsApp
 export default function CreateTemplatePage() {
   const router = useRouter();
-  const { toast: hookToast } = useToast();
-  
+
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [creationSuccess, setCreationSuccess] = useState(false);
@@ -153,11 +151,7 @@ export default function CreateTemplatePage() {
   // Adicionar botão de resposta rápida
   const addQuickReplyButton = () => {
     if (buttons.length >= 3) {
-      hookToast({
-        variant: "destructive",
-        title: "Limite de botões",
-        description: "Você pode adicionar no máximo 3 botões de resposta rápida"
-      });
+      toast.error("Limite de botões", { description: "Você pode adicionar no máximo 3 botões de resposta rápida" });
       return;
     }
     
@@ -167,11 +161,7 @@ export default function CreateTemplatePage() {
   // Adicionar botão URL
   const addUrlButton = () => {
     if (buttons.length >= 2) {
-      hookToast({
-        variant: "destructive",
-        title: "Limite de botões",
-        description: "Você pode adicionar no máximo 2 botões de URL"
-      });
+      toast.error("Limite de botões", { description: "Você pode adicionar no máximo 2 botões de URL" });
       return;
     }
     
@@ -181,11 +171,7 @@ export default function CreateTemplatePage() {
   // Adicionar botão de telefone
   const addPhoneNumberButton = () => {
     if (buttons.length >= 1) {
-      hookToast({
-        variant: "destructive",
-        title: "Limite de botões",
-        description: "Você só pode ter um botão de telefone"
-      });
+      toast.error("Limite de botões", { description: "Você só pode ter um botão de telefone" });
       return;
     }
     
@@ -199,11 +185,7 @@ export default function CreateTemplatePage() {
   // Adicionar botão COPY_CODE
   const addCopyCodeButton = () => {
     if (buttons.length >= 1) {
-      hookToast({
-        variant: "destructive",
-        title: "Limite de botões",
-        description: "Você só pode ter um botão Copy Code"
-      });
+      toast.error("Limite de botões", { description: "Você só pode ter um botão Copy Code" });
       return;
     }
     
@@ -370,11 +352,7 @@ export default function CreateTemplatePage() {
   // Criar template na API
   const createTemplate = async () => {
     if (!isFormValid()) {
-      hookToast({
-        variant: "destructive",
-        title: "Formulário inválido",
-        description: "Verifique os campos obrigatórios e tente novamente"
-      });
+      toast.error("Formulário inválido", { description: "Verifique os campos obrigatórios e tente novamente" });
       return;
     }
     
@@ -594,10 +572,8 @@ export default function CreateTemplatePage() {
         setCreationSuccess(true);
         setTemplateId(response.data.templateId || response.data.id);
         
-        hookToast({
-          title: "Template criado com sucesso",
-          description: `O template foi enviado para aprovação e será revisado pelo WhatsApp.`
-        });
+        toast("Template criado com sucesso", { description: `O template foi enviado para aprovação e será revisado pelo WhatsApp.`
+         });
         
         // Após criar o template, atualizar a lista de templates no banco de dados
         try {

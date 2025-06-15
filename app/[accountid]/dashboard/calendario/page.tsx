@@ -16,7 +16,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { DotLottieReact } from "@lottiefiles/dotlottie-react";
 import useAgendamentos from "@/hooks/useAgendamentos";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import axios from "axios";
 import { useRouter, useParams } from "next/navigation";
 
@@ -35,7 +35,7 @@ interface CalendarParams {
 export default function CalendarioPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
-  const { toast } = useToast();
+  
   const params = useParams() as CalendarParams;
 
   // Pega userID da sessão
@@ -75,20 +75,12 @@ export default function CalendarioPage() {
     try {
       const response = await axios.delete(`/api/agendar/${agendamentoId}`);
       if (response.status === 200) {
-        toast({
-          title: "Agendamento Excluído",
-          description: "O agendamento foi excluído com sucesso.",
-        });
+        toast("Agendamento Excluído", { description: "O agendamento foi excluído com sucesso."  });
         refetch();
       }
     } catch (err: any) {
-      toast({
-        title: "Erro ao Excluir",
-        description:
-          err.response?.data?.message ||
-          "Ocorreu um erro ao excluir o agendamento.",
-        variant: "destructive",
-      });
+      toast("Erro ao Excluir", { description: err.response?.data?.message ||
+          "Ocorreu um erro ao excluir o agendamento."  });
     }
   };
 

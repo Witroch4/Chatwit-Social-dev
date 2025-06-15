@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect } from "react";
 import { useDropzone } from "react-dropzone";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import axios from "axios";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -46,7 +46,7 @@ interface Template {
 }
 
 export default function DisparoEmMassaPage() {
-  const { toast } = useToast();
+  
   const [csvData, setCsvData] = useState<string | null>(null);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [showAllContacts, setShowAllContacts] = useState(false);
@@ -79,11 +79,8 @@ export default function DisparoEmMassaPage() {
         }
       } catch (error) {
         console.error("Erro ao buscar templates:", error);
-        toast({
-          variant: "destructive",
-          title: "Erro ao carregar templates",
-          description: "Não foi possível obter a lista de templates disponíveis."
-        });
+        toast.error("Erro ao carregar templates", { description: "Não foi possível obter a lista de templates disponíveis."
+         });
       } finally {
         setLoadingTemplates(false);
       }
@@ -116,11 +113,8 @@ export default function DisparoEmMassaPage() {
         }
       } catch (error) {
         console.error("Erro ao buscar informações do template:", error);
-        toast({
-          variant: "destructive",
-          title: "Erro ao carregar detalhes do template",
-          description: "Não foi possível obter informações detalhadas do template selecionado."
-        });
+        toast.error("Erro ao carregar detalhes do template", { description: "Não foi possível obter informações detalhadas do template selecionado."
+         });
       } finally {
         setLoadingTemplateInfo(false);
       }
@@ -181,20 +175,14 @@ export default function DisparoEmMassaPage() {
   // Função para enviar mensagens
   const enviarMensagens = async () => {
     if (!csvData) {
-      toast({
-        variant: "destructive",
-        title: "Arquivo CSV não carregado",
-        description: "Por favor, faça upload de um arquivo CSV com os contatos."
-      });
+      toast.error("Arquivo CSV não carregado", { description: "Por favor, faça upload de um arquivo CSV com os contatos."
+       });
       return;
     }
     
     if (!templateInfo) {
-      toast({
-        variant: "destructive",
-        title: "Template não selecionado",
-        description: "Por favor, selecione um template para envio."
-      });
+      toast.error("Template não selecionado", { description: "Por favor, selecione um template para envio."
+       });
       return;
     }
 
@@ -217,16 +205,12 @@ export default function DisparoEmMassaPage() {
       setProgresso(100);
       setResultado(response.data);
       
-      toast({
-        title: "Disparo concluído",
+      toast("Disparo concluído", {
         description: `${response.data.results.enviados} mensagens enviadas de ${response.data.results.total}.`
       });
     } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Erro no disparo",
-        description: error.response?.data?.error || "Ocorreu um erro ao enviar as mensagens."
-      });
+      toast.error("Erro no disparo", { description: error.response?.data?.error || "Ocorreu um erro ao enviar as mensagens."
+       });
     } finally {
       setEnviando(false);
     }

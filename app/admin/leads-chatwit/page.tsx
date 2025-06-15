@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useToast } from "@/components/ui/use-toast";
+import { toast } from "sonner";
 import { RefreshCw, Search, Info, ChevronDown, BarChart, X } from "lucide-react";
 import { LeadsTabs } from "./components/leads-tabs";
 import { LeadsDashboard } from "./components/dashboard";
@@ -41,7 +41,7 @@ import { UsuariosList } from "./components/usuarios-list";
 
 export default function LeadsChatwitPage() {
   const [isLoading, setIsLoading] = useState(true);
-  const { toast } = useToast();
+  
   const [searchQuery, setSearchQuery] = useState("");
   const [stats, setStats] = useState({
     totalLeads: 0,
@@ -71,10 +71,8 @@ export default function LeadsChatwitPage() {
       }
     } catch (error: any) {
       console.error("Erro ao buscar estatísticas:", error);
-      toast({
-        title: "Erro",
+      toast.error("Erro", {
         description: error.message || "Não foi possível carregar as estatísticas",
-        variant: "destructive",
       });
     } finally {
       setIsLoading(false);
@@ -84,8 +82,7 @@ export default function LeadsChatwitPage() {
   const handleRefresh = () => {
     setRefreshCounter(prev => prev + 1);
     
-    toast({
-      title: "Atualizando",
+    toast("Atualizando", {
       description: "Atualizando dados dos leads...",
     });
   };

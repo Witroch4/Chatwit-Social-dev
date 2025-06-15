@@ -21,7 +21,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { 
   Library, 
   Upload, 
@@ -78,7 +78,6 @@ export function BibliotecaEspelhosDrawer({
   const [tempName, setTempName] = useState("");
   const [showConfirmExternalDialog, setShowConfirmExternalDialog] = useState(false);
   const [pendingEspelhoData, setPendingEspelhoData] = useState<{espelhoId: string, imageUrls: string[]} | null>(null);
-  const { toast } = useToast();
 
   // Carregar espelhos da biblioteca
   useEffect(() => {
@@ -116,8 +115,7 @@ export function BibliotecaEspelhosDrawer({
               idsProcessados.forEach(id => {
                 const espelho = espelhosAtualizados.find(e => e.id === id);
                 if (espelho) {
-                  toast({
-                    title: "Texto gerado!",
+                  toast("Texto gerado!", {
                     description: `O texto para "${espelho.nome}" foi gerado com sucesso!`,
                   });
                 }
@@ -146,11 +144,7 @@ export function BibliotecaEspelhosDrawer({
       setEspelhos(data.espelhos || []);
     } catch (error: any) {
       console.error("Erro ao carregar espelhos:", error);
-      toast({
-        title: "Erro",
-        description: "Não foi possível carregar a biblioteca de espelhos.",
-        variant: "destructive",
-      });
+      toast("Erro", { description: "Não foi possível carregar a biblioteca de espelhos."  });
     } finally {
       setLoading(false);
     }
@@ -184,22 +178,15 @@ export function BibliotecaEspelhosDrawer({
         _skipDialog: true
       });
 
-      toast({
-        title: usar ? "Espelho selecionado" : "Espelho removido",
-        description: usar 
+      toast(usar ? "Espelho selecionado" : "Espelho removido", { description: usar 
           ? "Este espelho será usado para a análise deste lead."
-          : "Nenhum espelho da biblioteca está selecionado.",
-      });
+          : "Nenhum espelho da biblioteca está selecionado." });
 
       // Recarregar lista para atualizar contadores
       fetchEspelhos();
     } catch (error: any) {
       console.error("Erro ao associar espelho:", error);
-      toast({
-        title: "Erro",
-        description: "Não foi possível associar o espelho.",
-        variant: "destructive",
-      });
+      toast("Erro", { description: "Não foi possível associar o espelho."  });
     }
   };
 
@@ -271,8 +258,7 @@ export function BibliotecaEspelhosDrawer({
       
       const createData = await createResponse.json();
       
-      toast({
-        title: "Upload concluído",
+      toast("Upload concluído", {
         description: `Espelho "${newEspelhoName || nomeArquivo}" adicionado à biblioteca com ${imageUrls.length} imagem(ns).`,
       });
       
@@ -291,11 +277,7 @@ export function BibliotecaEspelhosDrawer({
       
     } catch (error: any) {
       console.error("Erro no upload:", error);
-      toast({
-        title: "Erro",
-        description: error.message || "Não foi possível fazer upload do espelho.",
-        variant: "destructive",
-      });
+      toast("Erro", { description: error.message || "Não foi possível fazer upload do espelho."  });
     } finally {
       setUploading(false);
     }
@@ -388,18 +370,15 @@ export function BibliotecaEspelhosDrawer({
       
       const nomeEspelho = espelhos.find(e => e.id === espelhoId)?.nome || "Espelho";
       
-      toast({
-        title: "Processando...",
+      toast("Processando...", {
         description: `"${nomeEspelho}" foi enviado para processamento! O texto será gerado automaticamente e aparecerá em breve.`,
       });
       
     } catch (error: any) {
       console.error("Erro ao enviar espelho para sistema externo:", error);
       const nomeEspelho = espelhos.find(e => e.id === espelhoId)?.nome || "Espelho";
-      toast({
-        title: "Erro no processamento",
+      toast.error("Erro no processamento", {
         description: `Não foi possível processar "${nomeEspelho}". Tente novamente.`,
-        variant: "destructive",
       });
     } finally {
       setEnviandoSistemaExterno(false);
@@ -428,17 +407,10 @@ export function BibliotecaEspelhosDrawer({
       setTempName("");
       fetchEspelhos();
       
-      toast({
-        title: "Nome atualizado",
-        description: "Nome do espelho atualizado com sucesso!",
-      });
+      toast("Nome atualizado", { description: "Nome do espelho atualizado com sucesso!"  });
     } catch (error: any) {
       console.error("Erro ao atualizar nome:", error);
-      toast({
-        title: "Erro",
-        description: "Não foi possível atualizar o nome.",
-        variant: "destructive",
-      });
+      toast("Erro", { description: "Não foi possível atualizar o nome."  });
     }
   };
 
@@ -476,10 +448,7 @@ export function BibliotecaEspelhosDrawer({
           throw new Error('Erro ao atualizar espelho da biblioteca');
         }
         
-        toast({
-          title: "Espelho atualizado",
-          description: "Espelho da biblioteca atualizado com sucesso!",
-        });
+        toast("Espelho atualizado", { description: "Espelho da biblioteca atualizado com sucesso!"  });
         
         fetchEspelhos();
       } else {
@@ -491,21 +460,14 @@ export function BibliotecaEspelhosDrawer({
           _skipDialog: true
         });
         
-        toast({
-          title: "Espelho exclusivo criado",
-          description: "Espelho exclusivo criado para este lead!",
-        });
+        toast("Espelho exclusivo criado", { description: "Espelho exclusivo criado para este lead!"  });
       }
       
       setShowEspelhoDialog(false);
       setEditingEspelho(null);
     } catch (error: any) {
       console.error("Erro ao salvar espelho:", error);
-      toast({
-        title: "Erro",
-        description: error.message || "Não foi possível salvar o espelho.",
-        variant: "destructive",
-      });
+      toast("Erro", { description: error.message || "Não foi possível salvar o espelho."  });
     }
   };
 

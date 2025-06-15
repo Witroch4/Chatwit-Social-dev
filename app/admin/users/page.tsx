@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { Loader2, Search, UserCog, X, RefreshCw, UserCheck, ChevronDown, ChevronRight, Copy, Check, ExternalLink, ChevronLeft, CheckCircle, KeyRound } from "lucide-react";
 import {
   Dialog,
@@ -66,7 +66,7 @@ interface User {
 }
 
 const UsersPage = () => {
-  const { toast } = useToast();
+  
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -111,11 +111,7 @@ const UsersPage = () => {
       setUsers(data.users);
     } catch (error) {
       console.error("Erro ao buscar usuários:", error);
-      toast({
-        title: "Erro",
-        description: "Não foi possível carregar os usuários.",
-        variant: "destructive",
-      });
+      toast("Erro", { description: "Não foi possível carregar os usuários."  });
     } finally {
       setLoading(false);
     }
@@ -167,19 +163,12 @@ const UsersPage = () => {
         )
       );
 
-      toast({
-        title: "Sucesso",
-        description: "Usuário atualizado com sucesso.",
-      });
+      toast("Sucesso", { description: "Usuário atualizado com sucesso."  });
 
       handleCloseDialog();
     } catch (error) {
       console.error("Erro ao atualizar usuário:", error);
-      toast({
-        title: "Erro",
-        description: "Não foi possível atualizar o usuário.",
-        variant: "destructive",
-      });
+      toast("Erro", { description: "Não foi possível atualizar o usuário."  });
     }
   };
 
@@ -247,20 +236,13 @@ const UsersPage = () => {
   // Função para confirmar a clonagem
   const confirmClone = () => {
     setIsCloneDialogOpen(false);
-    toast({
-      title: "Conta clonada",
-      description: "Agora você pode colar esta conta em outro usuário.",
-    });
+    toast("Conta clonada", { description: "Agora você pode colar esta conta em outro usuário."  });
   };
 
   // Função para iniciar o processo de colagem
   const handlePasteAccount = (userId: string, clonedAccount: Account | null, setTargetUserId: React.Dispatch<React.SetStateAction<string | null>>, setIsPasteDialogOpen: React.Dispatch<React.SetStateAction<boolean>>, toast: any) => {
     if (!clonedAccount) {
-      toast({
-        title: "Erro",
-        description: "Nenhuma conta foi clonada para colar.",
-        variant: "destructive",
-      });
+      toast("Erro", { description: "Nenhuma conta foi clonada para colar."  });
       return;
     }
 
@@ -279,10 +261,7 @@ const UsersPage = () => {
       setIsCloning(true);
       setIsPasteDialogOpen(false); // Fechar o diálogo antes de fazer a requisição
 
-      toast({
-        title: "Processando",
-        description: "Clonando conta, por favor aguarde...",
-      });
+      toast("Processando", { description: "Clonando conta do usuário..." });
 
       const response = await fetch(`/api/admin/users/clone-account`, {
         method: "POST",
@@ -301,8 +280,7 @@ const UsersPage = () => {
 
       const data = await response.json();
 
-      toast({
-        title: "Sucesso",
+      toast("Sucesso", {
         description: (
           <div className="space-y-1">
             <p>Conta clonada com sucesso!</p>
@@ -321,11 +299,7 @@ const UsersPage = () => {
       fetchUsers();
     } catch (error) {
       console.error("Erro ao clonar conta:", error);
-      toast({
-        title: "Erro",
-        description: "Não foi possível clonar a conta.",
-        variant: "destructive",
-      });
+      toast("Erro", { description: "Não foi possível clonar a conta."  });
     } finally {
       setIsCloning(false);
       setTargetUserId(null);
@@ -350,20 +324,13 @@ const UsersPage = () => {
         throw new Error("Falha ao validar email");
       }
 
-      toast({
-        title: "Sucesso",
-        description: "Email validado com sucesso.",
-      });
+      toast("Sucesso", { description: "Email validado com sucesso."  });
 
       // Atualizar a lista de usuários
       fetchUsers();
     } catch (error) {
       console.error("Erro ao validar email:", error);
-      toast({
-        title: "Erro",
-        description: "Não foi possível validar o email do usuário.",
-        variant: "destructive",
-      });
+      toast("Erro", { description: "Não foi possível validar o email do usuário."  });
     }
   };
 
@@ -377,11 +344,7 @@ const UsersPage = () => {
   // Função para definir uma nova senha para o usuário
   const confirmSetPassword = async () => {
     if (!passwordUser || !newPassword.trim()) {
-      toast({
-        title: "Erro",
-        description: "Por favor, insira uma senha válida.",
-        variant: "destructive",
-      });
+      toast.error("Erro", { description: "Por favor, selecione um usuário." });
       return;
     }
 
@@ -403,21 +366,14 @@ const UsersPage = () => {
         throw new Error("Falha ao definir nova senha");
       }
 
-      toast({
-        title: "Sucesso",
-        description: "Senha definida com sucesso.",
-      });
+      toast("Sucesso", { description: "Senha definida com sucesso."  });
 
       setIsPasswordDialogOpen(false);
       setPasswordUser(null);
       setNewPassword("");
     } catch (error) {
       console.error("Erro ao definir nova senha:", error);
-      toast({
-        title: "Erro",
-        description: "Não foi possível definir a nova senha.",
-        variant: "destructive",
-      });
+      toast("Erro", { description: "Não foi possível definir a nova senha."  });
     } finally {
       setIsSettingPassword(false);
     }

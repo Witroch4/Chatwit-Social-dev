@@ -9,8 +9,8 @@ import {
   TableRow 
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { toast, useToast } from "@/hooks/use-toast";
-import { ToastAction } from "@/components/ui/toast";
+import { toast } from "sonner";
+
 import { UsuarioItem } from "./usuario-item";
 import { RefreshCw } from "lucide-react";
 
@@ -36,8 +36,6 @@ export function UsuariosList({
     total: 0,
     totalPages: 0,
   });
-
-  const { toast } = useToast();
 
   useEffect(() => {
     fetchUsuarios();
@@ -66,10 +64,8 @@ export function UsuariosList({
       }
     } catch (error) {
       console.error("Erro ao buscar usuários:", error);
-      toast({
-        title: "Erro",
+      toast.error("Erro", {
         description: "Não foi possível carregar os usuários. Tente novamente.",
-        variant: "destructive",
       });
     } finally {
       setIsLoading(false);
@@ -83,10 +79,8 @@ export function UsuariosList({
       });
 
       if (response.ok) {
-        toast({
-          title: "Sucesso",
-          description: "Usuário excluído com sucesso!",
-        });
+        toast("Sucesso", { description: "Usuário excluído com sucesso!",
+          });
         setUsuarios(usuarios.filter(usuario => usuario.id !== id));
         setPagination(prev => ({
           ...prev,
@@ -98,10 +92,8 @@ export function UsuariosList({
       }
     } catch (error) {
       console.error("Erro ao excluir usuário:", error);
-      toast({
-        title: "Erro",
+      toast.error("Erro", {
         description: "Não foi possível excluir o usuário. Tente novamente.",
-        variant: "destructive",
       });
     }
   };
@@ -120,10 +112,8 @@ export function UsuariosList({
       const data = await response.json();
 
       if (response.ok && data.pdfUrl) {
-        toast({
-          title: "Sucesso",
-          description: "Arquivos unificados com sucesso!",
-        });
+        toast("Sucesso", { description: "Arquivos unificados com sucesso!",
+          });
         
         // Abrir o PDF em nova aba
         window.open(data.pdfUrl, "_blank");
@@ -132,10 +122,8 @@ export function UsuariosList({
       }
     } catch (error) {
       console.error("Erro ao unificar arquivos:", error);
-      toast({
-        title: "Erro",
+      toast.error("Erro", {
         description: "Não foi possível unificar os arquivos. Tente novamente.",
-        variant: "destructive",
       });
     } finally {
       setIsUnifying(false);

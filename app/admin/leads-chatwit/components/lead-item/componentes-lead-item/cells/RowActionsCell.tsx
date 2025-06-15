@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import { RowActionsCellProps } from "../types";
 import { openChatwitChat, openWhatsApp } from "../utils";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 
 interface RowActionsCellExtendedProps extends RowActionsCellProps {
   onConfirmDelete: () => void;
@@ -29,27 +29,18 @@ export function RowActionsCell({
   onViewDetails, 
   onConfirmDelete 
 }: RowActionsCellExtendedProps) {
-  const { toast } = useToast();
 
   const handleChatwitClick = () => {
     const success = openChatwitChat(lead.leadUrl || null);
     if (!success) {
-      toast({
-        title: "Erro",
-        description: "Link do chat não encontrado.",
-        variant: "destructive",
-      });
+      toast("Erro", { description: "Link do chat não encontrado."  });
     }
   };
 
   const handleWhatsAppClick = () => {
     const success = openWhatsApp(lead.phoneNumber || null);
     if (!success) {
-      toast({
-        title: "Erro",
-        description: "Número de telefone não encontrado.",
-        variant: "destructive",
-      });
+      toast("Erro", { description: "Número de telefone não encontrado."  });
     }
   };
 

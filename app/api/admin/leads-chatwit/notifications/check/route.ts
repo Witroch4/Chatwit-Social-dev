@@ -16,7 +16,6 @@ export async function GET(request: NextRequest) {
     leadId,
     hasActiveConnections: activeConnections > 0,
     connectionCount: activeConnections,
-    totalConnections: sseManager.getConnectionsCount(),
-    retryQueueSize: sseManager.getRetryQueueSize()
+    totalConnections: sseManager.getConnectionsCount()
   });
 } 

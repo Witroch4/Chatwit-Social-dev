@@ -71,6 +71,7 @@ export function LeadItem({
   return (
     <>
       <TableRow 
+        data-lead-id={lead.id}
         className={`group hover:bg-secondary/30 ${
           leadState.consultoriaAtiva 
             ? 'border-2 border-[#AFDAFE] bg-[#4BB8EB]/10 hover:bg-[#4BB8EB]/20' 

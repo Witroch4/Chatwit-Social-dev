@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
-import { addManuscritoJob } from '@/lib/queue/manuscrito.queue';
+import { addManuscritoJob, addEspelhoJob, addAnaliseJob } from '@/lib/queue/leadcells.queue';
 import { sseManager } from '@/lib/sse-manager';
 
 // Criando uma instância do Prisma fora do escopo da rota
@@ -92,36 +92,25 @@ export async function POST(request: Request): Promise<Response> {
       }
       
       try {
-        // Armazenar o payload completo da pré-análise
-        const leadUpdate = await prisma.leadChatwit.update({
-          where: {
-            id: leadID
-          },
-          data: {
-            analisePreliminar: webhookData,
-            analiseValidada: false,
-            aguardandoAnalise: true, // Mantém aguardando análise até que seja validada
-            updatedAt: new Date()
-          }
+        console.log("[Webhook] Adicionando job de análise preliminar à fila");
+        
+        // Adicionar job à fila do worker
+        await addAnaliseJob({
+          leadID,
+          analisePreliminar: webhookData,
+          nome: webhookData.nome,
+          telefone: webhookData.telefone,
+          analise: true
         });
         
-        console.log("[Webhook] Pré-análise de prova armazenada para o lead:", leadID);
-        
-        // Enviar notificação SSE
-        sseManager.sendNotification(leadID, {
-          type: 'analise_preliminar',
-          message: 'Pré-análise da sua prova foi processada com sucesso!',
-          leadId: leadID,
-          status: 'analise_preliminar_recebida',
-          timestamp: new Date().toISOString()
-        });
+        console.log("[Webhook] Job de análise preliminar adicionado à fila para o lead:", leadID);
         
         return NextResponse.json({
           success: true,
-          message: "Pré-análise de prova processada com sucesso",
+          message: "Pré-análise de prova adicionada à fila de processamento",
         });
       } catch (error: any) {
-        console.error("[Webhook] Erro ao atualizar lead com pré-análise:", error);
+        console.error("[Webhook] Erro ao adicionar job de análise preliminar:", error);
         return NextResponse.json({
           success: false,
           message: `Erro ao processar pré-análise: ${error.message || 'Erro desconhecido'}`,
@@ -509,56 +498,25 @@ export async function POST(request: Request): Promise<Response> {
         });
       }
       
-      // Verificar se a URL de análise foi fornecida
-      const analiseUrl = webhookData.analiseUrl;
+      // Adicionar à fila de processamento
+      await addAnaliseJob({
+        leadID: leadID,
+        analiseUrl: webhookData.analiseUrl,
+        nome: webhookData.nome,
+        telefone: webhookData.telefone,
+        analise: true
+      });
       
-      if (!analiseUrl) {
-        console.error("[Webhook] URL da análise não fornecida (analiseUrl)");
-        return NextResponse.json({
-          success: false,
-          message: "URL da análise não fornecida (analiseUrl)",
-        });
-      }
+      console.log("[Webhook] Análise adicionada à fila de processamento para o lead:", leadID);
       
-      console.log("[Webhook] URL da análise:", analiseUrl);
+      // ✅ REMOVIDO: Atualização do banco de dados (responsabilidade do worker)
+      // ✅ REMOVIDO: Notificação SSE (responsabilidade do worker)
+      // O worker irá processar, atualizar o banco e notificar o frontend
       
-      try {
-        // Atualizar o lead com a URL da análise
-        const leadUpdate = await prisma.leadChatwit.update({
-          where: {
-            id: leadID
-          },
-          data: {
-            analiseUrl: analiseUrl,
-            analiseProcessada: true,
-            aguardandoAnalise: false,
-            updatedAt: new Date()
-          }
-        });
-        
-        console.log("[Webhook] Análise de prova processada para o lead:", leadID);
-        
-        // Enviar notificação SSE
-        sseManager.sendNotification(leadID, {
-          type: 'analise_prova',
-          message: 'Análise da sua prova foi processada com sucesso!',
-          leadId: leadID,
-          status: 'analise_prova_processada',
-          analiseUrl: analiseUrl,
-          timestamp: new Date().toISOString()
-        });
-        
-        return NextResponse.json({
-          success: true,
-          message: "Análise de prova processada com sucesso",
-        });
-      } catch (error: any) {
-        console.error("[Webhook] Erro ao atualizar lead com análise:", error);
-        return NextResponse.json({
-          success: false,
-          message: `Erro ao processar análise: ${error.message || 'Erro desconhecido'}`,
-        }, { status: 500 });
-      }
+      return NextResponse.json({
+        success: true,
+        message: "Análise adicionada à fila de processamento",
+      });
     }
 
     // Processar webhook de análise de simulado
@@ -597,56 +555,25 @@ export async function POST(request: Request): Promise<Response> {
         });
       }
       
-      // Verificar se a URL de análise foi fornecida
-      const analiseUrl = webhookData.analiseUrl;
+      // Adicionar à fila de processamento
+      await addAnaliseJob({
+        leadID: leadID,
+        analiseUrl: webhookData.analiseUrl,
+        nome: webhookData.nome,
+        telefone: webhookData.telefone,
+        analiseSimulado: true
+      });
       
-      if (!analiseUrl) {
-        console.error("[Webhook] URL da análise de simulado não fornecida (analiseUrl)");
-        return NextResponse.json({
-          success: false,
-          message: "URL da análise de simulado não fornecida (analiseUrl)",
-        });
-      }
+      console.log("[Webhook] Análise de simulado adicionada à fila de processamento para o lead:", leadID);
       
-      console.log("[Webhook] URL da análise de simulado:", analiseUrl);
+      // ✅ REMOVIDO: Atualização do banco de dados (responsabilidade do worker)
+      // ✅ REMOVIDO: Notificação SSE (responsabilidade do worker)
+      // O worker irá processar, atualizar o banco e notificar o frontend
       
-      try {
-        // Atualizar o lead com a URL da análise de simulado
-        const leadUpdate = await prisma.leadChatwit.update({
-          where: {
-            id: leadID
-          },
-          data: {
-            analiseUrl: analiseUrl,
-            analiseProcessada: true,
-            aguardandoAnalise: false,
-            updatedAt: new Date()
-          }
-        });
-        
-        console.log("[Webhook] Análise de simulado processada para o lead:", leadID);
-        
-        // Enviar notificação SSE
-        sseManager.sendNotification(leadID, {
-          type: 'analise_simulado',
-          message: 'Análise do seu simulado foi processada com sucesso!',
-          leadId: leadID,
-          status: 'analise_simulado_processada',
-          analiseUrl: analiseUrl,
-          timestamp: new Date().toISOString()
-        });
-        
-        return NextResponse.json({
-          success: true,
-          message: "Análise de simulado processada com sucesso",
-        });
-      } catch (error: any) {
-        console.error("[Webhook] Erro ao atualizar lead com análise de simulado:", error);
-        return NextResponse.json({
-          success: false,
-          message: `Erro ao processar análise de simulado: ${error.message || 'Erro desconhecido'}`,
-        }, { status: 500 });
-      }
+      return NextResponse.json({
+        success: true,
+        message: "Análise de simulado adicionada à fila de processamento",
+      });
     }
 
     // Processar webhook de validação de análise de simulado
@@ -828,7 +755,7 @@ export async function POST(request: Request): Promise<Response> {
     }
 
     // Verificar se é um espelho de correção
-    if (isEspelho) {
+    if (isEspelho && webhookData.textoDOEspelho) {
       console.log("[Webhook] Identificado payload de espelho de correção");
       
       // Verificar se temos o leadID
@@ -863,81 +790,30 @@ export async function POST(request: Request): Promise<Response> {
         });
       }
       
-      // Processar o texto do espelho, que é obrigatório
-      const textoDOEspelho = webhookData.textoDOEspelho || null;
+      // Converter textoDOEspelho para o formato esperado pelo worker
+      const textoDAprova = Array.isArray(webhookData.textoDOEspelho) 
+        ? webhookData.textoDOEspelho 
+        : [{ output: webhookData.textoDOEspelho }];
       
-      if (!textoDOEspelho) {
-        console.error("[Webhook] Espelho sem texto (textoDOEspelho)");
-        return NextResponse.json({
-          success: false,
-          message: "Texto do espelho não fornecido (textoDOEspelho)",
-        });
-      }
+      // Adicionar à fila de processamento
+      await addEspelhoJob({
+        leadID: leadID,
+        textoDAprova: textoDAprova,
+        nome: webhookData.nome,
+        telefone: webhookData.telefone,
+        espelho: true
+      });
       
-      console.log("[Webhook] Texto do espelho:", textoDOEspelho ? "Presente" : "Ausente");
+      console.log("[Webhook] Espelho adicionado à fila de processamento para o lead:", leadID);
       
-      try {
-        // Verificar imagens do espelho (opcional)
-        let urlsEspelho: string[] = [];
-        
-        if (webhookData.arquivos_imagens_espelho && 
-            Array.isArray(webhookData.arquivos_imagens_espelho) && 
-            webhookData.arquivos_imagens_espelho.length > 0) {
-          
-          console.log("[Webhook] Processando imagens do espelho");
-          const imagensEspelho = webhookData.arquivos_imagens_espelho;
-          urlsEspelho = imagensEspelho.map((item: { url: string }) => item.url);
-          console.log("[Webhook] URLs do espelho:", urlsEspelho);
-        } else {
-          console.log("[Webhook] Nenhuma imagem do espelho fornecida, processando apenas o texto");
-        }
-        
-        // Atualizar o lead com as informações do espelho
-        const leadUpdateData: any = {
-          textoDOEspelho: textoDOEspelho,
-          espelhoProcessado: true,      // Marcar como processado
-          aguardandoEspelho: false,     // Não está mais aguardando
-          updatedAt: new Date()
-        };
-        
-        // Adicionar espelhoCorrecao apenas se houver imagens
-        if (urlsEspelho.length > 0) {
-          leadUpdateData.espelhoCorrecao = JSON.stringify(urlsEspelho);
-        }
-        
-        console.log("[Webhook] Atualizando lead com dados:", leadUpdateData);
-        
-        const leadUpdate = await prisma.leadChatwit.update({
-          where: {
-            id: leadID
-          },
-          data: leadUpdateData
-        });
-        
-        console.log("[Webhook] Espelho de correção processado para o lead:", leadID);
-        
-        // Enviar notificação SSE
-        sseManager.sendNotification(leadID, {
-          type: 'espelho_correcao',
-          message: 'Espelho de correção da sua prova foi processado!',
-          leadId: leadID,
-          status: 'espelho_processado',
-          textoDOEspelho: textoDOEspelho,
-          temImagens: urlsEspelho.length > 0,
-          timestamp: new Date().toISOString()
-        });
-        
-        return NextResponse.json({
-          success: true,
-          message: "Espelho de correção processado com sucesso",
-        });
-      } catch (error: any) {
-        console.error("[Webhook] Erro ao atualizar lead com espelho:", error);
-        return NextResponse.json({
-          success: false,
-          message: `Erro ao processar espelho: ${error.message || 'Erro desconhecido'}`,
-        }, { status: 500 });
-      }
+      // ✅ REMOVIDO: Atualização do banco de dados (responsabilidade do worker)
+      // ✅ REMOVIDO: Notificação SSE (responsabilidade do worker)
+      // O worker irá processar, atualizar o banco e notificar o frontend
+      
+      return NextResponse.json({
+        success: true,
+        message: "Espelho adicionado à fila de processamento",
+      });
     }
 
     // Verificar se é um espelho de consultoria fase 2
@@ -1086,56 +962,17 @@ export async function POST(request: Request): Promise<Response> {
       // Adicionar à fila de processamento
       await addManuscritoJob({
         leadID: leadID,
-        textoDAprova: webhookData.textoDAprova
+        textoDAprova: webhookData.textoDAprova,
+        nome: webhookData.nome,
+        telefone: webhookData.telefone,
+        manuscrito: true
       });
       
-      // Juntar os "output" em uma única string com separadores
-      const conteudoUnificado = webhookData.textoDAprova
-        .map((item: { output: string }) => item.output)
-        .join('\n\n---------------------------------\n\n');
-        
-      // Atualizar o lead com o texto manuscrito
-      const leadUpdate = await prisma.leadChatwit.update({
-        where: {
-          id: leadID
-        },
-        data: {
-          provaManuscrita: conteudoUnificado,
-          manuscritoProcessado: true,
-          aguardandoManuscrito: false,
-          updatedAt: new Date()
-        }
-      });
+      console.log("[Webhook] Manuscrito adicionado à fila de processamento para o lead:", leadID);
       
-      console.log("[Webhook] Manuscrito adicionado à fila de processamento");
-      
-      // Verificar se há conexões ativas antes de enviar notificação
-      const conexoesAtivas = sseManager.getConnectionsForLead(leadID);
-      console.log(`[SSE] Verificando conexões ativas para leadId ${leadID}: ${conexoesAtivas} conexões`);
-      
-      // Enviar notificação SSE com dados completos do lead atualizado
-      const notificationData = {
-        type: 'leadUpdate',
-        leadData: {
-          ...leadUpdate,
-          // Garantir que os campos essenciais estão presentes
-          id: leadID,
-          provaManuscrita: conteudoUnificado,
-          manuscritoProcessado: true,
-          aguardandoManuscrito: false,
-        },
-        message: 'O manuscrito da sua prova foi processado com sucesso!',
-        timestamp: new Date().toISOString()
-      };
-      
-      console.log(`[SSE] Enviando notificação para leadId ${leadID}:`, notificationData);
-      const totalSent = sseManager.sendNotification(leadID, notificationData);
-      
-      if (totalSent === 0) {
-        console.log(`[SSE] ⚠️ Notificação não pôde ser entregue imediatamente para ${leadID}. Sistema de retry ativo.`);
-      } else {
-        console.log(`[SSE] ✅ Notificação entregue com sucesso para ${leadID} (${totalSent} conexões)`);
-      }
+      // ✅ REMOVIDO: Atualização do banco de dados (responsabilidade do worker)
+      // ✅ REMOVIDO: Notificação SSE (responsabilidade do worker)
+      // O worker irá processar, atualizar o banco e notificar o frontend
       
       return NextResponse.json({
         success: true,

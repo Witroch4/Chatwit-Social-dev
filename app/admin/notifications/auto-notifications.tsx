@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from "sonner";
 import { Loader2, Bell, AlertTriangle, CheckCircle, RefreshCw } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 
@@ -28,7 +28,7 @@ interface NotificationResult {
 }
 
 const AutoNotifications = () => {
-  const { toast } = useToast();
+  
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<NotificationResult[]>([]);
   const [progressStatus, setProgressStatus] = useState('');
@@ -130,24 +130,17 @@ const AutoNotifications = () => {
         .reduce((acc, curr) => acc + curr.count, 0);
 
       if (totalSent > 0) {
-        toast({
-          title: "Notificações enviadas",
+        toast("Notificações enviadas", {
           description: `${totalSent} notificações automáticas foram enviadas com sucesso.`,
         });
       } else {
-        toast({
-          variant: "destructive",
-          title: "Erro",
-          description: "Não foi possível enviar as notificações automáticas.",
-        });
+        toast.error("Erro", { description: "Não foi possível enviar as notificações automáticas.",
+         });
       }
     } catch (error) {
       console.error('Erro ao enviar notificações automáticas:', error);
-      toast({
-        variant: "destructive",
-        title: "Erro",
-        description: "Ocorreu um erro ao enviar as notificações automáticas.",
-      });
+      toast.error("Erro", { description: "Ocorreu um erro ao enviar as notificações automáticas.",
+       });
     } finally {
       setLoading(false);
     }

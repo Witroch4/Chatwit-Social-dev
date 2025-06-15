@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { NotificationDropdown } from "@/components/notifications/notification-dropdown";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { toast } from "sonner";
 
 interface InstagramAccount {
   id: string;
@@ -29,7 +30,7 @@ interface InstagramAccount {
 }
 
 export default function RedeSocialPage() {
-  const { toast } = useToast();
+  
   const { data: session, update } = useSession();
   const router = useRouter();
   const [selectedPlatform, setSelectedPlatform] = useState<string | null>("instagram");
@@ -68,10 +69,8 @@ export default function RedeSocialPage() {
 
       if (data.success) {
         console.log('Notificação de boas-vindas enviada com sucesso');
-        toast({
-          title: "Bem-vindo!",
+        toast("Bem-vindo!", {
           description: "Notificação de boas-vindas enviada com sucesso.",
-          variant: "default",
         });
       }
     } catch (error) {
@@ -322,11 +321,8 @@ export default function RedeSocialPage() {
     } catch (error) {
       console.error("Erro ao conectar com Instagram:", error);
       setConnectionError("Ocorreu um erro ao tentar conectar com o Instagram. Tente novamente mais tarde.");
-      toast({
-        variant: "destructive",
-        title: "Erro de conexão",
-        description: "Não foi possível conectar ao Instagram. Tente novamente mais tarde.",
-      });
+      toast.error("Erro de conexão", { description: "Não foi possível conectar ao Instagram. Tente novamente mais tarde.",
+       });
     } finally {
       setIsConnecting(false);
     }
@@ -349,25 +345,17 @@ export default function RedeSocialPage() {
           prevAccounts.filter(account => account.id !== accountId)
         );
 
-        toast({
-          title: "Conta desconectada",
-          description: "A conta do Instagram foi desconectada com sucesso.",
-        });
+        toast("Conta desconectada", { description: "A conta do Instagram foi desconectada com sucesso.",
+          });
       } else {
         const data = await response.json();
-        toast({
-          variant: "destructive",
-          title: "Erro ao desconectar",
-          description: data.error || "Não foi possível desconectar a conta. Tente novamente.",
-        });
+        toast.error("Erro ao desconectar", { description: data.error || "Não foi possível desconectar a conta. Tente novamente.",
+         });
       }
     } catch (error) {
       console.error("Erro ao desconectar conta:", error);
-      toast({
-        variant: "destructive",
-        title: "Erro ao desconectar",
-        description: "Ocorreu um erro ao tentar desconectar a conta. Tente novamente.",
-      });
+      toast.error("Erro ao desconectar", { description: "Ocorreu um erro ao tentar desconectar a conta. Tente novamente.",
+       });
     }
   };
 

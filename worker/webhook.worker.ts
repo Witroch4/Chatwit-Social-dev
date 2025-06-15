@@ -5,8 +5,9 @@ import dotenv from 'dotenv';
 import { connection } from '@/lib/redis';
 import { prisma } from '@/lib/prisma';
 import { processAgendamentoTask } from './WebhookWorkerTasks/agendamento.task';
-import { processManuscritoTask } from './WebhookWorkerTasks/manuscrito.task';
+import { processLeadCellTask } from './WebhookWorkerTasks/leadcells.task';
 import { MANUSCRITO_QUEUE_NAME } from '@/lib/queue/manuscrito.queue';
+import { leadCellsQueue } from '@/lib/queue/leadcells.queue';
 import {
   AUTO_NOTIFICATIONS_QUEUE_NAME,
   IAutoNotificationJobData,
@@ -32,11 +33,22 @@ const agendamentoWorker = new Worker(
   { connection }
 );
 
-// Worker de manuscrito
+// Worker de manuscrito (mantido para compatibilidade)
 const manuscritoWorker = new Worker(
   MANUSCRITO_QUEUE_NAME,
-  processManuscritoTask,
+  processLeadCellTask,
   { connection }
+);
+
+// Worker unificado para lead cells (manuscrito, espelho, análise)
+const leadCellsWorker = new Worker(
+  'leadCells',
+  processLeadCellTask,
+  { 
+    connection,
+    concurrency: 5,
+    lockDuration: 30000,
+  }
 );
 
 // Worker de leads‑chatwit 🔥
@@ -77,7 +89,7 @@ const autoNotificationsWorker = new Worker<IAutoNotificationJobData>(
 );
 
 // Tratamento de eventos dos workers
-[agendamentoWorker, manuscritoWorker, leadsChatwitWorker, autoNotificationsWorker].forEach(worker => {
+[agendamentoWorker, manuscritoWorker, leadCellsWorker, leadsChatwitWorker, autoNotificationsWorker].forEach(worker => {
   worker.on('completed', (job) => {
     console.log(`[BullMQ] Job ${job.id} concluído com sucesso`);
   });

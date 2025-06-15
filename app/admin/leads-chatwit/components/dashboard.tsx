@@ -15,8 +15,8 @@ import {
   ChartContainer,
   ChartTooltipContent
 } from "@/components/ui/chart";
-import { toast, useToast } from "@/hooks/use-toast";
-import { ToastAction } from "@/components/ui/toast";
+import { toast } from "sonner";
+
 import { Skeleton } from "@/components/ui/skeleton";
 import { Area, AreaChart, BarChart, CartesianGrid, XAxis, Bar, Pie, PieChart, Label, Tooltip } from "recharts";
 
@@ -62,8 +62,6 @@ export function LeadsDashboard({ isOpen, refreshCounter, period }: DashboardProp
     leadsPorCanal: []
   });
 
-  const { toast } = useToast();
-  
   useEffect(() => {
     if (isOpen) {
       fetchDashboardData();
@@ -84,10 +82,8 @@ export function LeadsDashboard({ isOpen, refreshCounter, period }: DashboardProp
       }
     } catch (error: any) {
       console.error("Erro ao buscar dados do dashboard:", error);
-      toast({
-        title: "Erro",
+      toast.error("Erro", {
         description: error.message || "Não foi possível carregar os dados do dashboard",
-        variant: "destructive",
       });
     } finally {
       setIsLoading(false);

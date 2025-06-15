@@ -13,7 +13,7 @@ import PalavraExpressaoSelection from "../../components/WIT-EQ/PalavraExpressaoS
 import PreviewPhoneMockup from "../../components/PreviewPhoneMockup";
 import ToggleActions from "../../components/WIT-EQ/ToggleActions";
 
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
@@ -104,7 +104,7 @@ interface PostSelectionProps {
 
 export default function EditPage() {
   const { data: session, status } = useSession();
-  const { toast } = useToast();
+  
   const router = useRouter();
   const params = useParams<PageParams>();
   const id = params?.id;
@@ -207,11 +207,7 @@ export default function EditPage() {
       }
     } catch (err: any) {
       console.error("Erro ao carregar mais publicações:", err);
-      toast({
-        title: "Erro",
-        description: "Não foi possível carregar mais publicações.",
-        variant: "destructive",
-      });
+      toast("Erro", { description: "Não foi possível carregar mais publicações."  });
     } finally {
       setLoadingMore(false);
     }
@@ -360,44 +356,24 @@ export default function EditPage() {
 
   function validarEtapas(): boolean {
     if (!anyMediaSelected && !selectedPost) {
-      toast({
-        title: "Erro",
-        description: "Selecione uma publicação específica ou escolha 'Qualquer Publicação'",
-        variant: "destructive",
-      });
+      toast("Erro", { description: "Selecione uma publicação específica ou escolha 'Qualquer Publicação'"  });
       return false;
     }
     if (!anyword && inputPalavra.trim() === "") {
-      toast({
-        title: "Erro",
-        description: "Preencha as palavras-chave ou selecione 'qualquer'.",
-        variant: "destructive",
-      });
+      toast("Erro", { description: "Preencha as palavras-chave ou selecione 'qualquer'."  });
       return false;
     }
     if (dmWelcomeMessage.trim() === "" || dmQuickReply.trim() === "") {
-      toast({
-        title: "Erro",
-        description: "Preencha a DM de boas-vindas e o Quick Reply.",
-        variant: "destructive",
-      });
+      toast("Erro", { description: "Preencha a DM de boas-vindas e o Quick Reply."  });
       return false;
     }
     if (dmSecondMessage.trim() === "" || dmLink.trim() === "" || dmButtonLabel.trim() === "") {
-      toast({
-        title: "Erro",
-        description: "Preencha a mensagem, o link e a legenda do botão da Etapa 3.",
-        variant: "destructive",
-      });
+      toast("Erro", { description: "Preencha a mensagem" });
       return false;
     }
     if (switchResponderComentario) {
       if (publicReply1.trim() === "" || publicReply2.trim() === "" || publicReply3.trim() === "") {
-        toast({
-          title: "Erro",
-          description: "Preencha as 3 opções de respostas públicas antes de ativar.",
-          variant: "destructive",
-        });
+        toast("Erro", { description: "Preencha as 3 opções de respostas públicas antes de ativar." });
         return false;
       }
     }
@@ -445,20 +421,12 @@ export default function EditPage() {
         throw new Error(errData.error || "Erro ao atualizar automação.");
       }
 
-      toast({
-        title: "Sucesso",
-        description: "Automação atualizada com sucesso!",
-        variant: "default",
-      });
+      toast("Sucesso", { description: "Automação atualizada com sucesso!" });
 
       setIsEditing(false);
     } catch (error: any) {
       console.error("Erro ao atualizar automação:", error.message);
-      toast({
-        title: "Falha",
-        description: "Erro ao atualizar automação: " + error.message,
-        variant: "destructive",
-      });
+      toast("Falha", { description: "Erro ao atualizar automação: " + error.message });
     }
   }
 
@@ -537,18 +505,12 @@ export default function EditPage() {
           throw new Error(errData.error || "Erro ao atualizar status.");
         }
         setIsLive(newLiveStatus);
-        toast({
-          title: "Sucesso",
+        toast("Sucesso", {
           description: `Automação ${newLiveStatus ? "ativada" : "pausada"} com sucesso!`,
-          variant: "default",
         });
       } catch (error: any) {
         console.error("Erro ao atualizar status:", error.message);
-        toast({
-          title: "Falha",
-          description: "Erro ao atualizar status: " + error.message,
-          variant: "destructive",
-        });
+        toast("Falha", { description: "Erro ao atualizar status: " + error.message });
       }
     }
   }

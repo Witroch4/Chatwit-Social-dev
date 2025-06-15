@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect } from "react";
 import { useDropzone } from "react-dropzone";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import axios from "axios";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,7 +31,7 @@ interface TemplateInfo {
 }
 
 export default function DisparoOABPage() {
-  const { toast } = useToast();
+  
   const [csvData, setCsvData] = useState<string | null>(null);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [enviando, setEnviando] = useState(false);
@@ -105,11 +105,8 @@ export default function DisparoOABPage() {
   // Função para enviar mensagens com o template OAB
   const enviarMensagens = async () => {
     if (!csvData) {
-      toast({
-        variant: "destructive",
-        title: "Arquivo CSV não carregado",
-        description: "Por favor, faça upload de um arquivo CSV com os contatos."
-      });
+      toast.error("Arquivo CSV não carregado", { description: "Por favor, faça upload de um arquivo CSV com os contatos."
+       });
       return;
     }
 
@@ -132,16 +129,12 @@ export default function DisparoOABPage() {
       setProgresso(100);
       setResultado(response.data);
       
-      toast({
-        title: "Disparo OAB concluído",
+      toast("Disparo OAB concluído", {
         description: `${response.data.results.enviados} mensagens enviadas de ${response.data.results.total}.`
       });
     } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Erro no disparo OAB",
-        description: error.response?.data?.error || "Ocorreu um erro ao enviar as mensagens."
-      });
+      toast.error("Erro no disparo OAB", { description: error.response?.data?.error || "Ocorreu um erro ao enviar as mensagens."
+       });
     } finally {
       setEnviando(false);
     }

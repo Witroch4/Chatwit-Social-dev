@@ -32,6 +32,7 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -226,6 +227,9 @@ const ImagePreview: React.FC<{
                   <DialogTitle className="text-lg font-semibold truncate pr-4">
                     {filename}
                   </DialogTitle>
+                  <DialogDescription>
+                    Visualização da imagem em tamanho completo
+                  </DialogDescription>
                 </DialogHeader>
                 
                 {/* Área da imagem com loading */}
@@ -543,6 +547,9 @@ const GeneratedImage: React.FC<{
                     <DialogTitle className="text-lg font-semibold truncate pr-4">
                       {alt}
                     </DialogTitle>
+                    <DialogDescription>
+                      Visualização da imagem gerada em tamanho completo
+                    </DialogDescription>
                   </DialogHeader>
                   
                   {/* Área da imagem */}

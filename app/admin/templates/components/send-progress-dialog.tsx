@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import { 
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -214,6 +215,9 @@ export function SendProgressDialog({
             <MessagesSquare className="h-5 w-5 text-green-500" />
             Enviando Mensagens WhatsApp
           </DialogTitle>
+          <DialogDescription>
+            Acompanhe o progresso do envio das mensagens para os contatos selecionados
+          </DialogDescription>
         </DialogHeader>
         
         <div className="py-6">

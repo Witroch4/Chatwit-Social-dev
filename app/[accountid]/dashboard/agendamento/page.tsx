@@ -19,7 +19,7 @@ import AgendamentoForm from "@/app/[accountid]/dashboard/agendamento/components/
 import AgendamentosList from "@/app/[accountid]/dashboard/agendamento/components/AgendamentosList";
 
 import { UploadedFile } from "@/components/custom/FileUpload";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import useAgendamentos from "@/hooks/useAgendamentos";
 
 import { DotLottieReact } from "@lottiefiles/dotlottie-react";
@@ -47,7 +47,6 @@ const AgendamentoDePostagens: React.FC = () => {
 
   // Estados que controlam os Popovers do Drawer
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const { toast } = useToast();
 
   // Hook para buscar agendamentos (recebe apenas userID, accountid vem da URL)
   const { agendamentos, loading, error, refetch } = useAgendamentos(userID);
@@ -55,27 +54,17 @@ const AgendamentoDePostagens: React.FC = () => {
   // Função para lidar com o agendamento
   const handleAgendar = async () => {
     if (!dateTime) {
-      toast({
-        title: "Agendamento Incompleto",
-        description: "Por favor, selecione data e hora para agendar.",
-      });
+      toast("Agendamento Incompleto", { description: "Por favor, preencha todos os campos obrigatórios." });
       return;
     }
 
     if (!userID) {
-      toast({
-        title: "Usuário Não Autenticado",
-        description: "Por favor, faça login para agendar postagens.",
-      });
+      toast("Usuário Não Autenticado", { description: "Por favor, faça login para continuar." });
       return;
     }
 
     if (!IGtoken) {
-      toast({
-        title: "Token do Instagram Não Disponível",
-        description: "Não foi possível obter o token do Instagram.",
-        variant: "destructive",
-      });
+      toast("Token do Instagram Não Disponível", { description: "Não foi possível obter o token do Instagram."  });
       return;
     }
 
@@ -87,11 +76,7 @@ const AgendamentoDePostagens: React.FC = () => {
         .filter(Boolean) as string[];
 
       if (midiaNames.length === 0) {
-        toast({
-          title: "Mídia Não Enviada",
-          description: "Por favor, faça upload de pelo menos um arquivo de mídia.",
-          variant: "destructive",
-        });
+        toast("Mídia Não Enviada", { description: "Por favor, selecione pelo menos uma mídia para enviar." });
         setUploading(false);
         return;
       }
@@ -109,11 +94,7 @@ const AgendamentoDePostagens: React.FC = () => {
 
       // Verifica se pelo menos um tipo de postagem foi selecionado
       if (!tipos["Post Normal"] && !tipos.Reels && !tipos.Stories) {
-        toast({
-          title: "Tipo de Postagem Não Selecionado",
-          description: "Por favor, selecione pelo menos um tipo de postagem (Post Normal, Reels ou Stories).",
-          variant: "destructive",
-        });
+        toast("Tipo de Postagem Não Selecionado", { description: "Por favor, selecione um tipo de postagem." });
         setUploading(false);
         return;
       }
@@ -174,11 +155,7 @@ const AgendamentoDePostagens: React.FC = () => {
         setUploading(false);
 
         if (response.status === 200 || response.status === 201) {
-          toast({
-            title: "Agendamento Criado com Sucesso!",
-            description: `Data: ${format(dateTime, "PPP", {
-              locale: ptBR,
-            })} às ${format(dateTime, "HH:mm:ss")}`,
+          toast("Agendamento Criado com Sucesso!", { description: `Data: ${format(dateTime, "dd/MM/yyyy")} às ${format(dateTime, "HH:mm:ss")}`,
             action: (
               <Button
                 variant="link"
@@ -201,22 +178,14 @@ const AgendamentoDePostagens: React.FC = () => {
 
           refetch();
         } else {
-          toast({
-            title: "Erro ao Agendar",
-            description: "Ocorreu um erro inesperado. Por favor, tente novamente.",
-            variant: "destructive",
-          });
+          toast.error("Erro ao Agendar", { description: "Ocorreu um erro inesperado. Por favor, tente novamente." });
         }
       } catch (error: any) {
         console.error("[Agendamento] Erro ao criar agendamento único:", error);
 
         setUploading(false);
 
-        toast({
-          title: "Erro ao Agendar",
-          description: error.response?.data?.error || "Ocorreu um erro ao agendar a postagem.",
-          variant: "destructive",
-        });
+        toast("Erro ao Agendar", { description: error.response?.data?.error || "Ocorreu um erro ao agendar a postagem." });
       }
     } catch (error: any) {
       setUploading(false);
@@ -225,11 +194,7 @@ const AgendamentoDePostagens: React.FC = () => {
         error.response?.data?.error ||
         error.response?.data?.details ||
         "Ocorreu um erro ao agendar a postagem.";
-      toast({
-        title: "Erro ao Agendar",
-        description: errorMsg,
-        variant: "destructive",
-      });
+      toast("Erro ao Agendar", { description: errorMsg });
     }
   };
 

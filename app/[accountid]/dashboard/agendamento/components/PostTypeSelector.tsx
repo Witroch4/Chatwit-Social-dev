@@ -12,7 +12,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { Info } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 
 interface PostTypeSelectorProps {
   tipoPostagem: string[];
@@ -33,7 +33,7 @@ const PostTypeSelector: React.FC<PostTypeSelectorProps> = ({
   tratarMidiasComoIndividuais = false,
   setTratarMidiasComoIndividuais
 }) => {
-  const { toast } = useToast();
+  
   const [isPostagemDiaria, setIsPostagemDiaria] = useState(false);
   const [isPostagemSemanal, setIsPostagemSemanal] = useState(false);
   const [isPostagemAleatoria, setIsPostagemAleatoria] = useState(false);
@@ -64,10 +64,7 @@ const PostTypeSelector: React.FC<PostTypeSelectorProps> = ({
       setTipoPostagem((prev) =>
         prev.includes("Diario") ? prev : [...prev, "Diario"]
       );
-      toast({
-        title: "Postagem Diária Ativada",
-        description: "Esta postagem será publicada automaticamente todos os dias no horário selecionado.",
-      });
+      toast("Postagem Diária Ativada", { description: "Esta postagem será publicada automaticamente todos os dias no horário selecionado."  });
     } else {
       setTipoPostagem((prev) => prev.filter((item) => item !== "Diario"));
     }
@@ -79,10 +76,7 @@ const PostTypeSelector: React.FC<PostTypeSelectorProps> = ({
       setTipoPostagem((prev) =>
         prev.includes("Semanal") ? prev : [...prev, "Semanal"]
       );
-      toast({
-        title: "Postagem Semanal Ativada",
-        description: "Esta postagem será publicada automaticamente todas as semanas no horário selecionado.",
-      });
+      toast("Postagem Semanal Ativada", { description: "Esta postagem será publicada automaticamente todas as semanas no horário selecionado."  });
     } else {
       setTipoPostagem((prev) => prev.filter((item) => item !== "Semanal"));
     }
@@ -96,10 +90,7 @@ const PostTypeSelector: React.FC<PostTypeSelectorProps> = ({
       );
 
       if (isPostagemDiaria) {
-        toast({
-          title: "Postagem Diária + Aleatória Ativada",
-          description: "Esta postagem será publicada diariamente, selecionando aleatoriamente uma das mídias carregadas para cada dia. Caso haja múltiplas postagens configuradas para o mesmo horário, o sistema escolherá apenas uma para publicação.",
-        });
+        toast("Postagem Diária + Aleatória Ativada", { description: "Esta postagem será publicada diariamente em um horário aleatório." });
       }
     } else {
       setTipoPostagem((prev) => prev.filter((item) => item !== "Aleatório"));

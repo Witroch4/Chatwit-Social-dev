@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import Link from "next/link";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import FileUpload, { UploadedFile } from "@/components/custom/FileUpload";
 
 interface TemplateDetail {
@@ -51,7 +51,7 @@ interface TemplateDetail {
 export default function EditTemplateDetailsPage() {
   const params = useParams();
   const router = useRouter();
-  const { toast } = useToast();
+  
   const [template, setTemplate] = useState<TemplateDetail | null>(null);
   const [formData, setFormData] = useState<any>({
     headerUrl: "",
@@ -268,25 +268,17 @@ export default function EditTemplateDetailsPage() {
       });
       
       if (response.data.success) {
-        toast({
-          title: "Template enviado para análise",
-          description: "As alterações foram enviadas para análise pelo WhatsApp e serão revisadas em breve."
-        });
+        toast("Template enviado para análise", { description: "As alterações foram enviadas para análise pelo WhatsApp e serão revisadas em breve."
+          });
         router.push(`/admin/templates/${templateId}`);
       } else {
-        toast({
-          variant: "destructive",
-          title: "Erro ao atualizar template",
-          description: response.data.error || "Ocorreu um erro ao enviar as alterações para análise"
-        });
+        toast.error("Erro ao atualizar template", { description: response.data.error || "Ocorreu um erro ao enviar as alterações para análise"
+         });
       }
     } catch (err) {
       console.error("Erro ao atualizar template:", err);
-      toast({
-        variant: "destructive",
-        title: "Erro ao atualizar template",
-        description: "Ocorreu um erro ao enviar as alterações para análise"
-      });
+      toast.error("Erro ao atualizar template", { description: "Ocorreu um erro ao enviar as alterações para análise"
+       });
     } finally {
       setIsSaving(false);
     }

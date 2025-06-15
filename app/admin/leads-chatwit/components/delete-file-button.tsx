@@ -2,8 +2,8 @@
 
 import { X } from "lucide-react";
 import { useState } from "react";
-import { toast, useToast } from "@/hooks/use-toast";
-import { ToastAction } from "@/components/ui/toast";
+import { toast } from "sonner";
+
 import {
   Dialog,
   DialogContent,
@@ -22,7 +22,7 @@ interface DeleteFileButtonProps {
 }
 
 export function DeleteFileButton({ onDelete, fileType, fileName, onSuccess }: DeleteFileButtonProps) {
-  const { toast } = useToast();
+  
   const [showConfirm, setShowConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   
@@ -53,8 +53,7 @@ export function DeleteFileButton({ onDelete, fileType, fileName, onSuccess }: De
       
       await onDelete();
       
-      toast({
-        title: "Arquivo excluído",
+      toast("Arquivo excluído", {
         description: `O ${fileDesc} foi excluído com sucesso.`,
       });
       
@@ -64,10 +63,8 @@ export function DeleteFileButton({ onDelete, fileType, fileName, onSuccess }: De
       }
     } catch (error) {
       console.error("Erro ao excluir:", error);
-      toast({
-        title: "Erro na exclusão",
+      toast.error("Erro na exclusão", {
         description: "Não foi possível excluir o arquivo. Tente novamente.",
-        variant: "destructive",
       });
     } finally {
       setIsDeleting(false);

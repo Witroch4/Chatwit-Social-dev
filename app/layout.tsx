@@ -7,7 +7,7 @@ import { ThemeProvider } from "@/components/providers/theme-provider";
 import { SessionProvider } from "@/components/providers/session-provider";
 import ErrorBoundary from "@/components/providers/error-boundary";
 import { cn } from "@/lib/utils";
-import { Toaster } from "@/components/ui/toaster";
+import { Toaster } from "@/components/ui/sonner";
 import { WelcomeNotificationHandler } from "@/components/welcome-notification-handler";
 
 // 👇 import do TooltipProvider

@@ -11,8 +11,7 @@ import {
 } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
-import { toast, useToast } from "@/hooks/use-toast";
-import { ToastAction } from "@/components/ui/toast";
+import { toast } from "sonner";
 import { LeadItem } from "./lead-item/lead-item";
 import { RefreshCw, FileUp, Edit3, Zap, Play } from "lucide-react";
 import { DialogDetalheLead } from "./dialog-detalhe-lead";
@@ -57,8 +56,6 @@ export function LeadsList({ searchQuery, onRefresh, initialLoading, refreshCount
   const [batchCurrentIndex, setBatchCurrentIndex] = useState(0);
   const [batchLeadsList, setBatchLeadsList] = useState<LeadChatwit[]>([]);
   const [batchDialogResolve, setBatchDialogResolve] = useState<((success: boolean) => void) | null>(null);
-
-  const { toast } = useToast();
 
   // Callback para quando um manuscrito é necessário no processamento em lote
   const handleBatchManuscritoNeeded = async (lead: LeadChatwit, index: number, total: number): Promise<boolean> => {
@@ -125,16 +122,7 @@ export function LeadsList({ searchQuery, onRefresh, initialLoading, refreshCount
       }
     } catch (error) {
       console.error("Erro ao buscar leads:", error);
-      toast({
-        title: "Erro",
-        description: "Não foi possível carregar os leads. Tente novamente.",
-        variant: "destructive",
-        action: (
-          <ToastAction altText="Tentar novamente" onClick={fetchLeads}>
-            Tentar novamente
-          </ToastAction>
-        ),
-      });
+      toast.error("Erro", { description: "Não foi possível carregar os leads. Tente novamente." });
     } finally {
       setIsLoading(false);
     }
@@ -154,20 +142,16 @@ export function LeadsList({ searchQuery, onRefresh, initialLoading, refreshCount
       const data = await response.json();
 
       if (response.ok) {
-        toast({
-          title: "Sucesso",
-          description: "Arquivos unificados com sucesso!",
-        });
+        toast("Sucesso", { description: "Arquivos unificados com sucesso!",
+          });
         fetchLeads(); // Recarrega a lista para mostrar o PDF unificado
       } else {
         throw new Error(data.error || "Erro ao unificar arquivos");
       }
     } catch (error) {
       console.error("Erro ao unificar arquivos:", error);
-      toast({
-        title: "Erro",
+      toast.error("Erro", {
         description: "Não foi possível unificar os arquivos. Tente novamente.",
-        variant: "destructive",
       });
     } finally {
       setIsUnifying(false);
@@ -188,20 +172,16 @@ export function LeadsList({ searchQuery, onRefresh, initialLoading, refreshCount
       const data = await response.json();
 
       if (response.ok) {
-        toast({
-          title: "Sucesso",
-          description: "PDF convertido em imagens com sucesso!",
-        });
+        toast("Sucesso", { description: "PDF convertido em imagens com sucesso!",
+          });
         fetchLeads(); // Recarrega a lista para mostrar as imagens
       } else {
         throw new Error(data.error || "Erro ao converter PDF em imagens");
       }
     } catch (error) {
       console.error("Erro ao converter PDF em imagens:", error);
-      toast({
-        title: "Erro",
+      toast.error("Erro", {
         description: "Não foi possível converter o PDF em imagens. Tente novamente.",
-        variant: "destructive",
       });
     } finally {
       setIsConverting(null);
@@ -215,10 +195,8 @@ export function LeadsList({ searchQuery, onRefresh, initialLoading, refreshCount
       });
 
       if (response.ok) {
-        toast({
-          title: "Sucesso",
-          description: "Lead excluído com sucesso!",
-        });
+        toast("Sucesso", { description: "Lead excluído com sucesso!",
+          });
         setLeads(leads.filter(lead => lead.id !== id));
         setPagination(prev => ({
           ...prev,
@@ -230,20 +208,16 @@ export function LeadsList({ searchQuery, onRefresh, initialLoading, refreshCount
       }
     } catch (error) {
       console.error("Erro ao excluir lead:", error);
-      toast({
-        title: "Erro",
+      toast.error("Erro", {
         description: "Não foi possível excluir o lead. Tente novamente.",
-        variant: "destructive",
       });
     }
   };
 
   const handleEditLead = (lead: any) => {
     if (!lead || !lead.id) {
-      toast({
-        title: "Erro",
+      toast.error("Erro", {
         description: "Não foi possível obter os dados do lead",
-        variant: "destructive",
       });
       return;
     }
@@ -303,10 +277,8 @@ export function LeadsList({ searchQuery, onRefresh, initialLoading, refreshCount
       }
     } catch (error) {
       console.error("Erro ao atualizar lead:", error);
-      toast({
-        title: "Erro",
+      toast.error("Erro", {
         description: "Não foi possível atualizar o lead. Tente novamente.",
-        variant: "destructive",
       });
       return Promise.reject(error);
     } finally {
@@ -406,20 +378,16 @@ export function LeadsList({ searchQuery, onRefresh, initialLoading, refreshCount
       });
 
       if (response.ok) {
-        toast({
-          title: "Sucesso",
-          description: "Solicitação de digitação enviada com sucesso!",
-        });
+        toast("Sucesso", { description: "Solicitação de digitação enviada com sucesso!",
+          });
       } else {
         const data = await response.json();
         throw new Error(data.error || "Erro ao enviar solicitação de digitação");
       }
     } catch (error: any) {
       console.error("Erro ao enviar solicitação de digitação:", error);
-      toast({
-        title: "Erro",
+      toast.error("Erro", {
         description: error.message || "Não foi possível enviar a solicitação de digitação. Tente novamente.",
-        variant: "destructive",
       });
     }
   };
@@ -427,10 +395,8 @@ export function LeadsList({ searchQuery, onRefresh, initialLoading, refreshCount
   // Função para iniciar o processamento em lote
   const handleStartBatchProcessing = async () => {
     if (selectedLeads.length === 0) {
-      toast({
-        title: "Aviso",
-        description: "Selecione pelo menos um lead para processar.",
-      });
+      toast("Aviso", { description: "Selecione pelo menos um lead para processar.",
+        });
       return;
     }
 
@@ -459,10 +425,8 @@ export function LeadsList({ searchQuery, onRefresh, initialLoading, refreshCount
         await handleEnviarManuscritoParaLead(currentBatchLead, selectedImages);
         setShowBatchManuscritoDialog(true);
       } catch (error: any) {
-        toast({
-          title: "Erro",
+        toast.error("Erro", {
           description: error.message || "Erro ao enviar manuscrito",
-          variant: "destructive",
         });
         batchDialogResolve(false);
         setBatchDialogResolve(null);
@@ -473,10 +437,8 @@ export function LeadsList({ searchQuery, onRefresh, initialLoading, refreshCount
         await handleEnviarEspelhoParaLead(currentBatchLead, selectedImages);
         setShowBatchEspelhoDialog(true);
       } catch (error: any) {
-        toast({
-          title: "Erro",
+        toast.error("Erro", {
           description: error.message || "Erro ao enviar espelho",
-          variant: "destructive",
         });
         batchDialogResolve(false);
         setBatchDialogResolve(null);
@@ -622,7 +584,7 @@ export function LeadsList({ searchQuery, onRefresh, initialLoading, refreshCount
       {/* Gerenciador de Conexões SSE */}
       <SSEConnectionManager 
         leads={leads}
-        onLeadUpdate={handleEditLead}
+        onLeadUpdate={(lead) => handleEditLead({ ...lead, _skipDialog: true })}
       />
       
       {selectedLeads.length > 0 && (
@@ -662,10 +624,8 @@ export function LeadsList({ searchQuery, onRefresh, initialLoading, refreshCount
             <Button 
               variant="default" 
               size="sm" 
-              onClick={() => toast({
-                title: "Não implementado",
-                description: "Esta funcionalidade será adicionada em breve.",
-              })}
+              onClick={() => toast("Não implementado", { description: "Esta funcionalidade será adicionada em breve.",
+                })}
               disabled={batchProcessor.state.isProcessing}
             >
               <FileUp className="h-4 w-4 mr-2" />

@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { RefreshCw, Search, X } from "lucide-react";
 import { LeadsList } from "../components/leads-list";
 import {
@@ -29,7 +29,7 @@ import {
 
 export default function ListagemLeadsPage() {
   const [isLoading, setIsLoading] = useState(true);
-  const { toast } = useToast();
+  
   const [searchQuery, setSearchQuery] = useState("");
   const [filterPeriod, setFilterPeriod] = useState("ultimos7");
   const [refreshCounter, setRefreshCounter] = useState(0);
@@ -37,10 +37,7 @@ export default function ListagemLeadsPage() {
   const handleRefresh = () => {
     setRefreshCounter(prev => prev + 1);
     
-    toast({
-      title: "Atualizando",
-      description: "Atualizando dados dos leads...",
-    });
+    toast("Atualizando", { description: "Atualizando dados dos leads..."  });
   };
 
   return (

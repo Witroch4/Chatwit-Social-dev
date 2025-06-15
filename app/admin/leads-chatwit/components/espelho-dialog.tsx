@@ -9,10 +9,10 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { Loader2, Image as ImageIcon, Send, ArrowRight, Eye } from "lucide-react";
 import { ImageGalleryDialog } from "./image-gallery-dialog";
-import { ToastAction } from "@/components/ui/toast";
+
 import { Badge } from "@/components/ui/badge";
 import { LeadChatwit } from "../types";
 
@@ -60,7 +60,6 @@ export function EspelhoDialog({
   const [showGallery, setShowGallery] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [pendingImages, setPendingImages] = useState<string[]>([]);
-  const { toast } = useToast();
 
   // Atualiza o texto quando as props mudam
   useEffect(() => {
@@ -74,15 +73,7 @@ export function EspelhoDialog({
     try {
       setIsSaving(true);
       await onSave(texto, imagens);
-      toast({
-        title: "Sucesso",
-        description: "Espelho de correção atualizado com sucesso!",
-        action: (
-          <ToastAction altText="Fechar" onClick={handleClose}>
-            Fechar
-          </ToastAction>
-        ),
-      });
+      toast("Sucesso", { description: "Espelho de correção atualizado com sucesso!"  });
       
       if (batchMode && onBatchNext) {
         onBatchNext();
@@ -90,16 +81,7 @@ export function EspelhoDialog({
         handleClose();
       }
     } catch (error: any) {
-      toast({
-        title: "Erro",
-        description: error.message || "Não foi possível salvar as alterações.",
-        variant: "destructive",
-        action: (
-          <ToastAction altText="Tentar novamente" onClick={handleSave}>
-            Tentar novamente
-          </ToastAction>
-        ),
-      });
+      toast.error("Erro", { description: error.message || "Não foi possível salvar as alterações." });
     } finally {
       setIsSaving(false);
     }
@@ -119,18 +101,11 @@ export function EspelhoDialog({
       setIsCancelando(true);
       await onCancelarEspelho();
       console.log("[EspelhoDialog] Cancelamento concluído!");
-      toast({
-        title: "Sucesso",
-        description: "Processamento do espelho cancelado com sucesso!",
-      });
+      toast("Sucesso", { description: "Processamento do espelho cancelado com sucesso!"  });
       handleClose();
     } catch (error: any) {
       console.error("[EspelhoDialog] Erro ao cancelar:", error);
-      toast({
-        title: "Erro",
-        description: error.message || "Não foi possível cancelar o processamento.",
-        variant: "destructive",
-      });
+      toast("Erro", { description: error.message || "Não foi possível cancelar o processamento."  });
     } finally {
       setIsCancelando(false);
     }
@@ -254,18 +229,11 @@ export function EspelhoDialog({
         throw new Error(errorData.error || "Erro ao enviar espelho para processamento");
       }
       
-      toast({
-        title: "Imagens enviadas",
-        description: "Imagens enviadas para o sistema externo! O texto será gerado automaticamente.",
-      });
+      toast("Imagens enviadas", { description: "Imagens enviadas para o sistema externo! O texto será gerado automaticamente."  });
       
     } catch (error: any) {
       console.error("Erro ao enviar imagens para sistema externo:", error);
-      toast({
-        title: "Erro",
-        description: error.message || "Não foi possível enviar para o sistema externo.",
-        variant: "destructive",
-      });
+      toast("Erro", { description: error.message || "Não foi possível enviar para o sistema externo."  });
     } finally {
       setIsGeneratingText(false);
     }

@@ -11,13 +11,13 @@ export async function POST(request: NextRequest) {
     
     console.log(`[SSE Send] Enviando notificação via HTTP para ${leadId}:`, data);
     
-    const sent = sseManager.sendNotification(leadId, data);
+    const sent = await sseManager.sendNotification(leadId, data);
     
     return NextResponse.json({
       success: true,
       leadId,
       notificationsSent: sent,
-      message: sent > 0 ? 'Notificação enviada com sucesso' : 'Nenhuma conexão ativa encontrada'
+      message: sent ? 'Notificação enviada com sucesso' : 'Nenhuma conexão ativa encontrada'
     });
     
   } catch (error: any) {

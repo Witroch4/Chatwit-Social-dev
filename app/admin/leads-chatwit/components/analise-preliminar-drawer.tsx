@@ -19,7 +19,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Plus, Minus, Loader2, Check, Save, XCircle } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 
 interface AnaliseItem {
@@ -68,7 +68,6 @@ export function AnalisePreviewDrawer({
   const [analiseData, setAnaliseData] = useState<AnaliseData>({});
   const [isLoading, setIsLoading] = useState(false);
   const [isValidating, setIsValidating] = useState(false);
-  const { toast } = useToast();
 
   // Inicializar os dados da análise ao abrir o drawer
   useEffect(() => {
@@ -195,16 +194,9 @@ export function AnalisePreviewDrawer({
     try {
       setIsLoading(true);
       await onSave(analiseData);
-      toast({
-        title: "Alterações salvas",
-        description: "As alterações na análise preliminar foram salvas.",
-      });
+      toast("Alterações salvas", { description: "As alterações na análise preliminar foram salvas."  });
     } catch (error: any) {
-      toast({
-        title: "Erro ao salvar",
-        description: error.message || "Não foi possível salvar as alterações.",
-        variant: "destructive",
-      });
+      toast("Erro ao salvar", { description: error.message || "Não foi possível salvar as alterações."  });
     } finally {
       setIsLoading(false);
     }
@@ -227,19 +219,12 @@ export function AnalisePreviewDrawer({
       };
       
       await onValidar(validationData);
-      toast({
-        title: "Análise validada",
-        description: isAnaliseSimulado 
+      toast("Análise validada", { description: isAnaliseSimulado 
           ? "A análise de simulado foi validada e enviada para gerar o PDF final."
-          : "A análise foi validada e enviada para gerar o PDF final.",
-      });
+          : "A análise foi validada e enviada para gerar o PDF final."  });
       onClose();
     } catch (error: any) {
-      toast({
-        title: "Erro ao validar",
-        description: error.message || "Não foi possível validar a análise.",
-        variant: "destructive",
-      });
+      toast("Erro ao validar", { description: error.message || "Não foi possível validar a análise."  });
     } finally {
       setIsValidating(false);
     }

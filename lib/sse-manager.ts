@@ -1,245 +1,217 @@
+import IORedis from 'ioredis';
+
+// --- Interface da Conexão ---
 interface SseConnection {
   controller: ReadableStreamDefaultController<string>;
-  leadId: string;
   connectionId: string;
-  userId?: string;
 }
 
+// --- Definição do Singleton no escopo global ---
+// Isso garante que a mesma instância seja usada mesmo com o hot-reload do Next.js
+const globalForSse = globalThis as unknown as {
+  sseManager: SseManager | undefined;
+};
+
+// --- Classe SseManager ---
 class SseManager {
-  private static instance: SseManager;
-  private connections: Map<string, SseConnection> = new Map();
-  private retryQueue: Map<string, { data: Record<string, any>, attempts: number, lastAttempt: number }> = new Map();
+  private connectionsByLead: Map<string, Map<string, SseConnection>> = new Map();
+  private publisher!: IORedis;
+  private subscriber!: IORedis;
+  private isInitialized = false;
 
-  private constructor() {
-    // Iniciar verificador de retry a cada 5 segundos
-    setInterval(() => {
-      this.processRetryQueue();
-    }, 5000);
+  constructor() {
+    console.log('[SSE Manager] 🚀 Criando nova instância...');
+    this.initializeRedis();
   }
 
-  public static getInstance(): SseManager {
-    if (!SseManager.instance) {
-      SseManager.instance = new SseManager();
-    }
-    return SseManager.instance;
-  }
-
-  private processRetryQueue() {
-    const now = Date.now();
-    const toRetry: string[] = [];
-    
-    this.retryQueue.forEach((item, leadId) => {
-      // Tentar novamente após intervalos crescentes: 3s, 10s, 25s
-      const intervals = [3000, 10000, 25000];
-      const interval = intervals[Math.min(item.attempts, intervals.length - 1)];
-      
-      if (now - item.lastAttempt >= interval) {
-        toRetry.push(leadId);
-      }
-    });
-    
-    toRetry.forEach(leadId => {
-      const item = this.retryQueue.get(leadId);
-      if (item) {
-        console.log(`[SSE Retry] 🔄 Tentativa ${item.attempts + 1} para leadId: ${leadId}`);
-        const sent = this.sendNotificationDirect(leadId, item.data);
-        
-        if (sent > 0) {
-          console.log(`[SSE Retry] ✅ Sucesso no retry para leadId: ${leadId} após ${item.attempts + 1} tentativa(s)`);
-          this.retryQueue.delete(leadId);
-        } else {
-          // Incrementar tentativas
-          item.attempts++;
-          item.lastAttempt = now;
-          
-          // Desistir após 3 tentativas
-          if (item.attempts >= 3) {
-            console.log(`[SSE Retry] ❌ Desistindo após 3 tentativas para leadId: ${leadId}`);
-            this.retryQueue.delete(leadId);
-          } else {
-            this.retryQueue.set(leadId, item);
-          }
-        }
-      }
-    });
-  }
-
-  public addConnection(leadId: string, controller: ReadableStreamDefaultController<string>, userId?: string) {
-    // Limpar conexões antigas do mesmo lead antes de adicionar nova
-    this.removeConnectionsForLead(leadId);
-    
-    const connectionId = `${leadId}_${Date.now()}`;
-    this.connections.set(connectionId, { controller, leadId, connectionId, userId });
-    console.log(`[SSE] Conexão adicionada para leadId: ${leadId}. Total de conexões: ${this.connections.size}`);
-
-    // Verificar se há notificações pendentes no retry queue
-    if (this.retryQueue.has(leadId)) {
-      const item = this.retryQueue.get(leadId)!;
-      console.log(`[SSE] 🎯 Conexão estabelecida para leadId com notificação pendente: ${leadId}`);
-      
-      // Enviar notificação pendente imediatamente
-      setTimeout(() => {
-        const sent = this.sendNotificationDirect(leadId, item.data);
-        if (sent > 0) {
-          console.log(`[SSE] ✅ Notificação pendente entregue para leadId: ${leadId}`);
-          this.retryQueue.delete(leadId);
-        }
-      }, 1000); // Aguardar 1 segundo para conexão se estabilizar
-    }
-
-    // Ping para manter a conexão viva (intervalos maiores)
-    const intervalId = setInterval(() => {
-      this.sendPing(connectionId);
-    }, 45000); // A cada 45 segundos
-
-    // Lidar com o fechamento da conexão pelo cliente
-    const cleanup = () => {
-      clearInterval(intervalId);
-      clearInterval(checkClosed);
-      this.removeConnection(connectionId);
+  private initializeRedis() {
+    const redisConfig = {
+      host: process.env.REDIS_HOST || 'redis',
+      port: parseInt(process.env.REDIS_PORT || '6379', 10),
+      password: process.env.REDIS_PASSWORD,
+      maxRetriesPerRequest: null,
+      connectTimeout: 15000,
+      retryStrategy: (times: number) => Math.min(times * 100, 3000),
     };
 
-    // Tentar detectar quando a conexão é fechada
-    if (controller.signal) {
-      controller.signal.addEventListener('abort', cleanup);
-    }
+    console.log('[SSE Redis] ⚙️ Inicializando com configuração:', {
+      host: redisConfig.host, 
+      port: redisConfig.port, 
+      password: redisConfig.password ? '******' : 'undefined',
+    });
 
-    // Verificar se o controller está fechado periodicamente (menos frequente)
-    const checkClosed = setInterval(() => {
-      try {
-        // Tentar enfileirar um comentário vazio para testar a conexão
-        controller.enqueue(': keep-alive\n\n');
-      } catch (error) {
-        console.log(`[SSE] Conexão ${connectionId} fechada, removendo...`);
-        cleanup();
-      }
-    }, 120000); // Verificar a cada 2 minutos
+    this.publisher = new IORedis(redisConfig);
+    this.subscriber = new IORedis(redisConfig);
+
+    this.subscriber.on('message', this.handleRedisMessage.bind(this));
+    
+    this.publisher.on('connect', () => {
+      console.log('[SSE Redis] ✅ Publisher conectado.');
+      this.isInitialized = true;
+    });
+
+    this.subscriber.on('connect', () => console.log('[SSE Redis] ✅ Subscriber conectado.'));
+    
+    const handleError = (client: string) => (error: Error) => {
+      console.error(`[SSE Redis] ❌ Erro no ${client}:`, error.message);
+      if (client === 'publisher') this.isInitialized = false;
+    };
+
+    this.publisher.on('error', handleError('Publisher'));
+    this.subscriber.on('error', handleError('Subscriber'));
   }
 
-  private removeConnectionsForLead(leadId: string) {
-    const toRemove: string[] = [];
-    this.connections.forEach((connection, connectionId) => {
-      if (connection.leadId === leadId) {
-        toRemove.push(connectionId);
+  private handleRedisMessage(channel: string, message: string) {
+    const leadId = channel.replace('sse:', '');
+    const leadConnections = this.connectionsByLead.get(leadId);
+
+    console.log(`[SSE Redis] 🔔 MENSAGEM RECEBIDA no canal ${channel}:`, message);
+
+    if (!leadConnections || leadConnections.size === 0) {
+      console.warn(`[SSE Redis] ⚠️ Nenhuma conexão ativa para leadId ${leadId}. Mensagem descartada.`);
+      return;
+    }
+
+    console.log(`[SSE Redis] ➡️ Enviando mensagem para ${leadConnections.size} cliente(s) do lead ${leadId}`);
+    
+    let successCount = 0;
+    leadConnections.forEach((conn) => {
+      try {
+        conn.controller.enqueue(`data: ${message}\n\n`);
+        successCount++;
+        console.log(`[SSE Redis] ✅ Mensagem enviada para conexão ${conn.connectionId}`);
+      } catch (e) {
+        console.warn(`[SSE Manager] ⚠️ Conexão ${conn.connectionId} fechada, removendo.`, e);
+        this.removeConnection(leadId, conn.connectionId);
       }
     });
     
-    toRemove.forEach(connectionId => {
-      console.log(`[SSE] Removendo conexão antiga: ${connectionId}`);
-      this.removeConnection(connectionId);
-    });
+    console.log(`[SSE Redis] 📊 Resumo: ${successCount}/${leadConnections.size} mensagens entregues com sucesso`);
   }
 
-  private removeConnection(connectionId: string) {
-    if (this.connections.has(connectionId)) {
-      this.connections.delete(connectionId);
-      console.log(`[SSE] Conexão removida: ${connectionId}. Total de conexões: ${this.connections.size}`);
-    }
-  }
-  
-  private sendPing(connectionId: string) {
-    const connection = this.connections.get(connectionId);
-    if (connection) {
-      try {
-        connection.controller.enqueue(': ping\n\n');
-      } catch (error) {
-        console.log(`[SSE] Falha ao enviar ping para ${connectionId}, removendo conexão.`);
-        this.removeConnection(connectionId);
-      }
-    }
-  }
-
-  private sendNotificationDirect(leadId: string, data: Record<string, any>): number {
-    const message = `data: ${JSON.stringify(data)}\n\n`;
-    let sent = 0;
+  public addConnection(leadId: string, controller: ReadableStreamDefaultController<string>): string {
+    const connectionId = `${leadId}-${Date.now()}`;
     
-    this.connections.forEach((connection) => {
-      if (connection.leadId === leadId) {
-        try {
-          connection.controller.enqueue(message);
-          sent++;
-          console.log(`[SSE] Notificação enviada para leadId: ${leadId} na conexão ${connection.connectionId}`);
-        } catch (error) {
-          console.log(`[SSE] Falha ao enviar notificação para ${connection.connectionId}, removendo conexão.`);
-          this.removeConnection(connection.connectionId);
+    if (!this.connectionsByLead.has(leadId)) {
+      this.connectionsByLead.set(leadId, new Map());
+      
+      // ====================================================================
+      // CORREÇÃO: Removida a condição 'if (this.isInitialized)'
+      // A biblioteca ioredis gerencia automaticamente a fila de comandos
+      // e executa o subscribe assim que a conexão estiver estabelecida
+      this.subscriber.subscribe(`sse:${leadId}`, (err, count) => {
+        if (err) {
+          return console.error(`[SSE Redis] ❌ Falha ao se inscrever no canal sse:${leadId}`, err);
         }
-      }
-    });
-
-    return sent;
-  }
-
-  public sendNotification(leadId: string, data: Record<string, any>) {
-    const sent = this.sendNotificationDirect(leadId, data);
-    console.log(`[SSE] Total de notificações enviadas para leadId ${leadId}: ${sent}`);
-    
-    // Se não conseguiu enviar, verificar se há conexões ativas via HTTP
-    if (sent === 0) {
-      console.log(`[SSE] ⚠️ Nenhuma conexão ativa para leadId: ${leadId}. Verificando conexões via HTTP...`);
-      
-      // Tentar verificar conexões ativas via HTTP (não bloquear o fluxo)
-      this.checkActiveConnectionsViaHTTP(leadId, data).catch(error => {
-        console.error(`[SSE] Erro ao verificar conexões via HTTP:`, error);
+        console.log(`[SSE Redis] 📡 Inscrição no canal sse:${leadId} confirmada. Total de inscrições nesta instância: ${count}`);
       });
-      
-      // Adicionar ao retry queue independentemente
-      this.retryQueue.set(leadId, {
-        data,
-        attempts: 0,
-        lastAttempt: Date.now()
-      });
+      // ====================================================================
     }
     
-    return sent;
-  }
-
-  private async checkActiveConnectionsViaHTTP(leadId: string, data: Record<string, any>) {
+    this.connectionsByLead.get(leadId)!.set(connectionId, { controller, connectionId });
+    console.log(`[SSE Manager] ➕ Conexão ${connectionId} adicionada para o lead ${leadId}.`);
+    
+    // Enviar mensagem de confirmação
     try {
-      // Fazer uma requisição para verificar se há conexões ativas
-      const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/admin/leads-chatwit/notifications/check?leadId=${leadId}`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-      
-      if (response.ok) {
-        const result = await response.json();
-        if (result.hasActiveConnections) {
-          console.log(`[SSE] ✅ Conexões ativas encontradas via HTTP para ${leadId}. Tentando reenviar...`);
-          
-          // Tentar enviar novamente via HTTP
-          await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/admin/leads-chatwit/notifications/send`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ leadId, data }),
-          });
-        }
-      }
+      const welcomeMessage = `data: ${JSON.stringify({
+        type: 'connection',
+        message: 'Conectado com sucesso',
+        leadId,
+        connectionId,
+        timestamp: new Date().toISOString()
+      })}\n\n`;
+      controller.enqueue(welcomeMessage);
     } catch (error) {
-      console.error(`[SSE] Erro na verificação HTTP:`, error);
+      console.error('[SSE Manager] ❌ Erro ao enviar mensagem de boas-vindas:', error);
+    }
+    
+    return connectionId;
+  }
+
+  public removeConnection(leadId: string, connectionId: string): void {
+    const leadConnections = this.connectionsByLead.get(leadId);
+    if (leadConnections?.delete(connectionId)) {
+      console.log(`[SSE Manager] ➖ Conexão ${connectionId} removida.`);
+      if (leadConnections.size === 0) {
+        this.connectionsByLead.delete(leadId);
+        // CORREÇÃO: Removida a condição 'if (this.isInitialized)' aqui também
+        this.subscriber.unsubscribe(`sse:${leadId}`);
+        console.log(`[SSE Redis] 🔌 Inscrição do canal sse:${leadId} cancelada.`);
+      }
     }
   }
 
-  public getConnectionsCount(): number {
-    return this.connections.size;
+  public async sendNotification(leadId: string, data: any): Promise<boolean> {
+    if (!this.isInitialized) {
+      console.error('[SSE Manager] ‼️ ERRO CRÍTICO: Publisher Redis não conectado. A notificação não será enviada.');
+      return false;
+    }
+    
+    try {
+      const message = JSON.stringify({
+        type: 'notification',
+        leadId,
+        data,
+        timestamp: new Date().toISOString()
+      });
+      
+      await this.publisher.publish(`sse:${leadId}`, message);
+      console.log(`[SSE Redis] ✅ Notificação para ${leadId} publicada com sucesso.`);
+      return true;
+    } catch (error) {
+      console.error(`[SSE Redis] ❌ Erro ao publicar notificação:`, error);
+      return false;
+    }
   }
 
   public getConnectionsForLead(leadId: string): number {
-    let count = 0;
-    this.connections.forEach((connection) => {
-      if (connection.leadId === leadId) {
-        count++;
-      }
-    });
-    return count;
+    const leadConnections = this.connectionsByLead.get(leadId);
+    return leadConnections ? leadConnections.size : 0;
   }
 
-  public getRetryQueueSize(): number {
-    return this.retryQueue.size;
+  public getConnectionsCount(): number {
+    return Array.from(this.connectionsByLead.values())
+      .reduce((total, leadConnections) => total + leadConnections.size, 0);
+  }
+
+  public getStatus() {
+    const leads = Array.from(this.connectionsByLead.keys());
+    const leadCounts = leads.map(leadId => ({
+      leadId,
+      connections: this.connectionsByLead.get(leadId)!.size
+    }));
+
+    return {
+      isRedisInitialized: this.isInitialized,
+      totalConnections: this.getConnectionsCount(),
+      leadsConnected: leads.length,
+      connectionsPerLead: leadCounts
+    };
+  }
+
+  public async cleanup(): Promise<void> {
+    try {
+      console.log('[SSE Manager] 🧹 Iniciando limpeza...');
+      
+      this.connectionsByLead.clear();
+      
+      if (this.isInitialized) {
+        await this.subscriber.disconnect();
+        await this.publisher.disconnect();
+        console.log('[SSE Redis] ✅ Clientes Redis desconectados');
+        this.isInitialized = false;
+      }
+      
+      console.log('[SSE Manager] ✅ Limpeza concluída');
+    } catch (error) {
+      console.error('[SSE Manager] ❌ Erro durante limpeza:', error);
+    }
   }
 }
 
-export const sseManager = SseManager.getInstance(); 
+// --- Lógica do Singleton ---
+export const sseManager = globalForSse.sseManager || new SseManager();
+
+if (process.env.NODE_ENV !== 'production') {
+  globalForSse.sseManager = sseManager;
+} 

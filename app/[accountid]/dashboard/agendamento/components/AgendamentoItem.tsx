@@ -6,7 +6,7 @@ import { ptBR } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
 import EditAgendamentoDialog from "./EditAgendamentoDialog";
 import axios from "axios";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { Agendamento } from "@/types/agendamento";
 import { Badge } from "@/components/ui/badge";
 
@@ -25,18 +25,14 @@ interface AgendamentoItemProps {
 }
 
 const AgendamentoItem: React.FC<AgendamentoItemProps> = ({ agendamento, onExcluir, refetch, accountid }) => {
-  const { toast } = useToast();
+  
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
   // Função para deletar agendamento
   const handleExcluir = async () => {
     if (!agendamento.id) {
-      toast({
-        title: "Erro",
-        description: "ID do agendamento não fornecido.",
-        variant: "destructive",
-      });
+      toast("Erro", { description: "ID do agendamento não fornecido." });
       return;
     }
 
@@ -52,8 +48,7 @@ const AgendamentoItem: React.FC<AgendamentoItemProps> = ({ agendamento, onExclui
           )
         );
 
-        toast({
-          title: "Grupo de Agendamentos Excluído",
+        toast("Grupo de Agendamentos Excluído", {
           description: `Foram excluídos ${agendamento.totalNoGrupo} agendamentos com sucesso.`,
         });
         refetch();
@@ -62,10 +57,7 @@ const AgendamentoItem: React.FC<AgendamentoItemProps> = ({ agendamento, onExclui
         const response = await axios.delete(`/api/${accountid}/agendar/delete/${agendamento.id}`);
 
         if (response.status === 200) {
-          toast({
-            title: "Agendamento Excluído",
-            description: "Seu agendamento foi excluído com sucesso.",
-          });
+          toast("Agendamento Excluído", { description: "Seu agendamento foi excluído com sucesso." });
           refetch();
         } else {
           throw new Error("Erro ao excluir agendamento");
@@ -73,11 +65,7 @@ const AgendamentoItem: React.FC<AgendamentoItemProps> = ({ agendamento, onExclui
       }
     } catch (error: any) {
       console.error("Erro ao excluir agendamento:", error);
-      toast({
-        title: "Erro ao Excluir",
-        description: error.response?.data?.error || "Ocorreu um erro ao excluir o agendamento.",
-        variant: "destructive",
-      });
+      toast("Erro ao Excluir", { description: error.response?.data?.error || "Ocorreu um erro ao excluir o agendamento." });
     } finally {
       setIsDeleting(false);
     }

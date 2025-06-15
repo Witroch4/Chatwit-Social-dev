@@ -7,10 +7,18 @@ export async function GET(request: NextRequest) {
   const leadId = searchParams.get('leadId');
   const action = searchParams.get('action');
   
-  // Endpoint para verificar conexões ativas (retorna JSON)
+  // Endpoint para verificar status das conexões (retorna JSON)
+  if (action === 'status') {
+    const status = sseManager.getStatus();
+    console.log(`[SSE API] 📊 Status solicitado:`, status);
+    
+    return NextResponse.json(status);
+  }
+  
+  // Endpoint para verificar conexões ativas de um lead específico (retorna JSON)
   if (action === 'check' && leadId) {
     const activeConnections = sseManager.getConnectionsForLead(leadId);
-    console.log(`[SSE API] Verificação de conexões para ${leadId}: ${activeConnections} ativas`);
+    console.log(`[SSE API] 🔍 Verificação de conexões para ${leadId}: ${activeConnections} ativas`);
     
     return NextResponse.json({
       leadId,
@@ -21,7 +29,9 @@ export async function GET(request: NextRequest) {
   }
 
   // Para SSE, sempre retornar stream mesmo se leadId estiver ausente
-  console.log(`[SSE API] Iniciando stream SSE para leadId: ${leadId || 'undefined'}`);
+  console.log(`[SSE API] 🌊 Iniciando stream SSE para leadId: ${leadId || 'undefined'}`);
+
+  let connectionId: string | null = null;
 
   const stream = new ReadableStream({
     start(controller) {
@@ -38,20 +48,26 @@ export async function GET(request: NextRequest) {
       }
 
       // Adicionar conexão ao manager
-      sseManager.addConnection(leadId, controller);
+      connectionId = sseManager.addConnection(leadId, controller);
       
-      console.log(`[SSE API] ✅ Stream iniciado para leadId: ${leadId}`);
+      console.log(`[SSE API] ✅ Stream iniciado para leadId: ${leadId}, connectionId: ${connectionId}`);
       
       // Enviar evento inicial de conexão
       controller.enqueue(`data: ${JSON.stringify({
         type: 'connected',
         message: 'Conexão SSE estabelecida com sucesso',
         leadId: leadId,
+        connectionId: connectionId,
         timestamp: new Date().toISOString()
       })}\n\n`);
     },
     cancel() {
-      console.log(`[SSE API] Stream cancelado pelo cliente para leadId: ${leadId}`);
+      console.log(`[SSE API] 🔌 Stream cancelado pelo cliente para leadId: ${leadId}, connectionId: ${connectionId}`);
+      
+      // Remover conexão do manager usando a nova assinatura
+      if (leadId && connectionId) {
+        sseManager.removeConnection(leadId, connectionId);
+      }
     }
   });
 
@@ -76,19 +92,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'leadId e data são obrigatórios' }, { status: 400 });
     }
     
-    console.log(`[SSE API] Enviando notificação via HTTP para ${leadId}:`, data);
+    console.log(`[SSE API] 📤 Enviando notificação via HTTP para ${leadId}:`, data);
     
-    const sent = sseManager.sendNotification(leadId, data);
+    const sent = await sseManager.sendNotification(leadId, data);
     
     return NextResponse.json({
-      success: true,
+      success: sent,
       leadId,
-      notificationsSent: sent,
-      message: sent > 0 ? 'Notificação enviada com sucesso' : 'Nenhuma conexão ativa encontrada'
+      notificationsSent: sent ? 1 : 0,
+      message: sent ? 'Notificação enviada com sucesso' : 'Erro ao enviar notificação ou nenhuma conexão ativa'
     });
     
   } catch (error: any) {
-    console.error('[SSE API] Erro ao enviar notificação via HTTP:', error);
+    console.error('[SSE API] ❌ Erro ao enviar notificação via HTTP:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 } 

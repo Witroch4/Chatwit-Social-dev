@@ -9,10 +9,8 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { Loader2, ArrowRight, FileText } from "lucide-react";
-import { toast } from "@/hooks/use-toast";
-import { ToastAction } from "@/components/ui/toast";
 import { Badge } from "@/components/ui/badge";
 
 interface ManuscritoDialogProps {
@@ -50,7 +48,6 @@ export function ManuscritoDialog({
   const [texto, setTexto] = useState(textoManuscrito || '');
   const [isSaving, setIsSaving] = useState(false);
   const [isCancelando, setIsCancelando] = useState(false);
-  const { toast } = useToast();
 
   // Atualiza o texto quando as props mudam
   useEffect(() => {
@@ -61,25 +58,15 @@ export function ManuscritoDialog({
 
   const handleSave = async () => {
     if (!texto.trim()) {
-      toast({
-        title: "Aviso",
-        description: "O texto do manuscrito não pode ser vazio.",
-        variant: "default",
-      });
+      toast("Aviso", { description: "O texto do manuscrito não pode ser vazio."  });
       return;
     }
 
     try {
       setIsSaving(true);
       await onSave(texto);
-      toast({
-        title: "Sucesso",
+      toast.success("Sucesso", {
         description: "Manuscrito atualizado com sucesso!",
-        action: (
-          <ToastAction altText="Fechar" onClick={handleClose}>
-            Fechar
-          </ToastAction>
-        ),
       });
       
       if (batchMode && onBatchNext) {
@@ -88,15 +75,8 @@ export function ManuscritoDialog({
         handleClose();
       }
     } catch (error: any) {
-      toast({
-        title: "Erro",
+      toast.error("Erro", {
         description: error.message || "Não foi possível salvar as alterações.",
-        variant: "destructive",
-        action: (
-          <ToastAction altText="Tentar novamente" onClick={handleSave}>
-            Tentar novamente
-          </ToastAction>
-        ),
       });
     } finally {
       setIsSaving(false);
@@ -109,17 +89,10 @@ export function ManuscritoDialog({
     try {
       setIsCancelando(true);
       await onCancelarManuscrito();
-      toast({
-        title: "Sucesso",
-        description: "Processamento do manuscrito cancelado com sucesso!",
-      });
+      toast("Sucesso", { description: "Processamento do manuscrito cancelado com sucesso!"  });
       handleClose();
     } catch (error: any) {
-      toast({
-        title: "Erro",
-        description: error.message || "Não foi possível cancelar o processamento.",
-        variant: "destructive",
-      });
+      toast("Erro", { description: error.message || "Não foi possível cancelar o processamento."  });
     } finally {
       setIsCancelando(false);
     }

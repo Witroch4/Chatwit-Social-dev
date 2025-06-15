@@ -15,7 +15,7 @@ import LegendaInput from "./LegendaInput";
 import FileUpload, { UploadedFile } from "@/components/custom/FileUpload";
 import PostTypeSelector from "./PostTypeSelector";
 import axios from "axios";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -43,7 +43,6 @@ const EditAgendamentoDialog: React.FC<EditAgendamentoDialogProps> = ({
   refetch,
   accountid,
 }) => {
-  const { toast } = useToast();
 
   // Estado para data/hora
   const [date, setDate] = useState<Date>(new Date(agendamento.Data));
@@ -88,10 +87,7 @@ const EditAgendamentoDialog: React.FC<EditAgendamentoDialogProps> = ({
 
   const handleEditar = async () => {
     if (!date) {
-      toast({
-        title: "Edição Incompleta",
-        description: "Por favor, selecione data e hora para o agendamento.",
-      });
+      toast("Edição Incompleta", { description: "Por favor, preencha todos os campos obrigatórios." });
       return;
     }
 
@@ -106,11 +102,7 @@ const EditAgendamentoDialog: React.FC<EditAgendamentoDialogProps> = ({
       })).filter(m => m.url && m.mime_type);
 
       if (midias.length === 0) {
-        toast({
-          title: "Mídia Não Enviada",
-          description: "Por favor, faça upload de pelo menos um arquivo de mídia.",
-          variant: "destructive",
-        });
+        toast("Mídia Não Enviada", { description: "Por favor, selecione pelo menos uma mídia para enviar." });
         setUploading(false);
         return;
       }
@@ -155,8 +147,7 @@ const EditAgendamentoDialog: React.FC<EditAgendamentoDialogProps> = ({
         setUploading(false);
 
         if (response.status === 200) {
-          toast({
-            title: "Grupo de Agendamentos Atualizado com Sucesso!",
+          toast("Grupo de Agendamentos Atualizado com Sucesso!", {
             description: `Foram atualizados ${response.data.count} agendamentos.`,
           });
           refetch();
@@ -177,10 +168,7 @@ const EditAgendamentoDialog: React.FC<EditAgendamentoDialogProps> = ({
         setUploading(false);
 
         if (response.status === 200) {
-          toast({
-            title: "Agendamento Atualizado com Sucesso!",
-            description: `Data: ${format(date, "PPP 'às' p", { locale: ptBR })}`,
-          });
+          toast("Agendamento Atualizado com Sucesso!", { description: `Data: ${format(date, "dd/MM/yyyy HH:mm")}` });
           refetch();
           onClose();
         } else {
@@ -190,11 +178,7 @@ const EditAgendamentoDialog: React.FC<EditAgendamentoDialogProps> = ({
     } catch (error: any) {
       setUploading(false);
       console.error("Erro ao atualizar o agendamento:", error);
-      toast({
-        title: "Erro ao Atualizar Agendamento",
-        description: error.response?.data?.error || "Ocorreu um erro ao atualizar o agendamento.",
-        variant: "destructive",
-      });
+      toast("Erro ao Atualizar Agendamento", { description: error.response?.data?.error || "Ocorreu um erro ao atualizar o agendamento."  });
     }
   };
 
